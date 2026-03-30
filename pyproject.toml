@@ -4,7 +4,7 @@ authors = [
     { name = "TFSS", email = "tech4socialsector@azimpremjifoundation.org"}
 ]
 description = "Custom reporting app for tracking allocated budgets and utilized amounts in creche finance management, with insights into expenses, balances, and financial performance."
-python_requires=">=3.10"
+requires-python = ">=3.10,<3.13"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
@@ -25,8 +25,7 @@ packages = []
 
 [tool.ruff]
 line-length = 110
-target-version = "py314"
-
+target-version = "py311"
 [tool.ruff.lint]
 select = [
     "F",

@@ -6,17 +6,3 @@
 
 // 	},
 // });
-
-frappe.ui.form.on('Test', {
-
-	refresh(frm) {
-
-
-            window.open(
-                "/api/method/creche_reports.api.export_reports.export_creche_utilisation_excel"
-            );
-
-        }
-    
-
-});

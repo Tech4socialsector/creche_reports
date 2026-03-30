@@ -17,10 +17,6 @@ def export_creche_utilisation_excel(names: Any = None):
 
     if isinstance(names, str):
         names = names.split(",")
-
-    # -----------------------
-    # WORKBOOK
-    # -----------------------
     wb = Workbook()
     wb.remove(wb.active)  # remove default sheet
 
@@ -43,7 +39,6 @@ def export_creche_utilisation_excel(names: Any = None):
             cell.fill = fill
         if align:
             cell.alignment = align
-
     # -----------------------
     # LOOP EACH DOCUMENT
     # -----------------------

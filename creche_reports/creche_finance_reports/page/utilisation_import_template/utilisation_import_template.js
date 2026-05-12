@@ -58,17 +58,28 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 			.ut-section-heading-title { font-size:15px;font-weight:700;color:#1a4f8a;text-transform:uppercase;letter-spacing:0.04em; }
 
 			/* ── Table ── */
-			.ut-table-scroll { overflow-x:auto;-webkit-overflow-scrolling:touch; }
-			.ut-table-scroll table { width:100%;border-collapse:collapse;font-size:var(--text-sm);min-width:480px;border:1px solid #c5cdd8;border-radius:8px;overflow:hidden; }
+			.ut-table-scroll { overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #c5cdd8;border-radius:8px; }
+			.ut-table-scroll.ut-scrollable { max-height:420px;overflow-y:auto; }
+			.ut-table-scroll table { width:100%;border-collapse:separate;border-spacing:0;font-size:var(--text-sm);min-width:480px; }
 			.ut-table-scroll thead tr { background:#1a4f8a; }
-			.ut-table-scroll thead th { padding:11px 16px;text-align:left;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.2); }
+			.ut-table-scroll thead th {
+				padding:11px 16px;text-align:left;font-size:11px;font-weight:700;color:#ffffff;
+				text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;
+				border-right:1px solid rgba(255,255,255,0.2);
+				border-bottom:1px solid rgba(255,255,255,0.15);
+				position:sticky;top:0;z-index:2;background:#1a4f8a;
+			}
 			.ut-table-scroll thead th:first-child { text-align:center;width:52px; }
 			.ut-table-scroll thead th:last-child { border-right:none; }
-			.ut-table-scroll tbody tr { background:#ffffff;border-bottom:1px solid #dde3ea;transition:background 0.12s; }
+			.ut-table-scroll tbody tr { background:#ffffff;transition:background 0.12s; }
 			.ut-table-scroll tbody tr:nth-child(even) { background:#f4f7fa; }
-			.ut-table-scroll tbody tr:last-child { border-bottom:none; }
 			.ut-table-scroll tbody tr:hover { background:#e8f0fb !important; }
-			.ut-table-scroll tbody td { padding:10px 16px;font-size:var(--text-sm);color:var(--text-color);border-right:1px solid #dde3ea;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px; }
+			.ut-table-scroll tbody td {
+				padding:10px 16px;font-size:var(--text-sm);color:var(--text-color);
+				border-right:1px solid #dde3ea;border-bottom:1px solid #dde3ea;
+				white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;
+			}
+			.ut-table-scroll tbody tr:last-child td { border-bottom:none; }
 			.ut-table-scroll tbody td:last-child { border-right:none; }
 			.ut-td-num  { text-align:center;width:52px;font-weight:600;font-size:12px;color:var(--text-muted); }
 			.ut-td-main { font-weight:600;color:var(--text-color); }
@@ -278,10 +289,7 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 	// ── Budget data cache ─────────────────────────────────────────────
 	var all_budgets = [];
 
-	// ── FIX: load_budgets uses frappe.call to avoid CORS/fetch timing issues
-	// and populates the select directly in the callback after DOM is guaranteed ready
 	function load_budgets() {
-		// Reset select to loading state while fetching
 		var $sel = $(wrapper).find('#ut-budget-select');
 		$sel.empty().append('<option value="">— Loading… —</option>');
 
@@ -304,7 +312,6 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 	function populate_budget_select() {
 		var $sel = $(wrapper).find('#ut-budget-select');
 
-		// Guard: if element somehow not in DOM yet, retry once
 		if (!$sel.length) {
 			setTimeout(populate_budget_select, 100);
 			return;
@@ -355,7 +362,6 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 		return $(wrapper).find('#ut-budget-select').val() || '';
 	}
 
-	// Bind change on the native select
 	$(wrapper).on('change', '#ut-budget-select', function(){
 		on_budget_change($(this).val());
 	});
@@ -408,7 +414,6 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 	 state_filter, no_of_creches_filter, financial_year_filter,
 	 month_filter].forEach(function(f){ f.refresh(); });
 
-	// Load budgets and auto-fill dates on initial page load
 	load_budgets();
 	auto_fill_date_fields();
 
@@ -453,6 +458,9 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 		var selected_name = get_budget_value();
 		var b = all_budgets.find(function(x){ return x.name === selected_name; });
 		return {
+			// FIX: use dedicated budget_reference_id field if present,
+			// fall back to b.name (the Frappe document name) as a last resort
+			budget_reference_id:   b ? (b.budget_reference_id   || b.name  || '').trim() : '',
 			budget_reference_name: b ? (b.budget_reference_name || '').trim() : '',
 			partner_name:          b ? (b.partner_name   || '') : '',
 			partner_id:            b ? (b.partner_id     || '') : '',
@@ -503,7 +511,6 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 		var $backdrop = $(wrapper).find('#ut-confirm-backdrop');
 		$backdrop.fadeIn(160);
 
-		// Reset declaration on each open
 		$(wrapper).find('#ut-declaration').removeClass('checked');
 		$(wrapper).find('#ut-modal-confirm-btn').prop('disabled', true);
 
@@ -527,6 +534,7 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 	// ── Download ──────────────────────────────────────────────────────
 	function do_download(values) {
 		var payload = {
+			budget_reference_id:   values.budget_reference_id,
 			budget_reference_name: values.budget_reference_name,
 			partner_name:          values.partner_name,
 			partner_id:            values.partner_id,
@@ -583,8 +591,11 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 			var rows = data.message || [];
 			if (!rows.length) {
 				$tbody.html('<tr><td colspan="4" class="ut-empty"><div class="ut-empty-icon">&#128193;</div><div>No budget items found</div></td></tr>');
+				$(wrapper).find('.ut-table-scroll').removeClass('ut-scrollable');
 				return;
 			}
+			// Enable vertical scroll when rows exceed 10
+			$(wrapper).find('.ut-table-scroll').toggleClass('ut-scrollable', rows.length > 10);
 			$tbody.html(rows.map(function(row, i){
 				return '<tr>' +
 					'<td class="ut-td-num">' + (i + 1) + '</td>' +

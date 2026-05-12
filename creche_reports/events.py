@@ -4,7 +4,7 @@ import frappe
 def send_import_email(doc, method):
 
     recipients = [
-        "postbox7823@gamil.com"
+        "postbox7823@gmail.com"
     ]
 
     frappe.sendmail(

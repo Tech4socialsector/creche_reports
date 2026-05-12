@@ -5,7 +5,7 @@
 from frappe.model.document import Document
 
 
-class BudgetandExpenseitemslist(Document):
+class Budgetmainhead(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
 
@@ -14,9 +14,7 @@ class BudgetandExpenseitemslist(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
-		budget_main_head: DF.Link
-		budget_sub_head: DF.Link
-		type_of_expenses: DF.Data
+
 	# end: auto-generated types
 
 	pass

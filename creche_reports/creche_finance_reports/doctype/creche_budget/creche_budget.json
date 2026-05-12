@@ -24,7 +24,7 @@
  ],
  "fields": [
   {
-   "fetch_from": "partner_name.grant_id",
+   "fetch_from": "partner_id.grant_id",
    "fieldname": "grant_id",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -33,6 +33,7 @@
    "reqd": 1
   },
   {
+   "fetch_from": "partner_id.state",
    "fieldname": "state",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -138,7 +139,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-12 11:02:22.651438",
+ "modified": "2026-05-12 17:42:06.401973",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche Budget",

@@ -1,4 +1,9 @@
 import frappe
+import frappe
+import json
+from openpyxl import Workbook
+from openpyxl.styles import Protection
+from io import BytesIO
 
 @frappe.whitelist(allow_guest=True)
 def get_all_budget_items():
@@ -15,26 +20,11 @@ def get_all_budget_items():
     )
 
 # ==================================================== Budget Import Template ===============================================================================
-import frappe
-import json
-from openpyxl import Workbook
-from openpyxl.styles import Protection
-from io import BytesIO
-
-
 @frappe.whitelist(allow_guest=True)
 def download_budget_template(data=None):
 
-    # -----------------------------------
-    # CONVERT JSON STRING TO DICT
-    # -----------------------------------
-
     if isinstance(data, str):
         data = json.loads(data)
-
-    # -----------------------------------
-    # FETCH BUDGET ITEMS
-    # -----------------------------------
 
     budget_items = frappe.get_all(
         "Budget and Expense items list",
@@ -47,17 +37,9 @@ def download_budget_template(data=None):
         order_by="name asc"
     )
 
-    # -----------------------------------
-    # CREATE WORKBOOK
-    # -----------------------------------
-
     wb = Workbook()
     ws = wb.active
     ws.title = "Creche Budget"
-
-    # -----------------------------------
-    # HEADERS
-    # -----------------------------------
 
     headers = [
         "Budget reference name",
@@ -71,7 +53,6 @@ def download_budget_template(data=None):
         "Start Date",
         "End Date",
 
-        # Child Table Fields
         "Type of expenses ID (Budget Items List)",
         "Budget main head (Budget Items List)",
         "Budget sub head (Budget Items List)",
@@ -87,10 +68,6 @@ def download_budget_template(data=None):
 
     ws.append(headers)
 
-    # -----------------------------------
-    # CREATE ROWS
-    # -----------------------------------
-
     first_row = True
     start_child_row = 2
     excel_row = 2
@@ -98,10 +75,6 @@ def download_budget_template(data=None):
     for item in budget_items:
 
         row = []
-
-        # -----------------------------------
-        # PARENT FIELDS ONLY FIRST ROW
-        # -----------------------------------
 
         if first_row:
 
@@ -123,16 +96,8 @@ def download_budget_template(data=None):
         else:
             row.extend([""] * 10)
 
-        # -----------------------------------
-        # YEAR FORMULAS
-        # -----------------------------------
-
-        # R column = Total Amount
-        year_formula = f'=IF(R{excel_row}="","",R{excel_row}/3)'
-
-        # -----------------------------------
-        # CHILD TABLE FIELDS
-        # -----------------------------------
+        # Total Amount = Year1 + Year2 + Year3
+        total_amount_formula = f'=SUM(O{excel_row}:Q{excel_row})'
 
         row.extend([
             item.name,
@@ -140,18 +105,13 @@ def download_budget_template(data=None):
             item.budget_sub_head,
             item.type_of_expenses,
 
-            # Formula Fields
-            year_formula,
-            year_formula,
-            year_formula,
+            "",  # Year 1
+            "",  # Year 2
+            "",  # Year 3
 
-            "",  # Total Amount
+            total_amount_formula,
             ""   # Notes
         ])
-
-        # -----------------------------------
-        # TOTAL BUDGET FORMULA
-        # -----------------------------------
 
         total_budget_formula = (
             f'=SUM(R{start_child_row}:R{start_child_row + len(budget_items)-1})'
@@ -166,25 +126,16 @@ def download_budget_template(data=None):
 
         excel_row += 1
 
-    # -----------------------------------
-    # UNLOCK ALL CELLS FIRST
-    # -----------------------------------
-
+    # Unlock all cells
     for row_cells in ws.iter_rows():
         for cell in row_cells:
             cell.protection = Protection(locked=False)
 
-    # -----------------------------------
-    # HEADER ROW READ ONLY
-    # -----------------------------------
-
+    # Lock header
     for cell in ws[1]:
         cell.protection = Protection(locked=True)
 
-    # -----------------------------------
-    # PARENT COLUMNS READ ONLY
-    # -----------------------------------
-
+    # Lock parent fields
     parent_columns = [
         "A", "B", "C", "D", "E",
         "F", "G", "H", "I", "J"
@@ -192,51 +143,30 @@ def download_budget_template(data=None):
 
     for col in parent_columns:
         for row_no in range(2, excel_row):
-            ws[f"{col}{row_no}"].protection = Protection(
-                locked=True
-            )
+            ws[f"{col}{row_no}"].protection = Protection(locked=True)
 
-    # -----------------------------------
-    # CHILD MASTER FIELDS READ ONLY
-    # -----------------------------------
-
+    # Lock child master fields
     child_master_columns = ["K", "L", "M", "N"]
 
     for col in child_master_columns:
         for row_no in range(2, excel_row):
-            ws[f"{col}{row_no}"].protection = Protection(
-                locked=True
-            )
+            ws[f"{col}{row_no}"].protection = Protection(locked=True)
 
-    # -----------------------------------
-    # FORMULA COLUMNS READ ONLY
-    # -----------------------------------
-
-    formula_columns = ["O", "P", "Q", "T"]
+    # Lock formula columns
+    formula_columns = ["R", "T"]
 
     for col in formula_columns:
         for row_no in range(2, excel_row):
-            ws[f"{col}{row_no}"].protection = Protection(
-                locked=True
-            )
+            ws[f"{col}{row_no}"].protection = Protection(locked=True)
 
-    # -----------------------------------
-    # EDITABLE COLUMNS
-    # -----------------------------------
-
-    # R = Total Amount
+    # Editable:
+    # O = Year 1
+    # P = Year 2
+    # Q = Year 3
     # S = Notes
-
-    # -----------------------------------
-    # ENABLE SHEET PROTECTION
-    # -----------------------------------
 
     ws.protection.sheet = True
     ws.protection.password = "1234"
-
-    # -----------------------------------
-    # AUTO COLUMN WIDTH
-    # -----------------------------------
 
     for column_cells in ws.columns:
 
@@ -249,41 +179,28 @@ def download_budget_template(data=None):
 
         ws.column_dimensions[column_letter].width = max_length + 5
 
-    # -----------------------------------
-    # SAVE FILE
-    # -----------------------------------
-
     file_stream = BytesIO()
     wb.save(file_stream)
 
     frappe.response["filename"] = "creche_budget_template.xlsx"
     frappe.response["filecontent"] = file_stream.getvalue()
     frappe.response["type"] = "binary"
-
-
+# ==================================================== Utilisation Import Template ===============================================================================
 
 import frappe
-import json
-from openpyxl import Workbook
-from openpyxl.styles import Protection
-from io import BytesIO
-
 
 @frappe.whitelist(allow_guest=True)
 def download_utilisation_template(data=None):
 
-    # -----------------------------------
-    # CONVERT JSON STRING TO DICT
-    # -----------------------------------
+    import json
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Protection
 
     if isinstance(data, str):
         data = json.loads(data)
 
-    # -----------------------------------
-    # FETCH UTILISATION ITEMS
-    # -----------------------------------
-
-    utilisation_items = frappe.get_all(
+    items = frappe.get_all(
         "Budget and Expense items list",
         fields=[
             "name",
@@ -294,22 +211,13 @@ def download_utilisation_template(data=None):
         order_by="name asc"
     )
 
-    # -----------------------------------
-    # CREATE WORKBOOK
-    # -----------------------------------
-
     wb = Workbook()
     ws = wb.active
     ws.title = "Creche Utilisation"
 
-    # -----------------------------------
-    # HEADERS
-    # -----------------------------------
-
     headers = [
-
-        # Parent Fields
-        "Budget reference name",
+        "Budget reference ID",
+        "Budget reference Name",
         "Partner ID",
         "Partner Name",
         "Grant ID",
@@ -319,15 +227,14 @@ def download_utilisation_template(data=None):
         "Financial year",
         "Date",
 
-        # Child Table Fields
         "Type of expenses ID (Utilisation Items List)",
         "Budget main head (Utilisation Items List)",
         "Budget sub head (Utilisation Items List)",
         "Type of expenses (Utilisation Items List)",
+
         "Total Amount (Utilisation Items List)",
         "Notes (Utilisation Items List)",
 
-        # Parent Fields After Child Table
         "Total Utilisation",
         "Bank + Cash Balance as at end of month reported",
         "Declaration"
@@ -335,183 +242,86 @@ def download_utilisation_template(data=None):
 
     ws.append(headers)
 
-    # -----------------------------------
-    # CREATE ROWS
-    # -----------------------------------
+    parent_data = [
+        data.get("budget_reference_id"),
+        data.get("budget_reference_name"),
+        data.get("partner_id"),
+        data.get("partner_name"),
+        data.get("grant_id"),
+        data.get("state"),
+        data.get("no_of_creches"),
+        data.get("month"),
+        data.get("financial_year"),
+        data.get("date")
+    ]
 
-    first_row = True
-    start_child_row = 2
-    excel_row = 2
+    start_row = 2
+    end_row = start_row + len(items) - 1
 
-    for item in utilisation_items:
+    for idx, item in enumerate(items, start=start_row):
 
         row = []
 
-        # -----------------------------------
-        # PARENT FIELDS ONLY FIRST ROW
-        # -----------------------------------
-
-        if first_row:
-
-            row.extend([
-                data.get("budget_reference_name"),
-                data.get("partner_id"),
-                data.get("partner_name"),
-                data.get("grant_id"),
-                data.get("state"),
-                data.get("no_of_creches"),
-                data.get("month"),
-                data.get("financial_year"),
-                data.get("date")
-            ])
-
-            first_row = False
-
-        else:
-            row.extend([""] * 9)
-
-        # -----------------------------------
-        # CHILD TABLE FIELDS
-        # -----------------------------------
+        row.extend(parent_data if idx == start_row else [""] * 10)
 
         row.extend([
             item.name,
             item.budget_main_head,
             item.budget_sub_head,
             item.type_of_expenses,
-
-            0,   # Total Amount mandatory
-            ""   # Notes
         ])
 
-        # -----------------------------------
-        # FINAL PARENT FIELDS
-        # -----------------------------------
+        # Editable Total Amount
+        row.append(0)
 
-        if excel_row == 2:
+        # Notes
+        row.append("")
 
-            # Total Utilisation Formula
-            total_utilisation_formula = (
-                f'=SUM(N{start_child_row}:N{start_child_row + len(utilisation_items)-1})'
-            )
-
+        # Final columns
+        if idx == start_row:
             row.extend([
-                total_utilisation_formula,
-                "",  # Editable Bank + Cash Balance
-                0    # Declaration always 0
+                f"=SUM(O{start_row}:O{end_row})",
+                "",
+                0
             ])
-
         else:
-            row.extend([
-                "",
-                "",
-                ""
-            ])
+            row.extend(["", "", ""])
 
         ws.append(row)
 
-        excel_row += 1
-
-    # -----------------------------------
-    # UNLOCK ALL CELLS FIRST
-    # -----------------------------------
-
-    for row_cells in ws.iter_rows():
-        for cell in row_cells:
+    # Unlock all cells
+    for row in ws.iter_rows():
+        for cell in row:
             cell.protection = Protection(locked=False)
 
-    # -----------------------------------
-    # HEADER ROW READ ONLY
-    # -----------------------------------
-
+    # Lock header row
     for cell in ws[1]:
         cell.protection = Protection(locked=True)
 
-    # -----------------------------------
-    # PARENT COLUMNS READ ONLY
-    # -----------------------------------
-
-    parent_columns = [
-        "A", "B", "C", "D", "E",
-        "F", "G", "H", "I",
-        "P", "R"
+    # Read-only columns
+    readonly_columns = [
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+        "K", "L", "M", "N",
+        "Q"
     ]
 
-    for col in parent_columns:
-        for row_no in range(2, excel_row):
-            ws[f"{col}{row_no}"].protection = Protection(
-                locked=True
-            )
-
-    # -----------------------------------
-    # CHILD MASTER FIELDS READ ONLY
-    # -----------------------------------
-
-    child_master_columns = ["J", "K", "L", "M"]
-
-    for col in child_master_columns:
-        for row_no in range(2, excel_row):
-            ws[f"{col}{row_no}"].protection = Protection(
-                locked=True
-            )
-
-    # -----------------------------------
-    # TOTAL UTILISATION / DECLARATION
-    # -----------------------------------
-
-    for row_no in range(2, excel_row):
-
-        # Total Utilisation Read Only
-        ws[f"P{row_no}"].protection = Protection(
-            locked=True
-        )
-
-        # Declaration Read Only
-        ws[f"R{row_no}"].protection = Protection(
-            locked=True
-        )
-
-        # Q = Bank + Cash Balance Editable
-        ws[f"Q{row_no}"].protection = Protection(
-            locked=False
-        )
-
-    # -----------------------------------
-    # ENABLE SHEET PROTECTION
-    # -----------------------------------
+    for col in readonly_columns:
+        for row_no in range(2, end_row + 1):
+            ws[f"{col}{row_no}"].protection = Protection(locked=True)
 
     ws.protection.sheet = True
     ws.protection.password = "1234"
 
-    # -----------------------------------
-    # AUTO WIDTH
-    # -----------------------------------
+    # Auto width
+    for col in ws.columns:
+        width = max(len(str(cell.value or "")) for cell in col) + 5
+        ws.column_dimensions[col[0].column_letter].width = width
 
-    for column_cells in ws.columns:
-
-        max_length = max(
-            len(str(cell.value or ""))
-            for cell in column_cells
-        )
-
-        column_letter = column_cells[0].column_letter
-
-        ws.column_dimensions[column_letter].width = max_length + 5
-
-    # -----------------------------------
-    # SAVE FILE
-    # -----------------------------------
-
-    file_stream = BytesIO()
-    wb.save(file_stream)
+    output = BytesIO()
+    wb.save(output)
 
     frappe.response["filename"] = "creche_utilisation_template.xlsx"
-    frappe.response["filecontent"] = file_stream.getvalue()
+    frappe.response["filecontent"] = output.getvalue()
     frappe.response["type"] = "binary"
-
-
-
-    
-
 
     

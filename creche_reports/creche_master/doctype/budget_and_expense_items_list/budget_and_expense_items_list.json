@@ -13,16 +13,18 @@
  "fields": [
   {
    "fieldname": "budget_main_head",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Budget main head",
+   "options": "Budget main head",
    "reqd": 1
   },
   {
    "fieldname": "budget_sub_head",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Budget sub head",
+   "options": "Budget sub head",
    "reqd": 1
   },
   {
@@ -36,7 +38,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-06 10:25:09.951866",
+ "modified": "2026-05-12 17:25:29.734439",
  "modified_by": "Administrator",
  "module": "Creche Master",
  "name": "Budget and Expense items list",

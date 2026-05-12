@@ -1268,9 +1268,9 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 					<div class="bt-filter-item bt-mandatory" id="budget-ref-name-field"></div>
 					<div class="bt-filter-item bt-mandatory" id="partner-name-field"></div>
 					<div class="bt-filter-item" id="grant-id-field"></div>
-					<div class="bt-filter-item bt-mandatory" id="financial-year-field"></div>
 					<div class="bt-filter-item bt-mandatory" id="state-field"></div>
 					<div class="bt-filter-item bt-mandatory" id="no-of-creches-field"></div>
+					<div class="bt-filter-item bt-mandatory" id="financial-year-field"></div>
 					<div class="bt-filter-item bt-mandatory" id="date-of-approval-field"></div>
 					<div class="bt-filter-item bt-mandatory" id="start-date-field"></div>
 					<div class="bt-filter-item bt-mandatory" id="end-date-field"></div>
@@ -1281,7 +1281,7 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 			<div class="bt-summary-card">
 				<div class="bt-summary-header">
 					<div class="bt-summary-header-dot"></div>
-					<span class="bt-summary-header-title">Grant Summary</span>
+					<span class="bt-summary-header-title">Partner & Budget Details</span>
 				</div>
 				<div class="bt-summary-grid">
 					<div class="bt-summary-item">
@@ -1326,7 +1326,7 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 			<!-- Section heading -->
 			<div class="bt-section-heading">
 				<div class="bt-section-heading-left">
-					<span class="bt-section-heading-title">Budget Lines</span>
+					<span class="bt-section-heading-title">Budget Items Lines</span>
 				</div>
 				<div class="bt-section-heading-right">
 					<span id="bt-add-btn-container"></span>
@@ -1445,10 +1445,14 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 			set_card('card-partner-name', partner.partner_name);
 			grant_id_filter.set_value(partner.grant_id || '');
 			set_card_grant_pill(partner.grant_id);
+			state_filter.set_value(partner.state || '');
+			set_card('card-state', partner.state || '');
 		} else {
 			set_card('card-partner-name', '');
 			grant_id_filter.set_value('');
 			set_card_grant_pill('');
+			state_filter.set_value('');
+			set_card('card-state', '');
 		}
 	}
 

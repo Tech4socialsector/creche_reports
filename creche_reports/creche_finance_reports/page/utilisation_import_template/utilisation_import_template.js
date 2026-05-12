@@ -196,7 +196,7 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 			<div class="ut-summary-card">
 				<div class="ut-summary-header">
 					<div class="ut-summary-header-dot"></div>
-					<span class="ut-summary-header-title">Utilisation Summary</span>
+					<span class="ut-summary-header-title">Partner & Utilisation Details </span>
 				</div>
 				<div class="ut-summary-grid">
 					<div class="ut-summary-item"><div class="ut-summary-label">Budget Ref. Name</div><div class="ut-summary-value empty" id="ut-card-budget-ref-name">Not set</div></div>
@@ -212,7 +212,7 @@ frappe.pages['utilisation_import_template'].on_page_load = function(wrapper) {
 
 			<!-- Section heading -->
 			<div class="ut-section-heading">
-				<span class="ut-section-heading-title">Budget Lines</span>
+				<span class="ut-section-heading-title">Utilisation Items Lines</span>
 			</div>
 
 			<!-- Table -->

@@ -16,7 +16,8 @@ class CrecheDisbursement(Document):
 		from frappe.types import DF
 
 		balence_budget: DF.Currency
-		budget_reference_name: DF.Link
+		budget_reference_id: DF.Link
+		budget_reference_name: DF.Data
 		disbursement: DF.Table[DisbursementTracker]
 		financial_year: DF.Link
 		grant_id: DF.Data

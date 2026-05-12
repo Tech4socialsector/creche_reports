@@ -141,7 +141,7 @@
    "in_standard_filter": 1,
    "label": "Budget reference name",
    "options": "Creche Budget",
-   "reqd": 1
+   "read_only": 1
   },
   {
    "fieldname": "section_break_aagg",
@@ -178,7 +178,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-12 13:09:25.492027",
+ "modified": "2026-05-12 14:41:57.072493",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche utilisation",

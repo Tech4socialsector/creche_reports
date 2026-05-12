@@ -17,7 +17,7 @@ class Crecheutilisation(Document):
 
 		balance_amount: DF.Currency
 		budget_reference_id: DF.Link
-		budget_reference_name: DF.Data
+		budget_reference_name: DF.Data | None
 		date: DF.Date | None
 		declaration: DF.Check
 		financial_year: DF.Link

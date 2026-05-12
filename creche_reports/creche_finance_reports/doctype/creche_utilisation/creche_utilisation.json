@@ -1,0 +1,194 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "creation": "2026-05-06 09:51:01.704678",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "partner_details_section",
+  "budget_reference_name",
+  "partner_id",
+  "partner_name",
+  "grant_id",
+  "state",
+  "column_break_kwjz",
+  "no_of_creches",
+  "financial_year",
+  "month",
+  "date",
+  "utilisation_items_and_spend_amount_section",
+  "utilisation_items_list",
+  "section_break_aagg",
+  "total_utilisation",
+  "column_break_lvyv",
+  "balance_amount",
+  "section_break_mvrq",
+  "declaration"
+ ],
+ "fields": [
+  {
+   "fetch_from": "budget_reference_name.partner_name",
+   "fieldname": "partner_name",
+   "fieldtype": "Data",
+   "label": "Partner Name",
+   "options": "Creche Partners",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "budget_reference_name.grant_id",
+   "fieldname": "grant_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Grant ID"
+  },
+  {
+   "fetch_from": "budget_reference_name.state",
+   "fieldname": "state",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "State",
+   "options": "State",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_kwjz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "budget_reference_name.financial_year",
+   "fieldname": "financial_year",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Financial year",
+   "options": "Financial year",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "budget_reference_name.no_of_creches",
+   "fieldname": "no_of_creches",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "No of creches",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "partner_details_section",
+   "fieldtype": "Section Break",
+   "label": "Partner Details"
+  },
+  {
+   "fieldname": "month",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Month",
+   "options": "Months",
+   "reqd": 1
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date"
+  },
+  {
+   "fieldname": "utilisation_items_and_spend_amount_section",
+   "fieldtype": "Section Break",
+   "label": "Utilisation Items and spend amount"
+  },
+  {
+   "fieldname": "utilisation_items_list",
+   "fieldtype": "Table",
+   "label": "Utilisation Items List",
+   "options": "Utilisation Items"
+  },
+  {
+   "fieldname": "total_utilisation",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Total Utilisation",
+   "non_negative": 1,
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "balance_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Bank + Cash Balance as at end of month reported",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "I/We confirm that reported utilization as above matches to the values accounted in the organisation\u2019s accounting system (Tally/ERP).",
+   "fieldname": "declaration",
+   "fieldtype": "Check",
+   "label": "Declaration"
+  },
+  {
+   "fieldname": "budget_reference_name",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Budget reference name",
+   "options": "Creche Budget",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_aagg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_lvyv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_mvrq",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fetch_from": "budget_reference_name.partner_name",
+   "fieldname": "partner_id",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Partner ID",
+   "options": "Creche Partners",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-12 08:58:20.321962",
+ "modified_by": "Administrator",
+ "module": "Creche Finance Reports",
+ "name": "Creche utilisation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

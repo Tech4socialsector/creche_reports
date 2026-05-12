@@ -1,0 +1,53 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "DIMT-.###",
+ "creation": "2026-05-06 10:15:18.529851",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "disbursement_history_section",
+  "date_of_disbursement",
+  "disbursed_amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "date_of_disbursement",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date of Disbursement",
+   "options": "Today",
+   "reqd": 1
+  },
+  {
+   "fieldname": "disbursed_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Disbursed Amount",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "disbursement_history_section",
+   "fieldtype": "Section Break",
+   "label": "Disbursement History"
+  }
+ ],
+ "grid_page_length": 100,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-06 10:19:52.883373",
+ "modified_by": "Administrator",
+ "module": "Creche Child",
+ "name": "Disbursement Tracker",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 100,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1,0 +1,167 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "BGD-.####",
+ "creation": "2026-05-04 10:30:40.318208",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "partner_and_grant_details_section",
+  "budget_reference_name",
+  "partner_id",
+  "partner_name",
+  "grant_id",
+  "state",
+  "date_of_approval",
+  "column_break_kwjz",
+  "financial_year",
+  "no_of_creches",
+  "start_date",
+  "end_date",
+  "budget_items_and_allocated_amount_section",
+  "budget_items_list",
+  "total_budget"
+ ],
+ "fields": [
+  {
+   "fetch_from": "partner_name.grant_id",
+   "fieldname": "grant_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Grant ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "State",
+   "options": "State",
+   "reqd": 1
+  },
+  {
+   "fieldname": "date_of_approval",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Date of approval",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_kwjz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "financial_year",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Financial year",
+   "reqd": 1
+  },
+  {
+   "fieldname": "no_of_creches",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "No of creches",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "End Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "partner_and_grant_details_section",
+   "fieldtype": "Section Break",
+   "label": "Partner and grant details"
+  },
+  {
+   "fieldname": "budget_items_and_allocated_amount_section",
+   "fieldtype": "Section Break",
+   "label": "Budget Items and allocated amount"
+  },
+  {
+   "fieldname": "budget_items_list",
+   "fieldtype": "Table",
+   "label": "Budget Items List",
+   "options": "Budget Items"
+  },
+  {
+   "fieldname": "total_budget",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Total budget",
+   "non_negative": 1,
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "budget_reference_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Budget reference name",
+   "options": "Creche Partners",
+   "reqd": 1
+  },
+  {
+   "fieldname": "partner_id",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Partner ID",
+   "options": "Creche Partners",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "partner_id.partner_name",
+   "fieldname": "partner_name",
+   "fieldtype": "Data",
+   "label": "Partner Name",
+   "options": "Creche Partners"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-12 11:02:22.651438",
+ "modified_by": "Administrator",
+ "module": "Creche Finance Reports",
+ "name": "Creche Budget",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "budget_reference_name"
+}

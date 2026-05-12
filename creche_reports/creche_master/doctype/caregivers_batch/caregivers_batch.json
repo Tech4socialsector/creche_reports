@@ -1,26 +1,27 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2026-03-30 21:21:10.461538",
+ "autoname": "prompt",
+ "creation": "2026-05-08 13:18:43.484149",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "check"
+  "section_break_wceu"
  ],
  "fields": [
   {
-   "fieldname": "check",
-   "fieldtype": "Button",
-   "label": "Check"
+   "fieldname": "section_break_wceu",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-30 21:21:21.873827",
+ "modified": "2026-05-08 13:18:48.487348",
  "modified_by": "Administrator",
- "module": "Creche Finance Reports",
- "name": "Test",
+ "module": "Creche Master",
+ "name": "Caregivers Batch",
+ "naming_rule": "Set by user",
  "owner": "Administrator",
  "permissions": [
   {

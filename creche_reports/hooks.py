@@ -7,7 +7,12 @@ app_license = "mit"
 
 # Apps
 # ------------------
-
+doc_events = {
+    "Creche Budget": {
+        "after_insert":
+            "creche_reports.events.send_import_email"
+    }
+}
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page

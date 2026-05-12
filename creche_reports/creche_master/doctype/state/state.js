@@ -1,7 +1,7 @@
 // Copyright (c) 2026, TFSS and contributors
 // For license information, please see license.txt
 
-// frappe.ui.form.on("Test", {
+// frappe.ui.form.on("State", {
 // 	refresh(frm) {
 
 // 	},

@@ -152,15 +152,14 @@
 // 			.bt-section-heading-right { display:flex;align-items:center;gap:8px; }
 
 // 			/* ── Budget Table ── */
-// 			.bt-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+// 			.bt-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #c5cdd8; border-radius: 8px; }
+// 			.bt-table-scroll.bt-scrollable { max-height: 420px; overflow-y: auto; }
 // 			.bt-table-scroll table {
 // 				width: 100%;
-// 				border-collapse: collapse;
+// 				border-collapse: separate;
+// 				border-spacing: 0;
 // 				font-size: var(--text-sm);
 // 				min-width: 480px;
-// 				border: 1px solid #c5cdd8;
-// 				border-radius: 8px;
-// 				overflow: hidden;
 // 			}
 // 			.bt-table-scroll thead tr { background: #1a4f8a; }
 // 			.bt-table-scroll thead th {
@@ -173,23 +172,29 @@
 // 				letter-spacing: 0.06em;
 // 				white-space: nowrap;
 // 				border-right: 1px solid rgba(255,255,255,0.2);
+// 				border-bottom: 1px solid rgba(255,255,255,0.15);
+// 				position: sticky;
+// 				top: 0;
+// 				z-index: 2;
+// 				background: #1a4f8a;
 // 			}
 // 			.bt-table-scroll thead th:first-child { text-align:center;width:52px; }
 // 			.bt-table-scroll thead th:last-child { border-right:none; }
-// 			.bt-table-scroll tbody tr { background:#ffffff;border-bottom:1px solid #dde3ea;transition:background 0.12s; }
+// 			.bt-table-scroll tbody tr { background:#ffffff;transition:background 0.12s; }
 // 			.bt-table-scroll tbody tr:nth-child(even) { background:#f4f7fa; }
-// 			.bt-table-scroll tbody tr:last-child { border-bottom:none; }
 // 			.bt-table-scroll tbody tr:hover { background:#e8f0fb !important; }
 // 			.bt-table-scroll tbody td {
 // 				padding: 10px 16px;
 // 				font-size: var(--text-sm);
 // 				color: var(--text-color);
 // 				border-right: 1px solid #dde3ea;
+// 				border-bottom: 1px solid #dde3ea;
 // 				white-space: nowrap;
 // 				overflow: hidden;
 // 				text-overflow: ellipsis;
 // 				max-width: 300px;
 // 			}
+// 			.bt-table-scroll tbody tr:last-child td { border-bottom: none; }
 // 			.bt-table-scroll tbody td:last-child { border-right:none; }
 // 			.bt-td-num { text-align:center;width:52px;font-weight:600;font-size:12px;color:var(--text-muted); }
 // 			.bt-td-main { font-weight:600;color:var(--text-color); }
@@ -329,6 +334,50 @@
 // 				font-style: italic;
 // 			}
 
+// 			/* ── Declaration checkbox ── */
+// 			.bt-declaration {
+// 				display: flex;
+// 				align-items: flex-start;
+// 				gap: 10px;
+// 				background: #f0f5fc;
+// 				border: 1px solid #c0d0e8;
+// 				border-radius: 8px;
+// 				padding: 12px 14px;
+// 				margin-bottom: 0;
+// 				cursor: pointer;
+// 				transition: background 0.15s, border-color 0.15s;
+// 			}
+// 			.bt-declaration:hover { background: #e4edf8; border-color: #a0b8d8; }
+// 			.bt-declaration.checked { background: #ddeaf8; border-color: #1a4f8a; }
+// 			.bt-declaration-checkbox {
+// 				width: 18px; height: 18px;
+// 				border: 2px solid #a0b8d8;
+// 				border-radius: 4px;
+// 				background: #ffffff;
+// 				display: flex; align-items: center; justify-content: center;
+// 				flex-shrink: 0;
+// 				margin-top: 1px;
+// 				transition: all 0.15s;
+// 			}
+// 			.bt-declaration.checked .bt-declaration-checkbox {
+// 				background: #1a4f8a;
+// 				border-color: #1a4f8a;
+// 			}
+// 			.bt-declaration-checkbox-tick {
+// 				display: none;
+// 				color: #ffffff;
+// 				font-size: 11px;
+// 				font-weight: 700;
+// 				line-height: 1;
+// 			}
+// 			.bt-declaration.checked .bt-declaration-checkbox-tick { display: block; }
+// 			.bt-declaration-text {
+// 				font-size: 12px;
+// 				color: var(--text-color);
+// 				line-height: 1.5;
+// 			}
+// 			.bt-declaration-text strong { color: #1a4f8a; }
+
 // 			/* Modal footer */
 // 			.bt-modal-footer {
 // 				display: flex;
@@ -365,6 +414,7 @@
 // 			}
 // 			.bt-btn-confirm:hover { background: linear-gradient(135deg, #163f70 0%, #1a4f8a 100%); box-shadow: 0 4px 12px rgba(26,79,138,0.45); transform: translateY(-1px); }
 // 			.bt-btn-confirm:active { transform: translateY(0); }
+// 			.bt-btn-confirm:disabled { background: #9ab3d0; box-shadow: none; cursor: not-allowed; transform: none; }
 // 		</style>
 
 // 		<div class="bt-wrap">
@@ -375,9 +425,9 @@
 // 					<div class="bt-filter-item bt-mandatory" id="budget-ref-name-field"></div>
 // 					<div class="bt-filter-item bt-mandatory" id="partner-name-field"></div>
 // 					<div class="bt-filter-item" id="grant-id-field"></div>
-// 					<div class="bt-filter-item bt-mandatory" id="financial-year-field"></div>
 // 					<div class="bt-filter-item bt-mandatory" id="state-field"></div>
 // 					<div class="bt-filter-item bt-mandatory" id="no-of-creches-field"></div>
+// 					<div class="bt-filter-item bt-mandatory" id="financial-year-field"></div>
 // 					<div class="bt-filter-item bt-mandatory" id="date-of-approval-field"></div>
 // 					<div class="bt-filter-item bt-mandatory" id="start-date-field"></div>
 // 					<div class="bt-filter-item bt-mandatory" id="end-date-field"></div>
@@ -388,7 +438,7 @@
 // 			<div class="bt-summary-card">
 // 				<div class="bt-summary-header">
 // 					<div class="bt-summary-header-dot"></div>
-// 					<span class="bt-summary-header-title">Grant Summary</span>
+// 					<span class="bt-summary-header-title">Partner & Budget Details</span>
 // 				</div>
 // 				<div class="bt-summary-grid">
 // 					<div class="bt-summary-item">
@@ -433,7 +483,7 @@
 // 			<!-- Section heading -->
 // 			<div class="bt-section-heading">
 // 				<div class="bt-section-heading-left">
-// 					<span class="bt-section-heading-title">Budget Lines</span>
+// 					<span class="bt-section-heading-title">Budget Items Lines</span>
 // 				</div>
 // 				<div class="bt-section-heading-right">
 // 					<span id="bt-add-btn-container"></span>
@@ -478,10 +528,19 @@
 // 				<div class="bt-modal-body">
 // 					<p class="bt-modal-desc">Review all details carefully. Once you confirm, the budget import template will be generated and downloaded.</p>
 // 					<div class="bt-modal-cards" id="bt-modal-cards"></div>
+// 					<!-- Declaration checkbox -->
+// 					<div class="bt-declaration" id="bt-declaration">
+// 						<div class="bt-declaration-checkbox">
+// 							<span class="bt-declaration-checkbox-tick">&#10003;</span>
+// 						</div>
+// 						<div class="bt-declaration-text">
+// 							I hereby declare that <strong>all the details provided above are correct</strong> and I take full responsibility for the accuracy of the information submitted for generating this budget import template.
+// 						</div>
+// 					</div>
 // 				</div>
 // 				<div class="bt-modal-footer">
 // 					<button class="bt-btn bt-btn-cancel" id="bt-modal-cancel-btn">Cancel</button>
-// 					<button class="bt-btn bt-btn-confirm" id="bt-modal-confirm-btn">&#10003;&nbsp; Confirm &amp; Download</button>
+// 					<button class="bt-btn bt-btn-confirm" id="bt-modal-confirm-btn" disabled>&#10003;&nbsp; Confirm &amp; Download</button>
 // 				</div>
 // 			</div>
 // 		</div>
@@ -543,10 +602,14 @@
 // 			set_card('card-partner-name', partner.partner_name);
 // 			grant_id_filter.set_value(partner.grant_id || '');
 // 			set_card_grant_pill(partner.grant_id);
+// 			state_filter.set_value(partner.state || '');
+// 			set_card('card-state', partner.state || '');
 // 		} else {
 // 			set_card('card-partner-name', '');
 // 			grant_id_filter.set_value('');
 // 			set_card_grant_pill('');
+// 			state_filter.set_value('');
+// 			set_card('card-state', '');
 // 		}
 // 	}
 
@@ -719,24 +782,31 @@
 // 		var $backdrop = $(wrapper).find('#bt-confirm-backdrop');
 // 		$backdrop.fadeIn(160);
 
+// 		// Reset declaration state on every open
+// 		$(wrapper).find('#bt-declaration').removeClass('checked');
+// 		$(wrapper).find('#bt-modal-confirm-btn').prop('disabled', true);
+
+// 		// Toggle declaration checkbox
+// 		$(wrapper).find('#bt-declaration').off('click').on('click', function(){
+// 			var checked = $(this).toggleClass('checked').hasClass('checked');
+// 			$(wrapper).find('#bt-modal-confirm-btn').prop('disabled', !checked);
+// 		});
+
 // 		// Close handlers
 // 		function close_modal() { $backdrop.fadeOut(140); }
 
 // 		$(wrapper).find('#bt-modal-close-btn').off('click').on('click', close_modal);
 // 		$(wrapper).find('#bt-modal-cancel-btn').off('click').on('click', close_modal);
 
-// 		// Close on backdrop click (outside modal box)
 // 		$backdrop.off('click').on('click', function(e){
 // 			if ($(e.target).is($backdrop)) close_modal();
 // 		});
 
-// 		// Confirm
 // 		$(wrapper).find('#bt-modal-confirm-btn').off('click').on('click', function(){
 // 			close_modal();
 // 			on_confirm();
 // 		});
 
-// 		// ESC key
 // 		$(document).off('keydown.bt-modal').on('keydown.bt-modal', function(e){
 // 			if (e.key === 'Escape') { close_modal(); $(document).off('keydown.bt-modal'); }
 // 		});
@@ -819,8 +889,11 @@
 // 			var rows = data.message || [];
 // 			if (!rows.length) {
 // 				$tbody.html('<tr><td colspan="4" class="bt-empty"><div class="bt-empty-icon">&#128193;</div><div>No budget items found</div></td></tr>');
+// 				$(wrapper).find('.bt-table-scroll').removeClass('bt-scrollable');
 // 				return;
 // 			}
+// 			// Enable vertical scroll when rows exceed 10
+// 			$(wrapper).find('.bt-table-scroll').toggleClass('bt-scrollable', rows.length > 10);
 // 			$tbody.html(rows.map(function(row, i){
 // 				return '<tr>' +
 // 					'<td class="bt-td-num">'  + (i + 1) + '</td>' +
@@ -839,6 +912,7 @@
 
 // 	fetch_budget_items();
 // };
+
 
 
 frappe.pages['budget-template'].on_page_load = function(wrapper) {
@@ -1096,7 +1170,6 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 				font-size: 18px;
 				flex-shrink: 0;
 			}
-			.bt-modal-header-text {}
 			.bt-modal-title {
 				font-size: 15px;
 				font-weight: 700;
@@ -1138,7 +1211,7 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 				display: grid;
 				grid-template-columns: repeat(3, 1fr);
 				gap: 10px;
-				margin-bottom: 24px;
+				margin-bottom: 16px;
 			}
 			@media (max-width: 500px) { .bt-modal-cards { grid-template-columns: repeat(2,1fr); } }
 			.bt-modal-card {
@@ -1281,7 +1354,7 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 			<div class="bt-summary-card">
 				<div class="bt-summary-header">
 					<div class="bt-summary-header-dot"></div>
-					<span class="bt-summary-header-title">Partner & Budget Details</span>
+					<span class="bt-summary-header-title">Partner &amp; Budget Details</span>
 				</div>
 				<div class="bt-summary-grid">
 					<div class="bt-summary-item">
@@ -1439,20 +1512,17 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 		});
 	}
 
+	// ── Partner change — does NOT touch state field ───────────────────
 	function on_partner_change(partner_id) {
 		var partner = all_partners.find(function(p){ return p.name === partner_id; });
 		if (partner) {
 			set_card('card-partner-name', partner.partner_name);
 			grant_id_filter.set_value(partner.grant_id || '');
 			set_card_grant_pill(partner.grant_id);
-			state_filter.set_value(partner.state || '');
-			set_card('card-state', partner.state || '');
 		} else {
 			set_card('card-partner-name', '');
 			grant_id_filter.set_value('');
 			set_card_grant_pill('');
-			state_filter.set_value('');
-			set_card('card-state', '');
 		}
 	}
 
@@ -1468,16 +1538,20 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 	// ── Controls ─────────────────────────────────────────────────────
 	var budget_ref_name_filter = frappe.ui.form.make_control({
 		parent: make_field('budget-ref-name-field'),
-		df: { label: 'Budget Reference Name', fieldtype: 'Data', fieldname: 'budget_ref_name',
-			change: function(){ set_card('card-budget-ref-name', budget_ref_name_filter.get_value()); } },
+		df: {
+			label: 'Budget Reference Name', fieldtype: 'Data', fieldname: 'budget_ref_name',
+			change: function(){ set_card('card-budget-ref-name', budget_ref_name_filter.get_value()); }
+		},
 		render_input: true
 	});
 
 	var partner_name_filter = frappe.ui.form.make_control({
 		parent: make_field('partner-name-field'),
-		df: { label: 'Partner Name', fieldtype: 'Select', fieldname: 'partner_name',
+		df: {
+			label: 'Partner Name', fieldtype: 'Select', fieldname: 'partner_name',
 			options: '— Loading... —',
-			change: function(){ on_partner_change(partner_name_filter.get_value()); } },
+			change: function(){ on_partner_change(partner_name_filter.get_value()); }
+		},
 		render_input: true
 	});
 
@@ -1487,39 +1561,49 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 		render_input: true
 	});
 
-	var financial_year_filter = frappe.ui.form.make_control({
-		parent: make_field('financial-year-field'),
-		df: { label: 'Financial Year', fieldtype: 'Link', fieldname: 'financial_year',
-			options: 'Financial year',
-			change: function(){ set_card('card-financial-year', financial_year_filter.get_value()); } },
-		render_input: true
-	});
-
+	// State is a plain Link to State doctype — never auto-filled from partner
 	var state_filter = frappe.ui.form.make_control({
 		parent: make_field('state-field'),
-		df: { label: 'State', fieldtype: 'Link', fieldname: 'state',
+		df: {
+			label: 'State', fieldtype: 'Link', fieldname: 'state',
 			options: 'State',
-			change: function(){ set_card('card-state', state_filter.get_value()); } },
+			change: function(){ set_card('card-state', state_filter.get_value()); }
+		},
 		render_input: true
 	});
 
 	var no_of_creches_filter = frappe.ui.form.make_control({
 		parent: make_field('no-of-creches-field'),
-		df: { label: 'No. of Crèches', fieldtype: 'Int', fieldname: 'no_of_creches',
-			change: function(){ set_card('card-no-of-creches', no_of_creches_filter.get_value()); } },
+		df: {
+			label: 'No. of Crèches', fieldtype: 'Int', fieldname: 'no_of_creches',
+			change: function(){ set_card('card-no-of-creches', no_of_creches_filter.get_value()); }
+		},
+		render_input: true
+	});
+
+	var financial_year_filter = frappe.ui.form.make_control({
+		parent: make_field('financial-year-field'),
+		df: {
+			label: 'Financial Year', fieldtype: 'Link', fieldname: 'financial_year',
+			options: 'Financial year',
+			change: function(){ set_card('card-financial-year', financial_year_filter.get_value()); }
+		},
 		render_input: true
 	});
 
 	var date_of_approval_filter = frappe.ui.form.make_control({
 		parent: make_field('date-of-approval-field'),
-		df: { label: 'Date of Approval', fieldtype: 'Date', fieldname: 'date_of_approval',
-			change: function(){ set_card('card-date-of-approval', frappe.datetime.str_to_user(date_of_approval_filter.get_value())); } },
+		df: {
+			label: 'Date of Approval', fieldtype: 'Date', fieldname: 'date_of_approval',
+			change: function(){ set_card('card-date-of-approval', frappe.datetime.str_to_user(date_of_approval_filter.get_value())); }
+		},
 		render_input: true
 	});
 
 	var start_date_filter = frappe.ui.form.make_control({
 		parent: make_field('start-date-field'),
-		df: { label: 'Start Date', fieldtype: 'Date', fieldname: 'start_date',
+		df: {
+			label: 'Start Date', fieldtype: 'Date', fieldname: 'start_date',
 			change: function(){
 				var s = start_date_filter.get_value();
 				var e = end_date_filter ? end_date_filter.get_value() : '';
@@ -1528,13 +1612,15 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 					start_date_filter.set_value(''); set_card('card-start-date', ''); return;
 				}
 				set_card('card-start-date', frappe.datetime.str_to_user(s));
-			} },
+			}
+		},
 		render_input: true
 	});
 
 	var end_date_filter = frappe.ui.form.make_control({
 		parent: make_field('end-date-field'),
-		df: { label: 'End Date', fieldtype: 'Date', fieldname: 'end_date',
+		df: {
+			label: 'End Date', fieldtype: 'Date', fieldname: 'end_date',
 			change: function(){
 				var s = start_date_filter ? start_date_filter.get_value() : '';
 				var e = end_date_filter.get_value();
@@ -1543,12 +1629,13 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 					end_date_filter.set_value(''); set_card('card-end-date', ''); return;
 				}
 				set_card('card-end-date', frappe.datetime.str_to_user(e));
-			} },
+			}
+		},
 		render_input: true
 	});
 
 	[budget_ref_name_filter, partner_name_filter, grant_id_filter,
-	 financial_year_filter, state_filter, no_of_creches_filter,
+	 state_filter, no_of_creches_filter, financial_year_filter,
 	 date_of_approval_filter, start_date_filter, end_date_filter].forEach(function(f){ f.refresh(); });
 
 	load_partners();
@@ -1740,9 +1827,9 @@ frappe.pages['budget-template'].on_page_load = function(wrapper) {
 			$tbody.html(rows.map(function(row, i){
 				return '<tr>' +
 					'<td class="bt-td-num">'  + (i + 1) + '</td>' +
-					'<td class="bt-td-main">' + (row.budget_main_head || '—') + '</td>' +
-					'<td class="bt-td-sub">'  + (row.budget_sub_head  || '—') + '</td>' +
-					'<td class="bt-td-type">' + (row.type_of_expenses || '—') + '</td>' +
+					'<td class="bt-td-main">' + frappe.utils.escape_html(row.budget_main_head || '—') + '</td>' +
+					'<td class="bt-td-sub">'  + frappe.utils.escape_html(row.budget_sub_head  || '—') + '</td>' +
+					'<td class="bt-td-type">' + frappe.utils.escape_html(row.type_of_expenses || '—') + '</td>' +
 					'</tr>';
 			}).join(''));
 		})

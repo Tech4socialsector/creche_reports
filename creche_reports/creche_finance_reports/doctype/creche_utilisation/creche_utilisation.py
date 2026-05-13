@@ -22,6 +22,7 @@ class Crecheutilisation(Document):
 		declaration: DF.Check
 		financial_year: DF.Link
 		grant_id: DF.Data | None
+		interest_from_bank: DF.Currency
 		month: DF.Link
 		no_of_creches: DF.Int
 		partner_id: DF.Link

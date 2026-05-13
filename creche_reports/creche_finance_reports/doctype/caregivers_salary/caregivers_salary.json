@@ -2,6 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
+ "autoname": "CCS-.#####",
  "creation": "2026-05-08 13:08:45.949689",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -75,10 +76,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-13 08:48:08.657362",
+ "modified": "2026-05-13 09:10:21.902436",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Caregivers Salary",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -99,6 +101,7 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
+ "title_field": "name_of_the_organization",
  "track_changes": 1,
  "track_seen": 1,
  "track_views": 1

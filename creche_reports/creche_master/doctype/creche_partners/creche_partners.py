@@ -16,7 +16,6 @@ class CrechePartners(Document):
 
 		grant_id: DF.Data
 		partner_name: DF.Data
-		state: DF.Link
 	# end: auto-generated types
 
 	pass

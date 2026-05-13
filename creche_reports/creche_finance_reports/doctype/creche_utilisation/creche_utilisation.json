@@ -2,6 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
+ "autoname": "CUT-.####",
  "creation": "2026-05-06 09:51:01.704678",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -24,12 +25,13 @@
   "total_utilisation",
   "column_break_lvyv",
   "balance_amount",
+  "interest_from_bank",
   "section_break_mvrq",
   "declaration"
  ],
  "fields": [
   {
-   "fetch_from": "budget_reference_name.partner_name",
+   "fetch_from": "budget_reference_id.partner_name",
    "fieldname": "partner_name",
    "fieldtype": "Data",
    "label": "Partner Name",
@@ -37,7 +39,7 @@
    "read_only": 1
   },
   {
-   "fetch_from": "budget_reference_name.grant_id",
+   "fetch_from": "budget_reference_id.grant_id",
    "fieldname": "grant_id",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -45,7 +47,7 @@
    "label": "Grant ID"
   },
   {
-   "fetch_from": "budget_reference_name.state",
+   "fetch_from": "budget_reference_id.state",
    "fieldname": "state",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -59,7 +61,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "budget_reference_name.financial_year",
    "fieldname": "financial_year",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -69,7 +70,7 @@
    "reqd": 1
   },
   {
-   "fetch_from": "budget_reference_name.no_of_creches",
+   "fetch_from": "budget_reference_id.no_of_creches",
    "fieldname": "no_of_creches",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -156,7 +157,7 @@
    "fieldtype": "Section Break"
   },
   {
-   "fetch_from": "budget_reference_name.partner_name",
+   "fetch_from": "budget_reference_id.partner_id",
    "fieldname": "partner_id",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -173,15 +174,21 @@
    "label": "Budget reference ID",
    "options": "Creche Budget",
    "reqd": 1
+  },
+  {
+   "fieldname": "interest_from_bank",
+   "fieldtype": "Currency",
+   "label": "Interest from Bank"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-13 08:49:16.204824",
+ "modified": "2026-05-13 09:09:34.006724",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche utilisation",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -199,9 +206,11 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "budget_reference_name,partner_name,partner_id,grant_id",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
+ "title_field": "budget_reference_name",
  "track_changes": 1,
  "track_seen": 1,
  "track_views": 1

@@ -7,8 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "partner_name",
-  "grant_id",
-  "state"
+  "grant_id"
  ],
  "fields": [
   {
@@ -24,20 +23,25 @@
    "in_list_view": 1,
    "label": "Grant ID",
    "reqd": 1
-  },
-  {
-   "fieldname": "state",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "State",
-   "options": "State",
-   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-05-13 08:47:22.596100",
+ "links": [
+  {
+   "link_doctype": "Creche Budget",
+   "link_fieldname": "partner_id"
+  },
+  {
+   "link_doctype": "Creche Disbursement",
+   "link_fieldname": "partner_id"
+  },
+  {
+   "link_doctype": "Creche utilisation",
+   "link_fieldname": "partner_id"
+  }
+ ],
+ "modified": "2026-05-13 15:56:30.099768",
  "modified_by": "Administrator",
  "module": "Creche Master",
  "name": "Creche Partners",

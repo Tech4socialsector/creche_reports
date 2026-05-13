@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "EXP-.####",
  "creation": "2026-05-04 10:47:36.826037",
@@ -38,7 +39,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-12 17:25:29.734439",
+ "modified": "2026-05-13 08:47:07.299593",
  "modified_by": "Administrator",
  "module": "Creche Master",
  "name": "Budget and Expense items list",
@@ -62,5 +63,8 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1,
+ "track_seen": 1,
+ "track_views": 1
 }

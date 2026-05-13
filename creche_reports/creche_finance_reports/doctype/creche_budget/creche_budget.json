@@ -12,12 +12,12 @@
   "partner_name",
   "grant_id",
   "state",
-  "date_of_approval",
   "column_break_kwjz",
   "financial_year",
   "no_of_creches",
   "start_date",
   "end_date",
+  "date_of_approval",
   "budget_items_and_allocated_amount_section",
   "budget_items_list",
   "total_budget"
@@ -139,7 +139,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-12 17:42:06.401973",
+ "modified": "2026-05-13 08:49:34.759498",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche Budget",
@@ -164,5 +164,8 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "title_field": "budget_reference_name"
+ "title_field": "budget_reference_name",
+ "track_changes": 1,
+ "track_seen": 1,
+ "track_views": 1
 }

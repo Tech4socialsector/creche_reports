@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "CRP-.#####",
  "creation": "2026-05-04 10:24:00.572047",
  "doctype": "DocType",
@@ -36,7 +37,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-08 08:14:51.390842",
+ "modified": "2026-05-13 08:47:22.596100",
  "modified_by": "Administrator",
  "module": "Creche Master",
  "name": "Creche Partners",
@@ -62,5 +63,8 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "title_field": "partner_name"
+ "title_field": "partner_name",
+ "track_changes": 1,
+ "track_seen": 1,
+ "track_views": 1
 }

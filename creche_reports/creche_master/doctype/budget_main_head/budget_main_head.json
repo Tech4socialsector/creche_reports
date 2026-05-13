@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "prompt",
  "creation": "2026-05-12 17:23:01.879013",
  "doctype": "DocType",
@@ -16,7 +17,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-12 17:24:34.728455",
+ "modified": "2026-05-13 08:46:00.745737",
  "modified_by": "Administrator",
  "module": "Creche Master",
  "name": "Budget main head",

@@ -187,7 +187,149 @@ def download_budget_template(data=None):
     frappe.response["type"] = "binary"
 # ==================================================== Utilisation Import Template ===============================================================================
 
+# import frappe
+
+# @frappe.whitelist(allow_guest=True)
+# def download_utilisation_template(data=None):
+
+#     import json
+#     from io import BytesIO
+#     from openpyxl import Workbook
+#     from openpyxl.styles import Protection
+
+#     if isinstance(data, str):
+#         data = json.loads(data)
+
+#     items = frappe.get_all(
+#         "Budget and Expense items list",
+#         fields=[
+#             "name",
+#             "budget_main_head",
+#             "budget_sub_head",
+#             "type_of_expenses"
+#         ],
+#         order_by="name asc"
+#     )
+
+#     wb = Workbook()
+#     ws = wb.active
+#     ws.title = "Creche Utilisation"
+
+#     headers = [
+#         "Budget reference ID",
+#         "Budget reference Name",
+#         "Partner ID",
+#         "Partner Name",
+#         "Grant ID",
+#         "State",
+#         "No of creches",
+#         "Month",
+#         "Financial year",
+#         "Date",
+
+#         "Type of expenses ID (Utilisation Items List)",
+#         "Budget main head (Utilisation Items List)",
+#         "Budget sub head (Utilisation Items List)",
+#         "Type of expenses (Utilisation Items List)",
+
+#         "Total Amount (Utilisation Items List)",
+#         "Notes (Utilisation Items List)",
+
+#         "Total Utilisation",
+#         "Bank + Cash Balance as at end of month reported",
+#         "Interest from Bank"
+#         "Declaration"
+#     ]
+
+#     ws.append(headers)
+
+#     parent_data = [
+#         data.get("budget_reference_id"),
+#         data.get("budget_reference_name"),
+#         data.get("partner_id"),
+#         data.get("partner_name"),
+#         data.get("grant_id"),
+#         data.get("state"),
+#         data.get("no_of_creches"),
+#         data.get("month"),
+#         data.get("financial_year"),
+#         data.get("date")
+#     ]
+
+#     start_row = 2
+#     end_row = start_row + len(items) - 1
+
+#     for idx, item in enumerate(items, start=start_row):
+
+#         row = []
+
+#         row.extend(parent_data if idx == start_row else [""] * 10)
+
+#         row.extend([
+#             item.name,
+#             item.budget_main_head,
+#             item.budget_sub_head,
+#             item.type_of_expenses,
+#         ])
+
+#         # Editable Total Amount
+#         row.append(0)
+
+#         # Notes
+#         row.append("")
+
+#         # Final columns
+#         if idx == start_row:
+#             row.extend([
+#                 f"=SUM(O{start_row}:O{end_row})",
+#                 "",
+#                 0
+#             ])
+#         else:
+#             row.extend(["", "", ""])
+
+#         ws.append(row)
+
+#     # Unlock all cells
+#     for row in ws.iter_rows():
+#         for cell in row:
+#             cell.protection = Protection(locked=False)
+
+#     # Lock header row
+#     for cell in ws[1]:
+#         cell.protection = Protection(locked=True)
+
+#     # Read-only columns
+#     readonly_columns = [
+#         "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+#         "K", "L", "M", "N",
+#         "Q"
+#     ]
+
+#     for col in readonly_columns:
+#         for row_no in range(2, end_row + 1):
+#             ws[f"{col}{row_no}"].protection = Protection(locked=True)
+
+#     ws.protection.sheet = True
+#     ws.protection.password = "1234"
+
+#     # Auto width
+#     for col in ws.columns:
+#         width = max(len(str(cell.value or "")) for cell in col) + 5
+#         ws.column_dimensions[col[0].column_letter].width = width
+
+#     output = BytesIO()
+#     wb.save(output)
+
+#     frappe.response["filename"] = "creche_utilisation_template.xlsx"
+#     frappe.response["filecontent"] = output.getvalue()
+#     frappe.response["type"] = "binary"
+
+
+
+
 import frappe
+
 
 @frappe.whitelist(allow_guest=True)
 def download_utilisation_template(data=None):
@@ -237,6 +379,7 @@ def download_utilisation_template(data=None):
 
         "Total Utilisation",
         "Bank + Cash Balance as at end of month reported",
+        "Interest from Bank",
         "Declaration"
     ]
 
@@ -262,8 +405,10 @@ def download_utilisation_template(data=None):
 
         row = []
 
+        # Parent data only in first row
         row.extend(parent_data if idx == start_row else [""] * 10)
 
+        # Child table values
         row.extend([
             item.name,
             item.budget_main_head,
@@ -280,12 +425,13 @@ def download_utilisation_template(data=None):
         # Final columns
         if idx == start_row:
             row.extend([
-                f"=SUM(O{start_row}:O{end_row})",
-                "",
-                0
+                f"=SUM(O{start_row}:O{end_row})",  # Total Utilisation
+                0,                                # Bank + Cash Balance
+                0,                                # Interest from Bank
+                0                                # Declaration
             ])
         else:
-            row.extend(["", "", ""])
+            row.extend(["", "", "", ""])
 
         ws.append(row)
 
@@ -309,10 +455,11 @@ def download_utilisation_template(data=None):
         for row_no in range(2, end_row + 1):
             ws[f"{col}{row_no}"].protection = Protection(locked=True)
 
+    # Protect sheet
     ws.protection.sheet = True
     ws.protection.password = "1234"
 
-    # Auto width
+    # Auto column width
     for col in ws.columns:
         width = max(len(str(cell.value or "")) for cell in col) + 5
         ws.column_dimensions[col[0].column_letter].width = width
@@ -323,5 +470,4 @@ def download_utilisation_template(data=None):
     frappe.response["filename"] = "creche_utilisation_template.xlsx"
     frappe.response["filecontent"] = output.getvalue()
     frappe.response["type"] = "binary"
-
     

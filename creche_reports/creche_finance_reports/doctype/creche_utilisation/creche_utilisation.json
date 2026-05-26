@@ -142,7 +142,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Budget reference name",
+   "label": "Budget reference Name",
    "options": "Creche Budget",
    "read_only": 1
   },
@@ -189,8 +189,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Block",
-   "options": "Block",
-   "reqd": 1
+   "options": "Block"
   },
   {
    "fetch_from": "budget_reference_id.district",
@@ -199,14 +198,13 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "District",
-   "options": "District",
-   "reqd": 1
+   "options": "District"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-15 11:57:59.838325",
+ "modified": "2026-05-26 12:37:14.770061",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche utilisation",

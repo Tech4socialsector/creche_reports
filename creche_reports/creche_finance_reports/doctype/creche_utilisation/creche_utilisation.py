@@ -16,10 +16,12 @@ class Crecheutilisation(Document):
 		from frappe.types import DF
 
 		balance_amount: DF.Currency
+		block: DF.Link
 		budget_reference_id: DF.Link
 		budget_reference_name: DF.Data | None
 		date: DF.Date | None
 		declaration: DF.Check
+		district: DF.Link
 		financial_year: DF.Link
 		grant_id: DF.Data | None
 		interest_from_bank: DF.Currency

@@ -9,13 +9,15 @@
  "field_order": [
   "partner_details_section",
   "budget_reference_id",
-  "budget_reference_name",
+  "grant_id",
   "partner_id",
   "partner_name",
-  "grant_id",
-  "column_break_kwjz",
-  "financial_year",
   "state",
+  "column_break_kwjz",
+  "budget_reference_name",
+  "financial_year",
+  "block",
+  "district",
   "total_budget",
   "disbursement_history_section",
   "disbursement",
@@ -35,7 +37,6 @@
    "reqd": 1
   },
   {
-   "fetch_from": "budget_reference_id.state",
    "fieldname": "state",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -145,12 +146,30 @@
    "label": "Budget reference ID",
    "options": "Creche Budget",
    "reqd": 1
+  },
+  {
+   "fieldname": "block",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Block",
+   "options": "Block",
+   "reqd": 1
+  },
+  {
+   "fieldname": "district",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "District",
+   "options": "District",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-13 09:08:24.133834",
+ "modified": "2026-05-15 12:03:41.839291",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche Disbursement",

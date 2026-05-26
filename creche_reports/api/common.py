@@ -8,8 +8,6 @@ def get_all_partners():
         fields=[
             "name",
             "partner_name",
-            "grant_id",
-            "state",
         ],
         order_by="name asc"
     )

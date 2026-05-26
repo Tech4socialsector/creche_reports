@@ -15,17 +15,19 @@ class CrecheBudget(Document):
 		from creche_reports.creche_child.doctype.budget_items.budget_items import BudgetItems
 		from frappe.types import DF
 
+		block: DF.Link | None
 		budget_items_list: DF.Table[BudgetItems]
 		budget_reference_name: DF.Data
 		date_of_approval: DF.Date
+		district: DF.Link | None
 		end_date: DF.Date
-		financial_year: DF.Data
+		financial_year: DF.Link
 		grant_id: DF.Data
 		no_of_creches: DF.Int
 		partner_id: DF.Link
 		partner_name: DF.Data | None
 		start_date: DF.Date
-		state: DF.Link
+		state: DF.Link | None
 		total_budget: DF.Currency
 	# end: auto-generated types
 

@@ -5,7 +5,7 @@
 from frappe.model.document import Document
 
 
-class CrechePartners(Document):
+class CrecheReportsExport(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
 
@@ -14,7 +14,14 @@ class CrechePartners(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
-		partner_name: DF.Data
+		completed_on: DF.Datetime | None
+		error_log: DF.LongText | None
+		export_file: DF.Data | None
+		export_type: DF.Data | None
+		reference_names: DF.SmallText | None
+		started_on: DF.Datetime | None
+		status: DF.Literal["", "Queued", "Processing", "Completed", "Failed"]
+		total_records: DF.Int
 	# end: auto-generated types
 
 	pass

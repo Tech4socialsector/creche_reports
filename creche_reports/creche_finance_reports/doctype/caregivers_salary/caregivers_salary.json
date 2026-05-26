@@ -7,7 +7,8 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "name_of_the_organization",
+  "partner_id",
+  "partener__name",
   "block",
   "noof_approved_creches",
   "project_approved_since",
@@ -20,12 +21,6 @@
  ],
  "fields": [
   {
-   "fieldname": "name_of_the_organization",
-   "fieldtype": "Link",
-   "label": "Name of the organization",
-   "options": "Creche Partners"
-  },
-  {
    "fieldname": "state",
    "fieldtype": "Link",
    "label": "State",
@@ -33,9 +28,9 @@
   },
   {
    "fieldname": "district",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "label": "District",
-   "options": "State"
+   "options": "District"
   },
   {
    "fieldname": "project_approved_since",
@@ -54,9 +49,9 @@
   },
   {
    "fieldname": "block",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "label": "Block",
-   "options": "State"
+   "options": "Block"
   },
   {
    "fieldname": "column_break_nzws",
@@ -71,12 +66,25 @@
    "fieldname": "table_isll",
    "fieldtype": "Table",
    "options": "Caregivers Salary batch items"
+  },
+  {
+   "fieldname": "partner_id",
+   "fieldtype": "Link",
+   "label": "Partner ID",
+   "options": "Creche Partners"
+  },
+  {
+   "fetch_from": "partner_id.partner_name",
+   "fieldname": "partener__name",
+   "fieldtype": "Data",
+   "label": "Partener  Name",
+   "options": "Creche Partners"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-13 09:10:21.902436",
+ "modified": "2026-05-15 17:55:59.322939",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Caregivers Salary",
@@ -101,7 +109,6 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "title_field": "name_of_the_organization",
  "track_changes": 1,
  "track_seen": 1,
  "track_views": 1

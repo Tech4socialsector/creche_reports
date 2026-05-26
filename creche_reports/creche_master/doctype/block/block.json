@@ -1,35 +1,27 @@
 {
  "actions": [],
- "allow_import": 1,
- "autoname": "CRP-.#####",
- "creation": "2026-05-04 10:24:00.572047",
+ "allow_rename": 1,
+ "autoname": "prompt",
+ "creation": "2026-05-15 11:54:00.884690",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "partner_name"
+  "section_break_fd9p"
  ],
  "fields": [
   {
-   "fieldname": "partner_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Partner Name",
-   "reqd": 1
+   "fieldname": "section_break_fd9p",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [
-  {
-   "link_doctype": "Creche Budget",
-   "link_fieldname": "partner_id"
-  }
- ],
- "modified": "2026-05-15 10:51:39.412807",
+ "links": [],
+ "modified": "2026-05-15 11:54:04.861858",
  "modified_by": "Administrator",
  "module": "Creche Master",
- "name": "Creche Partners",
- "naming_rule": "Expression",
+ "name": "Block",
+ "naming_rule": "Set by user",
  "owner": "Administrator",
  "permissions": [
   {
@@ -47,12 +39,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "partner_name",
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": [],
- "title_field": "partner_name",
- "track_changes": 1,
- "track_seen": 1,
- "track_views": 1
+ "states": []
 }

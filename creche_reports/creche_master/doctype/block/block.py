@@ -5,7 +5,7 @@
 from frappe.model.document import Document
 
 
-class CrechePartners(Document):
+class Block(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
 
@@ -14,7 +14,7 @@ class CrechePartners(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
-		partner_name: DF.Data
+
 	# end: auto-generated types
 
 	pass

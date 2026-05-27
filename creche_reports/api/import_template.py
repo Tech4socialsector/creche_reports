@@ -20,11 +20,199 @@ def get_all_budget_items():
     )
 
 # ==================================================== Budget Import Template ===============================================================================
+# @frappe.whitelist(allow_guest=True)
+# def download_budget_template(data=None):
+
+#     if isinstance(data, str):
+#         data = json.loads(data)
+
+#     budget_items = frappe.get_all(
+#         "Budget and Expense items list",
+#         fields=[
+#             "name",
+#             "budget_main_head",
+#             "budget_sub_head",
+#             "type_of_expenses"
+#         ],
+#         order_by="name asc"
+#     )
+
+#     wb = Workbook()
+#     ws = wb.active
+#     ws.title = "Creche Budget"
+
+#     headers = [
+#         "Budget reference name",
+#         "Partner ID",
+#         "Partner Name",
+#         "Grant ID",
+#         "No of creches",
+#         "State",
+#         "Financial year",
+#         "Date of approval",
+#         "Start Date",
+#         "End Date",
+
+#         "Type of expenses ID (Budget Items List)",
+#         "Budget main head (Budget Items List)",
+#         "Budget sub head (Budget Items List)",
+#         "Type of expenses (Budget Items List)",
+#         "Year 1 (Budget Items List)",
+#         "Year 2 (Budget Items List)",
+#         "Year 3 (Budget Items List)",
+#         "Total Amount (Budget Items List)",
+#         "Notes (Budget Items List)",
+
+#         "Total budget"
+#     ]
+
+#     ws.append(headers)
+
+#     first_row = True
+#     start_child_row = 2
+#     excel_row = 2
+
+#     for item in budget_items:
+
+#         row = []
+
+#         if first_row:
+
+#             row.extend([
+#                 data.get("budget_reference_name"),
+#                 data.get("partner_id"),
+#                 data.get("partner_name"),
+#                 data.get("grant_id"),
+#                 data.get("no_of_creches"),
+#                 data.get("state"),
+#                 data.get("financial_year"),
+#                 data.get("date_of_approval"),
+#                 data.get("start_date"),
+#                 data.get("end_date")
+#             ])
+
+#             first_row = False
+
+#         else:
+#             row.extend([""] * 10)
+
+#         # Total Amount = Year1 + Year2 + Year3
+#         total_amount_formula = f'=SUM(O{excel_row}:Q{excel_row})'
+
+#         row.extend([
+#             item.name,
+#             item.budget_main_head,
+#             item.budget_sub_head,
+#             item.type_of_expenses,
+
+#             "",  # Year 1
+#             "",  # Year 2
+#             "",  # Year 3
+
+#             total_amount_formula,
+#             ""   # Notes
+#         ])
+
+#         total_budget_formula = (
+#             f'=SUM(R{start_child_row}:R{start_child_row + len(budget_items)-1})'
+#         )
+
+#         if excel_row == 2:
+#             row.append(total_budget_formula)
+#         else:
+#             row.append("")
+
+#         ws.append(row)
+
+#         excel_row += 1
+
+#     # Unlock all cells
+#     for row_cells in ws.iter_rows():
+#         for cell in row_cells:
+#             cell.protection = Protection(locked=False)
+
+#     # Lock header
+#     for cell in ws[1]:
+#         cell.protection = Protection(locked=True)
+
+#     # Lock parent fields
+#     parent_columns = [
+#         "A", "B", "C", "D", "E",
+#         "F", "G", "H", "I", "J"
+#     ]
+
+#     for col in parent_columns:
+#         for row_no in range(2, excel_row):
+#             ws[f"{col}{row_no}"].protection = Protection(locked=True)
+
+#     # Lock child master fields
+#     child_master_columns = ["K", "L", "M", "N"]
+
+#     for col in child_master_columns:
+#         for row_no in range(2, excel_row):
+#             ws[f"{col}{row_no}"].protection = Protection(locked=True)
+
+#     # Lock formula columns
+#     formula_columns = ["R", "T"]
+
+#     for col in formula_columns:
+#         for row_no in range(2, excel_row):
+#             ws[f"{col}{row_no}"].protection = Protection(locked=True)
+
+#     # Editable:
+#     # O = Year 1
+#     # P = Year 2
+#     # Q = Year 3
+#     # S = Notes
+
+#     ws.protection.sheet = True
+#     ws.protection.password = "1234"
+
+#     for column_cells in ws.columns:
+
+#         max_length = max(
+#             len(str(cell.value or ""))
+#             for cell in column_cells
+#         )
+
+#         column_letter = column_cells[0].column_letter
+
+#         ws.column_dimensions[column_letter].width = max_length + 5
+
+#     file_stream = BytesIO()
+#     wb.save(file_stream)
+
+#     frappe.response["filename"] = "creche_budget_template.xlsx"
+#     frappe.response["filecontent"] = file_stream.getvalue()
+#     frappe.response["type"] = "binary"
+
+
 @frappe.whitelist(allow_guest=True)
 def download_budget_template(data=None):
 
+    import json
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
     if isinstance(data, str):
         data = json.loads(data)
+
+    # --------------------------------------------------
+    # GET MAIN HEAD SEQUENCE
+    # --------------------------------------------------
+
+    main_head_sequence = {
+        d.name: d.sequence_id or 0
+        for d in frappe.get_all(
+            "Budget main head",
+            fields=["name", "sequence_id"]
+        )
+    }
+
+    # --------------------------------------------------
+    # GET ITEMS
+    # --------------------------------------------------
 
     budget_items = frappe.get_all(
         "Budget and Expense items list",
@@ -33,16 +221,32 @@ def download_budget_template(data=None):
             "budget_main_head",
             "budget_sub_head",
             "type_of_expenses"
-        ],
-        order_by="name asc"
+        ]
     )
+
+    # --------------------------------------------------
+    # SORT ITEMS
+    # --------------------------------------------------
+
+    budget_items = sorted(
+        budget_items,
+        key=lambda d: (
+            main_head_sequence.get(d.budget_main_head, 0),
+            d.budget_sub_head or "",
+            d.name or ""
+        )
+    )
+
+    # --------------------------------------------------
+    # CREATE WORKBOOK
+    # --------------------------------------------------
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Creche Budget"
 
     headers = [
-        "Budget reference name",
+       "Budget reference name",
         "Partner ID",
         "Partner Name",
         "Grant ID",
@@ -62,129 +266,136 @@ def download_budget_template(data=None):
         "Year 3 (Budget Items List)",
         "Total Amount (Budget Items List)",
         "Notes (Budget Items List)",
-
         "Total budget"
     ]
 
     ws.append(headers)
 
-    first_row = True
-    start_child_row = 2
-    excel_row = 2
+    # --------------------------------------------------
+    # HEADER STYLE
+    # --------------------------------------------------
 
-    for item in budget_items:
+    header_fill = PatternFill(
+        start_color="D9EAF7",
+        end_color="D9EAF7",
+        fill_type="solid"
+    )
 
-        row = []
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+        cell.fill = header_fill
 
-        if first_row:
+    # --------------------------------------------------
+    # ADD ROWS
+    # --------------------------------------------------
 
-            row.extend([
-                data.get("budget_reference_name"),
-                data.get("partner_id"),
-                data.get("partner_name"),
-                data.get("grant_id"),
-                data.get("no_of_creches"),
-                data.get("state"),
-                data.get("financial_year"),
-                data.get("date_of_approval"),
-                data.get("start_date"),
-                data.get("end_date")
-            ])
+    start_row = 2
 
-            first_row = False
+    for idx, item in enumerate(budget_items, start=2):
 
-        else:
-            row.extend([""] * 10)
+        row = [
 
-        # Total Amount = Year1 + Year2 + Year3
-        total_amount_formula = f'=SUM(O{excel_row}:Q{excel_row})'
+            data.get("budget_reference_name") if idx == 2 else "",
+            data.get("partner_id") if idx == 2 else "",
+            data.get("partner_name") if idx == 2 else "",
+            data.get("grant_id") if idx == 2 else "",
+            data.get("no_of_creches") if idx == 2 else "",
+            data.get("state") if idx == 2 else "",
+            data.get("financial_year") if idx == 2 else "",
+            data.get("date_of_approval") if idx == 2 else "",
+            data.get("start_date") if idx == 2 else "",
+            data.get("end_date") if idx == 2 else "",
 
-        row.extend([
             item.name,
             item.budget_main_head,
             item.budget_sub_head,
             item.type_of_expenses,
 
-            "",  # Year 1
-            "",  # Year 2
-            "",  # Year 3
+            0,  # Year 1
+            0,  # Year 2
+            0,  # Year 3
 
-            total_amount_formula,
-            ""   # Notes
-        ])
+            f'=SUM(O{idx}:Q{idx})',
 
-        total_budget_formula = (
-            f'=SUM(R{start_child_row}:R{start_child_row + len(budget_items)-1})'
-        )
+            "",  # Notes
 
-        if excel_row == 2:
-            row.append(total_budget_formula)
-        else:
-            row.append("")
+            f'=SUM(R{start_row}:R{len(budget_items)+1})'
+            if idx == 2 else ""
+        ]
 
         ws.append(row)
 
-        excel_row += 1
+    # --------------------------------------------------
+    # TOTAL AMOUNT COLUMN COLOR
+    # --------------------------------------------------
 
-    # Unlock all cells
-    for row_cells in ws.iter_rows():
-        for cell in row_cells:
-            cell.protection = Protection(locked=False)
+    total_fill = PatternFill(
+        start_color="E8F4EA",
+        end_color="E8F4EA",
+        fill_type="solid"
+    )
 
-    # Lock header
-    for cell in ws[1]:
-        cell.protection = Protection(locked=True)
+    for row in range(2, ws.max_row + 1):
+        ws[f"R{row}"].fill = total_fill
 
-    # Lock parent fields
-    parent_columns = [
-        "A", "B", "C", "D", "E",
-        "F", "G", "H", "I", "J"
-    ]
+    # --------------------------------------------------
+    # FILTERS + FREEZE
+    # --------------------------------------------------
 
-    for col in parent_columns:
-        for row_no in range(2, excel_row):
-            ws[f"{col}{row_no}"].protection = Protection(locked=True)
+    ws.auto_filter.ref = ws.dimensions
+    ws.freeze_panes = "A2"
 
-    # Lock child master fields
-    child_master_columns = ["K", "L", "M", "N"]
+    # --------------------------------------------------
+    # AUTO WIDTH
+    # --------------------------------------------------
 
-    for col in child_master_columns:
-        for row_no in range(2, excel_row):
-            ws[f"{col}{row_no}"].protection = Protection(locked=True)
+    for column in ws.columns:
 
-    # Lock formula columns
-    formula_columns = ["R", "T"]
-
-    for col in formula_columns:
-        for row_no in range(2, excel_row):
-            ws[f"{col}{row_no}"].protection = Protection(locked=True)
-
-    # Editable:
-    # O = Year 1
-    # P = Year 2
-    # Q = Year 3
-    # S = Notes
-
-    ws.protection.sheet = True
-    ws.protection.password = "1234"
-
-    for column_cells in ws.columns:
-
-        max_length = max(
+        length = max(
             len(str(cell.value or ""))
-            for cell in column_cells
+            for cell in column
         )
 
-        column_letter = column_cells[0].column_letter
+        ws.column_dimensions[
+            column[0].column_letter
+        ].width = min(length + 5, 50)
 
-        ws.column_dimensions[column_letter].width = max_length + 5
+    # --------------------------------------------------
+    # HIDE COLUMNS
+    # --------------------------------------------------
 
-    file_stream = BytesIO()
-    wb.save(file_stream)
+    hidden_columns = [
+        "B",  # Partner ID
+        "K",  # Type of expenses ID
+        "S",  # Notes
+        "T"   # Total budget
+    ]
 
-    frappe.response["filename"] = "creche_budget_template.xlsx"
-    frappe.response["filecontent"] = file_stream.getvalue()
+    for col in hidden_columns:
+        ws.column_dimensions[col].hidden = True
+
+    # --------------------------------------------------
+    # FILE NAME
+    # --------------------------------------------------
+
+    filename = frappe.scrub(
+        data.get("budget_reference_name") or "budget"
+    ).replace("-", "_")
+
+    # --------------------------------------------------
+    # DOWNLOAD
+    # --------------------------------------------------
+
+    output = BytesIO()
+    wb.save(output)
+
+    frappe.response["filename"] = (
+        f"{filename}_creche_budget_template.xlsx"
+    )
+
+    frappe.response["filecontent"] = output.getvalue()
     frappe.response["type"] = "binary"
+
 # ==================================================== Utilisation Import Template ===============================================================================
 
 # import frappe

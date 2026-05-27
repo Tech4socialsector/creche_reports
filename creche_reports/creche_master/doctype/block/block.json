@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "prompt",
  "creation": "2026-05-15 11:54:00.884690",
@@ -17,7 +18,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-15 11:54:04.861858",
+ "modified": "2026-05-27 14:37:15.478331",
  "modified_by": "Administrator",
  "module": "Creche Master",
  "name": "Block",

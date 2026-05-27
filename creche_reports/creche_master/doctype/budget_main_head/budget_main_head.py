@@ -14,7 +14,7 @@ class Budgetmainhead(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
-
+		sequence_id: DF.Int
 	# end: auto-generated types
 
 	pass

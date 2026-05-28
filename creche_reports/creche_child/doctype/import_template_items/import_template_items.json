@@ -1,0 +1,62 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-28 11:45:00.611592",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "type_of_expenses_id",
+  "type_of_expenses",
+  "budget_sub_head",
+  "budget_main_head"
+ ],
+ "fields": [
+  {
+   "fieldname": "type_of_expenses_id",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Type of expenses ID",
+   "options": "Budget and Expense items list"
+  },
+  {
+   "fetch_from": "type_of_expenses_id.type_of_expenses",
+   "fieldname": "type_of_expenses",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Type of expenses",
+   "options": "Budget and Expense items list"
+  },
+  {
+   "fetch_from": "type_of_expenses_id.budget_sub_head",
+   "fieldname": "budget_sub_head",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Budget Sub Head",
+   "options": "Budget and Expense items list"
+  },
+  {
+   "fetch_from": "type_of_expenses_id.budget_main_head",
+   "fieldname": "budget_main_head",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Budget Main Head",
+   "options": "Budget and Expense items list"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-28 11:49:25.429462",
+ "modified_by": "Administrator",
+ "module": "Creche Child",
+ "name": "Import Template Items",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1030,6 +1030,340 @@ def get_all_budget_items():
 
 
 
+# @frappe.whitelist(allow_guest=True)
+# def download_budget_template(data=None):
+
+#     import json
+#     from io import BytesIO
+#     from openpyxl import Workbook
+#     from openpyxl.styles import Font, PatternFill
+
+#     # --------------------------------------------------
+#     # PARSE DATA
+#     # --------------------------------------------------
+
+#     if isinstance(data, str):
+#         data = json.loads(data)
+
+#     data = data or {}
+
+#     # --------------------------------------------------
+#     # GET MAIN HEAD SEQUENCE
+#     # --------------------------------------------------
+
+#     main_head_sequence = {
+#         d.name: (d.sequence_id or 0)
+#         for d in frappe.get_all(
+#             "Budget main head",
+#             fields=[
+#                 "name",
+#                 "sequence_id"
+#             ]
+#         )
+#     }
+
+#     # --------------------------------------------------
+#     # FETCH BUDGET ITEMS
+#     # --------------------------------------------------
+
+#     budget_items = frappe.get_all(
+#         "Budget and Expense items list",
+#         fields=[
+#             "name",
+#             "budget_main_head",
+#             "budget_sub_head",
+#             "type_of_expenses"
+#         ]
+#     )
+
+#     # --------------------------------------------------
+#     # SORT ITEMS
+#     #
+#     # 1. Main Head Sequence
+#     # 2. Main Head Name
+#     # 3. Sub Head
+#     # 4. Expense Type
+#     # 5. Item Name
+#     # --------------------------------------------------
+
+#     budget_items = sorted(
+#         budget_items,
+#         key=lambda d: (
+
+#             main_head_sequence.get(
+#                 d.get("budget_main_head"), 0
+#             ),
+
+#             d.get("budget_main_head") or "",
+
+#             d.get("budget_sub_head") or "",
+
+#             d.get("type_of_expenses") or "",
+
+#             d.get("name") or ""
+#         )
+#     )
+
+#     # --------------------------------------------------
+#     # CREATE WORKBOOK
+#     # --------------------------------------------------
+
+#     wb = Workbook()
+#     ws = wb.active
+#     ws.title = "Creche Budget"
+
+#     # --------------------------------------------------
+#     # HEADERS
+#     # --------------------------------------------------
+
+#     headers = [
+
+#         "Budget reference name",
+#         "Partner ID",
+#         "Partner Name",
+#         "Grant ID",
+#         "No of creches",
+#         "State",
+#         "Financial year",
+#         "Date of approval",
+#         "Start Date",
+#         "End Date",
+
+#         "Type of expenses ID (Budget Items List)",
+#         "Budget main head (Budget Items List)",
+#         "Budget sub head (Budget Items List)",
+#         "Type of expenses (Budget Items List)",
+
+#         "Year 1 (Budget Items List)",
+#         "Year 2 (Budget Items List)",
+#         "Year 3 (Budget Items List)",
+
+#         "Total Amount (Budget Items List)",
+#         "Notes (Budget Items List)",
+
+#         "Total budget"
+#     ]
+
+#     ws.append(headers)
+
+#     # --------------------------------------------------
+#     # HEADER STYLE
+#     # --------------------------------------------------
+
+#     header_fill = PatternFill(
+#         start_color="D9EAF7",
+#         end_color="D9EAF7",
+#         fill_type="solid"
+#     )
+
+#     for cell in ws[1]:
+
+#         cell.font = Font(bold=True)
+#         cell.fill = header_fill
+
+#     # --------------------------------------------------
+#     # TOTAL BUDGET FORMULA
+#     # --------------------------------------------------
+
+#     total_budget_formula = (
+#         f"=SUM(R2:R{len(budget_items)+1})"
+#     )
+
+#     # --------------------------------------------------
+#     # ADD DATA ROWS
+#     # --------------------------------------------------
+
+#     for idx, item in enumerate(budget_items, start=2):
+
+#         row = [
+
+#             # ------------------------------------------
+#             # PARENT FIELDS
+#             # ONLY FIRST ROW SHOULD HAVE VALUES
+#             # ------------------------------------------
+
+#             data.get("budget_reference_name")
+#             if idx == 2 else "",
+
+#             data.get("partner_id")
+#             if idx == 2 else "",
+
+#             data.get("partner_name")
+#             if idx == 2 else "",
+
+#             data.get("grant_id")
+#             if idx == 2 else "",
+
+#             data.get("no_of_creches")
+#             if idx == 2 else "",
+
+#             data.get("state")
+#             if idx == 2 else "",
+
+#             data.get("financial_year")
+#             if idx == 2 else "",
+
+#             data.get("date_of_approval")
+#             if idx == 2 else "",
+
+#             data.get("start_date")
+#             if idx == 2 else "",
+
+#             data.get("end_date")
+#             if idx == 2 else "",
+
+#             # ------------------------------------------
+#             # CHILD TABLE FIELDS
+#             # ------------------------------------------
+
+#             item.get("name"),
+
+#             item.get("budget_main_head"),
+
+#             item.get("budget_sub_head"),
+
+#             item.get("type_of_expenses"),
+
+#             # ------------------------------------------
+#             # YEAR VALUES
+#             # ------------------------------------------
+
+#             0,  # Year 1
+
+#             0,  # Year 2
+
+#             0,  # Year 3
+
+#             # ------------------------------------------
+#             # TOTAL AMOUNT
+#             # YEAR1 + YEAR2 + YEAR3
+#             # ------------------------------------------
+
+#             f"=SUM(O{idx}:Q{idx})",
+
+#             # ------------------------------------------
+#             # NOTES
+#             # ------------------------------------------
+
+#             "",
+
+#             # ------------------------------------------
+#             # TOTAL BUDGET
+#             # SUM OF ALL TOTAL AMOUNTS
+#             # ------------------------------------------
+
+#             total_budget_formula
+#             if idx == 2 else ""
+#         ]
+
+#         ws.append(row)
+
+#     # --------------------------------------------------
+#     # STYLE TOTAL AMOUNT COLUMN
+#     # --------------------------------------------------
+
+#     total_fill = PatternFill(
+#         start_color="E8F4EA",
+#         end_color="E8F4EA",
+#         fill_type="solid"
+#     )
+
+#     for row in range(2, ws.max_row + 1):
+
+#         ws[f"R{row}"].fill = total_fill
+
+#     # --------------------------------------------------
+#     # STYLE TOTAL BUDGET COLUMN
+#     # --------------------------------------------------
+
+#     budget_fill = PatternFill(
+#         start_color="FFF2CC",
+#         end_color="FFF2CC",
+#         fill_type="solid"
+#     )
+
+#     for row in range(2, ws.max_row + 1):
+
+#         ws[f"T{row}"].fill = budget_fill
+
+#     # --------------------------------------------------
+#     # FREEZE HEADER
+#     # --------------------------------------------------
+
+#     ws.freeze_panes = "A2"
+
+#     # --------------------------------------------------
+#     # ENABLE FILTERS
+#     # --------------------------------------------------
+
+#     ws.auto_filter.ref = ws.dimensions
+
+#     # --------------------------------------------------
+#     # AUTO WIDTH
+#     # --------------------------------------------------
+
+#     for column in ws.columns:
+
+#         max_length = max(
+#             len(str(cell.value or ""))
+#             for cell in column
+#         )
+
+#         adjusted_width = min(
+#             max_length + 5,
+#             50
+#         )
+
+#         ws.column_dimensions[
+#             column[0].column_letter
+#         ].width = adjusted_width
+
+#     # --------------------------------------------------
+#     # HIDE COLUMNS
+#     # --------------------------------------------------
+
+#     hidden_columns = [
+
+#         "B",  # Partner ID
+#         "K",  # Type of expenses ID
+#         "S"   # Notes
+#     ]
+
+#     for col in hidden_columns:
+
+#         ws.column_dimensions[col].hidden = True
+
+#     # --------------------------------------------------
+#     # FILE NAME
+#     # --------------------------------------------------
+
+#     filename = frappe.scrub(
+#         data.get("budget_reference_name")
+#         or "budget"
+#     ).replace("-", "_")
+
+#     # --------------------------------------------------
+#     # SAVE FILE
+#     # --------------------------------------------------
+
+#     output = BytesIO()
+
+#     wb.save(output)
+
+#     frappe.response["filename"] = (
+#         f"{filename}_creche_budget_template.xlsx"
+#     )
+
+#     frappe.response["filecontent"] = output.getvalue()
+
+#     frappe.response["type"] = "binary"
+
+
+
+
+
+
+
 @frappe.whitelist(allow_guest=True)
 def download_budget_template(data=None):
 
@@ -1048,68 +1382,79 @@ def download_budget_template(data=None):
     data = data or {}
 
     # --------------------------------------------------
-    # GET MAIN HEAD SEQUENCE
+    # GET LOGGED IN USER
     # --------------------------------------------------
 
-    main_head_sequence = {
-        d.name: (d.sequence_id or 0)
-        for d in frappe.get_all(
-            "Budget main head",
-            fields=[
-                "name",
-                "sequence_id"
-            ]
-        )
-    }
+    logged_in_user = frappe.session.user
 
     # --------------------------------------------------
-    # FETCH BUDGET ITEMS
+    # FIND IMPORT TEMPLATE SETTINGS
     # --------------------------------------------------
 
-    budget_items = frappe.get_all(
-        "Budget and Expense items list",
-        fields=[
-            "name",
-            "budget_main_head",
-            "budget_sub_head",
-            "type_of_expenses"
-        ]
+    template_settings_name = frappe.db.get_value(
+        "Import Template settings",
+        {
+            "user": logged_in_user
+        }
     )
 
     # --------------------------------------------------
-    # SORT ITEMS
-    #
-    # 1. Main Head Sequence
-    # 2. Main Head Name
-    # 3. Sub Head
-    # 4. Expense Type
-    # 5. Item Name
+    # VALIDATION
     # --------------------------------------------------
 
-    budget_items = sorted(
-        budget_items,
-        key=lambda d: (
+    if not template_settings_name:
 
-            main_head_sequence.get(
-                d.get("budget_main_head"), 0
-            ),
-
-            d.get("budget_main_head") or "",
-
-            d.get("budget_sub_head") or "",
-
-            d.get("type_of_expenses") or "",
-
-            d.get("name") or ""
+        frappe.throw(
+            f"No Import Template settings found for user: {logged_in_user}"
         )
+
+    # --------------------------------------------------
+    # GET DOCUMENT
+    # --------------------------------------------------
+
+    template_settings = frappe.get_doc(
+        "Import Template settings",
+        template_settings_name
     )
+
+    # --------------------------------------------------
+    # GET CHILD TABLE ITEMS
+    # ORDER WILL BE SAME AS CHILD TABLE
+    # --------------------------------------------------
+
+    budget_items = []
+
+    for row in template_settings.table_jndv:
+
+        budget_items.append({
+
+            "name": row.type_of_expenses_id,
+
+            "budget_main_head": row.budget_main_head,
+
+            "budget_sub_head": row.budget_sub_head,
+
+            "type_of_expenses": row.type_of_expenses
+        })
+
+    # --------------------------------------------------
+    # VALIDATION
+    # --------------------------------------------------
+
+    if not budget_items:
+
+        frappe.throw(
+            "No Import Template Items found for this user"
+        )
 
     # --------------------------------------------------
     # CREATE WORKBOOK
     # --------------------------------------------------
 
     wb = Workbook()
+
     ws = wb.active
+
     ws.title = "Creche Budget"
 
     # --------------------------------------------------
@@ -1123,6 +1468,8 @@ def download_budget_template(data=None):
         "Partner Name",
         "Grant ID",
         "No of creches",
+        "Block",
+        "District",
         "State",
         "Financial year",
         "Date of approval",
@@ -1159,14 +1506,24 @@ def download_budget_template(data=None):
     for cell in ws[1]:
 
         cell.font = Font(bold=True)
+
         cell.fill = header_fill
 
     # --------------------------------------------------
-    # TOTAL BUDGET FORMULA
+    # COLUMN INDEXES
+    # --------------------------------------------------
+    #
+    # Q = Year 1
+    # R = Year 2
+    # S = Year 3
+    # T = Total Amount
+    # U = Notes
+    # V = Total Budget
+    #
     # --------------------------------------------------
 
     total_budget_formula = (
-        f"=SUM(R2:R{len(budget_items)+1})"
+        f"=SUM(T2:T{len(budget_items)+1})"
     )
 
     # --------------------------------------------------
@@ -1179,7 +1536,6 @@ def download_budget_template(data=None):
 
             # ------------------------------------------
             # PARENT FIELDS
-            # ONLY FIRST ROW SHOULD HAVE VALUES
             # ------------------------------------------
 
             data.get("budget_reference_name")
@@ -1195,6 +1551,12 @@ def download_budget_template(data=None):
             if idx == 2 else "",
 
             data.get("no_of_creches")
+            if idx == 2 else "",
+
+            data.get("block")
+            if idx == 2 else "",
+
+            data.get("district")
             if idx == 2 else "",
 
             data.get("state")
@@ -1213,7 +1575,7 @@ def download_budget_template(data=None):
             if idx == 2 else "",
 
             # ------------------------------------------
-            # CHILD TABLE FIELDS
+            # CHILD TABLE VALUES
             # ------------------------------------------
 
             item.get("name"),
@@ -1229,17 +1591,14 @@ def download_budget_template(data=None):
             # ------------------------------------------
 
             0,  # Year 1
-
             0,  # Year 2
-
             0,  # Year 3
 
             # ------------------------------------------
             # TOTAL AMOUNT
-            # YEAR1 + YEAR2 + YEAR3
             # ------------------------------------------
 
-            f"=SUM(O{idx}:Q{idx})",
+            f"=SUM(Q{idx}:S{idx})",
 
             # ------------------------------------------
             # NOTES
@@ -1249,7 +1608,6 @@ def download_budget_template(data=None):
 
             # ------------------------------------------
             # TOTAL BUDGET
-            # SUM OF ALL TOTAL AMOUNTS
             # ------------------------------------------
 
             total_budget_formula
@@ -1270,7 +1628,7 @@ def download_budget_template(data=None):
 
     for row in range(2, ws.max_row + 1):
 
-        ws[f"R{row}"].fill = total_fill
+        ws[f"T{row}"].fill = total_fill
 
     # --------------------------------------------------
     # STYLE TOTAL BUDGET COLUMN
@@ -1284,7 +1642,7 @@ def download_budget_template(data=None):
 
     for row in range(2, ws.max_row + 1):
 
-        ws[f"T{row}"].fill = budget_fill
+        ws[f"V{row}"].fill = budget_fill
 
     # --------------------------------------------------
     # FREEZE HEADER
@@ -1325,8 +1683,8 @@ def download_budget_template(data=None):
     hidden_columns = [
 
         "B",  # Partner ID
-        "K",  # Type of expenses ID
-        "S"   # Notes
+        "M",  # Type of expenses ID
+        "U"   # Notes
     ]
 
     for col in hidden_columns:
@@ -1357,7 +1715,6 @@ def download_budget_template(data=None):
     frappe.response["filecontent"] = output.getvalue()
 
     frappe.response["type"] = "binary"
-
 # ==================================================== Utilisation Import Template ===============================================================================
 
 # import frappe

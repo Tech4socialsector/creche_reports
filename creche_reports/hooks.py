@@ -11,6 +11,10 @@ doc_events = {
     "Creche Budget": {
         "after_insert":
             "creche_reports.events.send_import_email"
+    },
+    "Creche utilisation": {
+        "after_insert":
+            "creche_reports.events.send_utilisation_import_email"
     }
 }
 # required_apps = []

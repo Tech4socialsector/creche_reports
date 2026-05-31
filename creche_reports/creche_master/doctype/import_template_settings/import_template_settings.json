@@ -7,6 +7,10 @@
  "engine": "InnoDB",
  "field_order": [
   "user",
+  "user_name",
+  "column_break_kosr",
+  "partner_name",
+  "section_break_uoxg",
   "table_jndv"
  ],
  "fields": [
@@ -20,12 +24,32 @@
    "fieldname": "table_jndv",
    "fieldtype": "Table",
    "options": "Import Template Items"
+  },
+  {
+   "fetch_from": "user.full_name",
+   "fieldname": "user_name",
+   "fieldtype": "Data",
+   "label": "User Name"
+  },
+  {
+   "fieldname": "column_break_kosr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "partner_name",
+   "fieldtype": "Link",
+   "label": "Partner Name",
+   "options": "Creche Partners"
+  },
+  {
+   "fieldname": "section_break_uoxg",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-28 11:53:18.677137",
+ "modified": "2026-05-31 10:40:15.136458",
  "modified_by": "Administrator",
  "module": "Creche Master",
  "name": "Import Template settings",

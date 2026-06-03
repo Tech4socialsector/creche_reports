@@ -1,0 +1,19 @@
+{
+ "content": null,
+ "creation": "2026-06-03 13:15:30.169500",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-06-03 13:15:30.169500",
+ "modified_by": "Administrator",
+ "module": "Creche Finance Reports",
+ "name": "creche_budget_utilisation_summary",
+ "owner": "Administrator",
+ "page_name": "creche_budget_utilisation_summary",
+ "roles": [],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Creche Budget & Utilisation Summary"
+}

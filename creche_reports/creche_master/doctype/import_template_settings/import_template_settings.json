@@ -9,7 +9,8 @@
   "user",
   "user_name",
   "column_break_kosr",
-  "partner_name",
+  "partner_id",
+  "partner__name",
   "section_break_uoxg",
   "table_jndv"
  ],
@@ -17,6 +18,7 @@
   {
    "fieldname": "user",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "User",
    "options": "User"
   },
@@ -29,27 +31,42 @@
    "fetch_from": "user.full_name",
    "fieldname": "user_name",
    "fieldtype": "Data",
-   "label": "User Name"
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User Name",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_kosr",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "partner_name",
+   "fieldname": "section_break_uoxg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "partner_id",
    "fieldtype": "Link",
-   "label": "Partner Name",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Partner ID",
    "options": "Creche Partners"
   },
   {
-   "fieldname": "section_break_uoxg",
-   "fieldtype": "Section Break"
+   "fetch_from": "partner_id.partner_name",
+   "fieldname": "partner__name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Partner  Name",
+   "options": "Creche Partners",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-31 10:40:15.136458",
+ "modified": "2026-06-02 10:42:28.970776",
  "modified_by": "Administrator",
  "module": "Creche Master",
  "name": "Import Template settings",

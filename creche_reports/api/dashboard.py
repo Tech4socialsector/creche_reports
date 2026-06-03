@@ -1,3 +1,4 @@
+
 import frappe
 from collections import defaultdict
 from typing import Optional
@@ -761,3 +762,905 @@ def get_creche_utilisation(
         final_partners.append(partner)
 
     return {"overview": overview, "partners": final_partners}
+
+
+
+# import frappe
+# import json
+# from collections import defaultdict
+
+
+# # ─────────────────────────────────────────────────────────────────────────────
+# #  HELPERS
+# # ─────────────────────────────────────────────────────────────────────────────
+
+# def _p(s):
+#     try:
+#         return json.loads(s or '{}')
+#     except Exception:
+#         return {}
+
+
+# def _inr(v):
+#     try:
+#         return '₹{:,.0f}'.format(float(v or 0))
+#     except Exception:
+#         return '₹0'
+
+
+# def _pct(part, whole):
+#     try:
+#         return round(float(part or 0) / float(whole) * 100, 1) if whole else 0.0
+#     except Exception:
+#         return 0.0
+
+
+# def _list_filter(val):
+#     """Return frappe filter: ['in', [...]] for list, scalar for single value."""
+#     if isinstance(val, list) and len(val) == 1:
+#         return val[0]
+#     if isinstance(val, list):
+#         return ['in', val]
+#     return val
+
+
+# def _budget_filters(f):
+#     out = {}
+#     if f.get('financial_year'):
+#         out['financial_year'] = f['financial_year']
+#     for k in ('partner_id', 'grant_id', 'state', 'district', 'block'):
+#         if f.get(k):
+#             out[k] = _list_filter(f[k])
+#     return out
+
+
+# def _util_filters(f):
+#     out = {}
+#     if f.get('financial_year'):
+#         out['financial_year'] = f['financial_year']
+#     if f.get('month'):
+#         out['month'] = _list_filter(f['month'])
+#     for k in ('partner_id', 'grant_id', 'state', 'district', 'block'):
+#         if f.get(k):
+#             out[k] = _list_filter(f[k])
+#     return out
+
+
+# def _disb_filters(f):
+#     out = {}
+#     if f.get('financial_year'):
+#         out['financial_year'] = f['financial_year']
+#     for k in ('partner_id', 'grant_id', 'state', 'district', 'block'):
+#         if f.get(k):
+#             out[k] = _list_filter(f[k])
+#     return out
+
+
+# def _get_expense_map(ids):
+#     """
+#     Resolve Budget and Expense items list records by name.
+#     Returns dict: name → {type_of_expenses, budget_main_head, budget_sub_head}
+#     Falls back to fetching ALL records if filter returns nothing.
+#     """
+#     if not ids:
+#         return {}
+#     docs = frappe.db.get_list(
+#         'Budget and Expense items list',
+#         filters={'name': ['in', list(ids)]},
+#         fields=['name', 'type_of_expenses', 'budget_main_head', 'budget_sub_head'],
+#         limit=0,
+#     )
+#     if docs:
+#         return {d['name']: d for d in docs}
+#     # Fallback: load all (needed when naming differs from stored id)
+#     all_docs = frappe.db.get_list(
+#         'Budget and Expense items list',
+#         fields=['name', 'type_of_expenses', 'budget_main_head', 'budget_sub_head'],
+#         limit=0,
+#     )
+#     return {d['name']: d for d in all_docs}
+
+
+# def _enrich_items(items, exp_map):
+#     """
+#     Fill type_of_expenses / budget_main_head / budget_sub_head from exp_map.
+#     Modifies items in-place.
+#     """
+#     for item in items:
+#         eid = item.get('type_of_expenses_id') or ''
+#         rec = exp_map.get(eid) or {}
+
+#         if not item.get('type_of_expenses'):
+#             item['type_of_expenses'] = (
+#                 rec.get('type_of_expenses') or
+#                 item.get('type_of_expenses') or
+#                 eid or 'Unknown'
+#             )
+#         if not item.get('budget_main_head'):
+#             item['budget_main_head'] = rec.get('budget_main_head') or 'Other'
+#         if not item.get('budget_sub_head'):
+#             item['budget_sub_head'] = rec.get('budget_sub_head') or 'General'
+#     return items
+
+
+# def _group_items(items, main_f, sub_f, name_f, amt_f, palette):
+#     """
+#     Group flat rows into:
+#       [{label, color, total, subs:[{label, items:[{name, amount}]}]}]
+#     """
+#     main_order = []
+#     main_map = {}
+
+#     for item in items:
+#         main = item.get(main_f) or 'Other'
+#         sub  = item.get(sub_f)  or 'General'
+#         name = item.get(name_f) or item.get('type_of_expenses_id') or ''
+#         amt  = float(item.get(amt_f) or 0)
+
+#         if main not in main_map:
+#             main_map[main] = {'sub_order': [], 'sub_map': {}}
+#             main_order.append(main)
+#         if sub not in main_map[main]['sub_map']:
+#             main_map[main]['sub_map'][sub] = []
+#             main_map[main]['sub_order'].append(sub)
+#         main_map[main]['sub_map'][sub].append({'name': name, 'amount': amt})
+
+#     groups = []
+#     for ci, main in enumerate(main_order):
+#         subs = [
+#             {'label': sub, 'items': main_map[main]['sub_map'][sub]}
+#             for sub in main_map[main]['sub_order']
+#         ]
+#         total = sum(i['amount'] for s in subs for i in s['items'])
+#         groups.append({
+#             'label': main,
+#             'color': palette[ci % len(palette)],
+#             'total': total,
+#             'subs':  subs,
+#         })
+#     return groups
+
+
+# # ─────────────────────────────────────────────────────────────────────────────
+# #  1. FILTER OPTIONS
+# # ─────────────────────────────────────────────────────────────────────────────
+
+# @frappe.whitelist()
+# def get_filter_options(financial_year=None):
+#     """
+#     Returns dropdown options for all filter controls.
+#     financial_year: optional string to scope partner/state/district/block lists.
+#     """
+#     bf = {'financial_year': financial_year} if financial_year else {}
+
+#     # Financial years — from all Creche Budget records
+#     all_fy = frappe.db.get_list(
+#         'Creche Budget', fields=['financial_year'], limit=0,
+#     )
+#     fy_list = sorted(
+#         {r['financial_year'] for r in all_fy if r.get('financial_year')},
+#         reverse=True,
+#     )
+
+#     # Months — distinct values used in Creche utilisation
+#     month_order = [
+#         'April', 'May', 'June', 'July', 'August', 'September',
+#         'October', 'November', 'December', 'January', 'February', 'March',
+#     ]
+#     used_months_docs = frappe.db.get_list(
+#         'Creche utilisation', fields=['month'], limit=0,
+#     )
+#     used_months = sorted(
+#         {r['month'] for r in used_months_docs if r.get('month')},
+#         key=lambda m: month_order.index(m) if m in month_order else 99,
+#     )
+
+#     # Partners, grant IDs, states, districts, blocks — from Creche Budget
+#     budgets = frappe.db.get_list(
+#         'Creche Budget', filters=bf,
+#         fields=['partner_id', 'partner_name', 'grant_id',
+#                 'state', 'district', 'block'],
+#         limit=0,
+#     )
+
+#     # Deduplicate partners preserving label
+#     partner_map = {}
+#     for b in budgets:
+#         pid = b.get('partner_id') or ''
+#         if pid and pid not in partner_map:
+#             partner_map[pid] = b.get('partner_name') or pid
+
+#     def opts(values):
+#         return [{'value': v, 'label': v, 'description': ''} for v in sorted(values) if v]
+
+#     return {
+#         'financial_years': fy_list,
+#         'months':   [{'value': m, 'label': m, 'description': ''} for m in used_months],
+#         'partners': [{'value': k, 'label': v, 'description': ''} for k, v in sorted(partner_map.items())],
+#         'grant_ids': opts({b['grant_id'] for b in budgets if b.get('grant_id')}),
+#         'states':    opts({b['state']    for b in budgets if b.get('state')}),
+#         'districts': opts({b['district'] for b in budgets if b.get('district')}),
+#         'blocks':    opts({b['block']    for b in budgets if b.get('block')}),
+#     }
+
+
+# # ─────────────────────────────────────────────────────────────────────────────
+# #  2. DASHBOARD DATA  (summary strip + 6 cards)
+# # ─────────────────────────────────────────────────────────────────────────────
+
+# @frappe.whitelist()
+# def get_dashboard_data(filters='{}'):
+#     f  = _p(filters)
+#     bf = _budget_filters(f)
+#     uf = _util_filters(f)
+#     df = _disb_filters(f)
+
+#     # ── Creche Budget ──────────────────────────────────────────────────────────
+#     budgets = frappe.db.get_list(
+#         'Creche Budget', filters=bf,
+#         fields=['partner_id', 'state', 'district', 'block',
+#                 'no_of_creches', 'total_budget'],
+#         limit=0,
+#     )
+#     total_budget = sum(float(b.get('total_budget') or 0) for b in budgets)
+
+#     # ── Creche utilisation ─────────────────────────────────────────────────────
+#     util_docs = frappe.db.get_list(
+#         'Creche utilisation', filters=uf,
+#         fields=['total_utilisation', 'balance_amount', 'interest_from_bank'],
+#         limit=0,
+#     )
+#     total_util   = sum(float(u.get('total_utilisation') or 0) for u in util_docs)
+#     # balance_amount = "Bank + Cash Balance at end of month"
+#     # interest_from_bank = separate interest field
+#     total_bank   = sum(
+#         float(u.get('balance_amount') or 0) + float(u.get('interest_from_bank') or 0)
+#         for u in util_docs
+#     )
+
+#     # ── Creche Disbursement ────────────────────────────────────────────────────
+#     # total_disbursement is a stored computed field — use directly
+#     disb_docs = frappe.db.get_list(
+#         'Creche Disbursement', filters=df,
+#         fields=['total_disbursement'],
+#         limit=0,
+#     )
+#     total_disbursed = sum(float(d.get('total_disbursement') or 0) for d in disb_docs)
+
+#     return {
+#         'summary': {
+#             'partners':  len({b['partner_id'] for b in budgets if b.get('partner_id')}),
+#             'states':    len({b['state']      for b in budgets if b.get('state')}),
+#             'districts': len({b['district']   for b in budgets if b.get('district')}),
+#             'blocks':    len({b['block']      for b in budgets if b.get('block')}),
+#             'creches':   sum(int(b.get('no_of_creches') or 0) for b in budgets),
+#         },
+#         'cards': {
+#             'budget':         {'value': total_budget,               'pct': None},
+#             'utilisation':    {'value': total_util,                 'pct': _pct(total_util, total_budget)},
+#             'disbursed':      {'value': total_disbursed,            'pct': _pct(total_disbursed, total_budget)},
+#             'budget_balance': {'value': total_budget - total_util,  'pct': None},
+#             'bank_balance':   {'value': total_bank,                 'pct': None},
+#             'balance_amount': {'value': total_budget - total_disbursed, 'pct': None},
+#         },
+#     }
+
+
+# # ─────────────────────────────────────────────────────────────────────────────
+# #  3. DRILL-DOWN DATA
+# # ─────────────────────────────────────────────────────────────────────────────
+
+# @frappe.whitelist()
+# def get_drill_data(drill_key, filters='{}'):
+#     f  = _p(filters)
+#     bf = _budget_filters(f)
+#     uf = _util_filters(f)
+#     df = _disb_filters(f)
+
+#     # ── partners ────────────────────────────────────────────────────────────────
+#     if drill_key == 'partners':
+#         rows_raw = frappe.db.get_list(
+#             'Creche Budget', filters=bf,
+#             fields=['partner_id', 'partner_name', 'grant_id',
+#                     'state', 'district', 'block', 'no_of_creches', 'total_budget'],
+#             limit=0,
+#         )
+#         pm = {}
+#         for b in rows_raw:
+#             pid = b.get('partner_id') or ''
+#             if pid not in pm:
+#                 pm[pid] = {
+#                     'name': b.get('partner_name') or pid,
+#                     'grant_id': b.get('grant_id'), 'state': b.get('state'),
+#                     'district': b.get('district'), 'block': b.get('block'),
+#                     'creches': 0, 'budget': 0,
+#                 }
+#             pm[pid]['creches'] += int(b.get('no_of_creches') or 0)
+#             pm[pid]['budget']  += float(b.get('total_budget') or 0)
+#         rows = [[v['name'], pid, v['grant_id'], v['state'], v['district'],
+#                  v['block'], v['creches'], _inr(v['budget'])]
+#                 for pid, v in pm.items()]
+#         tc = sum(v['creches'] for v in pm.values())
+#         tb = sum(v['budget']  for v in pm.values())
+#         return {
+#             'heads':  ['#', 'Partner name', 'Partner ID', 'Grant ID',
+#                        'State', 'District', 'Block', 'Crèches', 'Total budget'],
+#             'rows':   rows,
+#             'totals': ['Total', None, None, None, None, None, tc, _inr(tb)],
+#         }
+
+#     # ── states ──────────────────────────────────────────────────────────────────
+#     if drill_key == 'states':
+#         rows_raw = frappe.db.get_list(
+#             'Creche Budget', filters=bf,
+#             fields=['state', 'partner_id', 'district', 'no_of_creches', 'total_budget'],
+#             limit=0,
+#         )
+#         sm = defaultdict(lambda: {'partners': set(), 'districts': set(), 'creches': 0, 'budget': 0})
+#         for b in rows_raw:
+#             s = b.get('state') or 'Unknown'
+#             sm[s]['partners'].add(b.get('partner_id'))
+#             sm[s]['districts'].add(b.get('district'))
+#             sm[s]['creches'] += int(b.get('no_of_creches') or 0)
+#             sm[s]['budget']  += float(b.get('total_budget') or 0)
+#         rows = [[s, len(v['partners']), v['creches'], len(v['districts']), _inr(v['budget'])]
+#                 for s, v in sm.items()]
+#         return {
+#             'heads':  ['#', 'State', 'Partners', 'Crèches', 'Districts', 'Total budget'],
+#             'rows':   rows,
+#             'totals': ['Total', None,
+#                        sum(v['creches'] for v in sm.values()), None,
+#                        _inr(sum(v['budget'] for v in sm.values()))],
+#         }
+
+#     # ── districts ────────────────────────────────────────────────────────────────
+#     if drill_key == 'districts':
+#         rows_raw = frappe.db.get_list(
+#             'Creche Budget', filters=bf,
+#             fields=['district', 'state', 'partner_name', 'block', 'no_of_creches'],
+#             limit=0,
+#         )
+#         rows = [[b.get('district'), b.get('state'), b.get('partner_name'),
+#                  b.get('block'), b.get('no_of_creches')] for b in rows_raw]
+#         return {
+#             'heads':  ['#', 'District', 'State', 'Partner', 'Block', 'Crèches'],
+#             'rows':   rows,
+#             'totals': ['Total', None, None, None,
+#                        sum(int(b.get('no_of_creches') or 0) for b in rows_raw)],
+#         }
+
+#     # ── blocks ───────────────────────────────────────────────────────────────────
+#     if drill_key == 'blocks':
+#         rows_raw = frappe.db.get_list(
+#             'Creche Budget', filters=bf,
+#             fields=['block', 'district', 'state', 'partner_name', 'no_of_creches'],
+#             limit=0,
+#         )
+#         rows = [[b.get('block'), b.get('district'), b.get('state'),
+#                  b.get('partner_name'), b.get('no_of_creches')] for b in rows_raw]
+#         return {
+#             'heads':  ['#', 'Block', 'District', 'State', 'Partner', 'Crèches'],
+#             'rows':   rows,
+#             'totals': ['Total', None, None, None,
+#                        sum(int(b.get('no_of_creches') or 0) for b in rows_raw)],
+#         }
+
+#     # ── creches ──────────────────────────────────────────────────────────────────
+#     if drill_key == 'creches':
+#         rows_raw = frappe.db.get_list(
+#             'Creche Budget', filters=bf,
+#             fields=['partner_name', 'state', 'district', 'block',
+#                     'grant_id', 'financial_year', 'no_of_creches'],
+#             limit=0,
+#         )
+#         rows = [[b.get('partner_name'), b.get('state'), b.get('district'), b.get('block'),
+#                  b.get('grant_id'), b.get('financial_year'), b.get('no_of_creches')]
+#                 for b in rows_raw]
+#         return {
+#             'heads':  ['#', 'Partner', 'State', 'District', 'Block',
+#                        'Grant ID', 'Financial year', 'Crèches'],
+#             'rows':   rows,
+#             'totals': ['Total', None, None, None, None, None,
+#                        sum(int(b.get('no_of_creches') or 0) for b in rows_raw)],
+#         }
+
+#     # ── budget ───────────────────────────────────────────────────────────────────
+#     # budget_reference_name = partner's display name (Data field on Creche Budget)
+#     # name = actual docname e.g. BGD-0001  → used as _ref for child item lookup
+#     if drill_key == 'budget':
+#         rows_raw = frappe.db.get_list(
+#             'Creche Budget', filters=bf,
+#             fields=['name', 'partner_name', 'grant_id', 'budget_reference_name',
+#                     'financial_year', 'no_of_creches', 'total_budget', 'state'],
+#             limit=0,
+#         )
+#         rows = [[
+#             b.get('partner_name'),
+#             b.get('grant_id'),
+#             b.get('budget_reference_name') or b.get('name'),
+#             b.get('financial_year'),
+#             b.get('no_of_creches'),
+#             _inr(b.get('total_budget')),
+#             b.get('state'),
+#             b.get('name'),      # _ref — hidden, used by view button for child lookup
+#         ] for b in rows_raw]
+#         tc = sum(int(b.get('no_of_creches') or 0) for b in rows_raw)
+#         tb = sum(float(b.get('total_budget') or 0) for b in rows_raw)
+#         return {
+#             'heads':  ['#', 'Partner name', 'Grant ID', 'Budget ref.',
+#                        'Financial year', 'Crèches', 'Total budget', 'State', '_ref'],
+#             'rows':   rows,
+#             'totals': ['Total', None, None, None, tc, _inr(tb), None, None],
+#         }
+
+#     # ── utilisation ─────────────────────────────────────────────────────────────
+#     # Shows parent-level fields. name = actual doc name → _ref for child lookup.
+#     # partner_name & grant_id are fetched from budget_reference_id.
+#     # balance_amount = "Bank + Cash Balance at end of month"
+#     if drill_key == 'utilisation':
+#         rows_raw = frappe.db.get_list(
+#             'Creche utilisation', filters=uf,
+#             fields=['name', 'partner_id', 'partner_name', 'grant_id',
+#                     'budget_reference_name', 'month', 'financial_year',
+#                     'state', 'district', 'block', 'no_of_creches',
+#                     'total_utilisation', 'balance_amount', 'interest_from_bank'],
+#             limit=0,
+#         )
+#         rows = [[
+#             u.get('partner_name') or u.get('partner_id'),
+#             u.get('month'),
+#             u.get('financial_year'),
+#             u.get('state'),
+#             u.get('district'),
+#             u.get('block'),
+#             _inr(u.get('total_utilisation')),
+#             _inr(u.get('balance_amount')) if float(u.get('balance_amount') or 0) > 0 else '—',
+#             u.get('name'),      # _ref
+#         ] for u in rows_raw]
+#         tt = sum(float(u.get('total_utilisation') or 0) for u in rows_raw)
+#         return {
+#             'heads':  ['#', 'Partner', 'Month', 'Financial year',
+#                        'State', 'District', 'Block',
+#                        'Total utilisation', 'Bank balance', '_ref'],
+#             'rows':   rows,
+#             'totals': ['Total', None, None, None, None, None, _inr(tt), None, None],
+#         }
+
+#     # ── disbursed ────────────────────────────────────────────────────────────────
+#     # Child table fieldname: disbursement  (Disbursement Tracker)
+#     # Tracker fields: date_of_disbursement, disbursed_amount
+#     if drill_key == 'disbursed':
+#         disb_docs = frappe.db.get_list(
+#             'Creche Disbursement', filters=df,
+#             fields=['name', 'partner_id', 'partner_name', 'grant_id',
+#                     'budget_reference_name', 'budget_reference_id',
+#                     'total_disbursement'],
+#             limit=0,
+#         )
+#         disb_names = [d['name'] for d in disb_docs]
+#         tracker = frappe.db.get_list(
+#             'Disbursement Tracker',
+#             filters={'parent': ['in', disb_names]} if disb_names else {'parent': 'NONE'},
+#             fields=['parent', 'date_of_disbursement', 'disbursed_amount'],
+#             order_by='date_of_disbursement asc',
+#             limit=0,
+#         ) if disb_names else []
+
+#         parent_map = {d['name']: d for d in disb_docs}
+#         cum = defaultdict(float)
+#         rows = []
+#         for t in tracker:
+#             p   = parent_map.get(t.get('parent'), {})
+#             amt = float(t.get('disbursed_amount') or 0)
+#             pid = t.get('parent')
+#             cum[pid] += amt
+#             rows.append([
+#                 p.get('partner_name') or p.get('partner_id'),
+#                 p.get('grant_id'),
+#                 p.get('budget_reference_name') or p.get('budget_reference_id'),
+#                 frappe.utils.formatdate(t.get('date_of_disbursement')),
+#                 _inr(amt),
+#                 _inr(cum[pid]),
+#             ])
+#         total_disb = sum(float(d.get('total_disbursement') or 0) for d in disb_docs)
+#         return {
+#             'heads':  ['#', 'Partner name', 'Grant ID', 'Budget ref.',
+#                        'Date', 'Disbursed amount', 'Cumulative total'],
+#             'rows':   rows,
+#             'totals': ['Total', None, None, None, _inr(total_disb), None],
+#         }
+
+#     # ── budget_balance ───────────────────────────────────────────────────────────
+#     if drill_key == 'budget_balance':
+#         budgets = frappe.db.get_list(
+#             'Creche Budget', filters=bf,
+#             fields=['name', 'partner_name', 'grant_id', 'total_budget'],
+#             limit=0,
+#         )
+#         bnames = [b['name'] for b in budgets]
+#         util_docs = frappe.db.get_list(
+#             'Creche utilisation',
+#             filters={'budget_reference_id': ['in', bnames]} if bnames else {'name': 'NONE'},
+#             fields=['budget_reference_id', 'total_utilisation'],
+#             limit=0,
+#         ) if bnames else []
+#         util_by = defaultdict(float)
+#         for u in util_docs:
+#             util_by[u['budget_reference_id']] += float(u.get('total_utilisation') or 0)
+#         rows = []
+#         for b in budgets:
+#             bv  = float(b.get('total_budget') or 0)
+#             uv  = util_by.get(b['name'], 0.0)
+#             pct = '{}%'.format(round(uv / bv * 100, 1)) if bv else '0%'
+#             rows.append([b.get('partner_name'), b.get('grant_id'),
+#                          _inr(bv), _inr(uv), _inr(bv - uv), pct])
+#         tb = sum(float(b.get('total_budget') or 0) for b in budgets)
+#         tu = sum(util_by.values())
+#         return {
+#             'heads':  ['#', 'Partner name', 'Grant ID',
+#                        'Total budget', 'Total utilised', 'Balance', '% used'],
+#             'rows':   rows,
+#             'totals': ['Total', None, _inr(tb), _inr(tu), _inr(tb - tu), None],
+#         }
+
+#     # ── bank_balance ─────────────────────────────────────────────────────────────
+#     # balance_amount = "Bank + Cash Balance at end of month"
+#     if drill_key == 'bank_balance':
+#         rows_raw = frappe.db.get_list(
+#             'Creche utilisation', filters=uf,
+#             fields=['partner_name', 'partner_id', 'grant_id', 'month',
+#                     'financial_year', 'balance_amount', 'interest_from_bank'],
+#             limit=0,
+#         )
+#         rows = [[
+#             u.get('partner_name') or u.get('partner_id'),
+#             u.get('grant_id'),
+#             u.get('month'),
+#             u.get('financial_year'),
+#             _inr(u.get('balance_amount')),
+#             _inr(u.get('interest_from_bank')),
+#         ] for u in rows_raw if float(u.get('balance_amount') or 0) > 0]
+#         tb = sum(float(u.get('balance_amount') or 0) for u in rows_raw)
+#         ti = sum(float(u.get('interest_from_bank') or 0) for u in rows_raw)
+#         return {
+#             'heads':  ['#', 'Partner name', 'Grant ID', 'Month',
+#                        'Financial year', 'Bank + cash balance', 'Interest from bank'],
+#             'rows':   rows,
+#             'totals': ['Total', None, None, None, _inr(tb), _inr(ti)],
+#         }
+
+#     # ── balance_amount ───────────────────────────────────────────────────────────
+#     # balence_budget = stored computed field (typo in doctype preserved)
+#     if drill_key == 'balance_amount':
+#         rows_raw = frappe.db.get_list(
+#             'Creche Disbursement', filters=df,
+#             fields=['partner_id', 'partner_name', 'grant_id',
+#                     'budget_reference_name', 'budget_reference_id',
+#                     'total_budget', 'total_disbursement', 'balence_budget'],
+#             limit=0,
+#         )
+#         rows = [[
+#             r.get('partner_name') or r.get('partner_id'),
+#             r.get('grant_id'),
+#             r.get('budget_reference_name') or r.get('budget_reference_id'),
+#             _inr(r.get('total_budget')),
+#             _inr(r.get('total_disbursement')),
+#             _inr(r.get('balence_budget')),
+#         ] for r in rows_raw]
+#         tb = sum(float(r.get('total_budget') or 0) for r in rows_raw)
+#         td = sum(float(r.get('total_disbursement') or 0) for r in rows_raw)
+#         return {
+#             'heads':  ['#', 'Partner name', 'Grant ID', 'Budget ref.',
+#                        'Total budget', 'Total disbursed', 'Balance available'],
+#             'rows':   rows,
+#             'totals': ['Total', None, None, _inr(tb), _inr(td), _inr(tb - td)],
+#         }
+
+#     return {'heads': [], 'rows': [], 'totals': []}
+
+
+# # ─────────────────────────────────────────────────────────────────────────────
+# #  4. LINE ITEMS  (slide panel — child table rows)
+# # ─────────────────────────────────────────────────────────────────────────────
+
+# @frappe.whitelist()
+# def get_line_items(doctype_key, parent_name):
+#     """
+#     Returns groups for the slide panel.
+#     doctype_key: 'budget' | 'utilisation' | 'disbursement'
+#     parent_name: the Frappe name of the parent doc (e.g. BGD-0001, CUT-0001)
+#     """
+#     PALETTE = [
+#         '#1a4f8a', '#f59e0b', '#10b981', '#7c3aed',
+#         '#ef4444', '#ec4899', '#0891b2', '#d97706',
+#     ]
+
+#     # ── Budget Items (child of Creche Budget via budget_items_list) ─────────────
+#     if doctype_key == 'budget':
+#         logger = frappe.logger('dashboard', allow_site=True)
+#         logger.info(f'[LINE_ITEMS] budget parent_name={parent_name}')
+
+#         # DB raw — what's actually stored in columns
+#         db_rows = frappe.db.get_list(
+#             'Budget Items',
+#             filters={'parent': parent_name},
+#             fields=['name', 'idx', 'type_of_expenses_id', 'type_of_expenses',
+#                     'budget_main_head', 'budget_sub_head',
+#                     'year_1', 'year_2', 'year_3', 'total_amount'],
+#             order_by='idx asc', limit=0,
+#         )
+#         logger.info(f'[LINE_ITEMS] DB rows count={len(db_rows)}')
+#         for row in db_rows:
+#             logger.info(f'[LINE_ITEMS] DB row: idx={row.get("idx")} '
+#                         f'eid={row.get("type_of_expenses_id")} '
+#                         f'texp={row.get("type_of_expenses")} '
+#                         f'main={row.get("budget_main_head")} '
+#                         f'sub={row.get("budget_sub_head")} '
+#                         f'total_amount={row.get("total_amount")} '
+#                         f'y1={row.get("year_1")} y2={row.get("year_2")} y3={row.get("year_3")}')
+
+#         # Use frappe.get_doc so all fetched fields are computed on the doc object
+#         try:
+#             doc = frappe.get_doc('Creche Budget', parent_name)
+#         except frappe.DoesNotExistError:
+#             logger.info(f'[LINE_ITEMS] Creche Budget {parent_name} not found')
+#             return []
+
+#         raw_items = doc.get('budget_items_list') or []
+#         logger.info(f'[LINE_ITEMS] get_doc items count={len(raw_items)}')
+#         for r in raw_items:
+#             logger.info(f'[LINE_ITEMS] DOC row: idx={r.idx} '
+#                         f'eid={r.type_of_expenses_id} '
+#                         f'texp={r.type_of_expenses} '
+#                         f'main={r.budget_main_head} '
+#                         f'sub={r.budget_sub_head} '
+#                         f'total_amount={r.total_amount} '
+#                         f'y1={r.year_1} y2={r.year_2} y3={r.year_3}')
+
+#         if not raw_items:
+#             return []
+
+#         # Build enrichment map from Budget and Expense items list
+#         all_ids = {r.type_of_expenses_id for r in raw_items if r.type_of_expenses_id}
+#         logger.info(f'[LINE_ITEMS] type_of_expenses_ids={all_ids}')
+
+#         exp_map = _get_expense_map(all_ids)
+#         logger.info(f'[LINE_ITEMS] exp_map keys={list(exp_map.keys())}')
+
+#         items = []
+#         for r in raw_items:
+#             eid = r.type_of_expenses_id or ''
+#             rec = exp_map.get(eid) or {}
+
+#             texp = r.type_of_expenses or rec.get('type_of_expenses') or eid or 'Unknown'
+#             main = r.budget_main_head or rec.get('budget_main_head') or 'Other'
+#             sub  = r.budget_sub_head  or rec.get('budget_sub_head')  or 'General'
+
+#             amt = float(r.total_amount or 0)
+#             if amt == 0:
+#                 amt = float(r.year_1 or 0) + float(r.year_2 or 0) + float(r.year_3 or 0)
+
+#             logger.info(f'[LINE_ITEMS] resolved: texp={texp} main={main} sub={sub} amt={amt}')
+#             items.append({
+#                 'type_of_expenses': texp,
+#                 'budget_main_head': main,
+#                 'budget_sub_head':  sub,
+#                 'total_amount':     amt,
+#             })
+
+#         return _group_items(
+#             items, 'budget_main_head', 'budget_sub_head',
+#             'type_of_expenses', 'total_amount', PALETTE,
+#         )
+
+#     # ── Utilisation Items (child of Creche utilisation via utilisation_items_list) ─
+#     if doctype_key == 'utilisation':
+#         try:
+#             doc = frappe.get_doc('Creche utilisation', parent_name)
+#         except frappe.DoesNotExistError:
+#             return []
+
+#         raw_items = doc.get('utilisation_items_list') or []
+#         if not raw_items:
+#             return []
+
+#         all_ids = {r.type_of_expenses_id for r in raw_items if r.type_of_expenses_id}
+#         exp_map = _get_expense_map(all_ids)
+
+#         items = []
+#         for r in raw_items:
+#             eid = r.type_of_expenses_id or ''
+#             rec = exp_map.get(eid) or {}
+
+#             texp = r.type_of_expenses or rec.get('type_of_expenses') or eid or 'Unknown'
+#             main = r.budget_main_head or rec.get('budget_main_head') or 'Other'
+#             sub  = r.budget_sub_head  or rec.get('budget_sub_head')  or 'General'
+#             amt  = float(r.total_amount or 0)
+
+#             items.append({
+#                 'type_of_expenses': texp,
+#                 'budget_main_head': main,
+#                 'budget_sub_head':  sub,
+#                 'total_amount':     amt,
+#             })
+
+#         return _group_items(
+#             items, 'budget_main_head', 'budget_sub_head',
+#             'type_of_expenses', 'total_amount', PALETTE,
+#         )
+
+#     # ── Disbursement Tracker (child of Creche Disbursement via disbursement) ─────
+#     if doctype_key == 'disbursement':
+#         items = frappe.db.get_list(
+#             'Disbursement Tracker',
+#             filters={'parent': parent_name},
+#             fields=['date_of_disbursement', 'disbursed_amount'],
+#             order_by='date_of_disbursement asc',
+#             limit=0,
+#         )
+#         if not items:
+#             return []
+#         line_items = [
+#             {
+#                 'name':   frappe.utils.formatdate(i.get('date_of_disbursement')),
+#                 'amount': float(i.get('disbursed_amount') or 0),
+#             }
+#             for i in items
+#         ]
+#         total = sum(x['amount'] for x in line_items)
+#         return [{
+#             'label': 'Disbursements',
+#             'color': '#1a4f8a',
+#             'total': total,
+#             'subs':  [{'label': 'Payment history', 'items': line_items}],
+#         }]
+
+#     return []
+
+
+# # ─────────────────────────────────────────────────────────────────────────────
+# #  5. DEBUG ENDPOINT  (remove after confirming data)
+# # ─────────────────────────────────────────────────────────────────────────────
+
+# @frappe.whitelist()
+# def debug_line_items(parent_name):
+#     """
+#     Direct DB inspection — bypasses all ORM to show raw values.
+#     """
+#     import frappe.db as fdb
+
+#     # 1. Raw DB columns from tabBudget Items
+#     budget_raw = frappe.db.sql("""
+#         SELECT name, idx, parent,
+#                type_of_expenses_id,
+#                type_of_expenses,
+#                budget_main_head,
+#                budget_sub_head,
+#                year_1, year_2, year_3,
+#                total_amount
+#         FROM `tabBudget Items`
+#         WHERE parent = %(parent)s
+#         ORDER BY idx
+#     """, {'parent': parent_name}, as_dict=True)
+
+#     # 2. Raw DB columns from tabUtilisation Items
+#     util_raw = frappe.db.sql("""
+#         SELECT name, idx, parent,
+#                type_of_expenses_id,
+#                type_of_expenses,
+#                budget_main_head,
+#                budget_sub_head,
+#                total_amount
+#         FROM `tabUtilisation Items`
+#         WHERE parent = %(parent)s
+#         ORDER BY idx
+#     """, {'parent': parent_name}, as_dict=True)
+
+#     # 3. All columns in Budget and Expense items list
+#     expense_master = frappe.db.sql("""
+#         SELECT * FROM `tabBudget and Expense items list` LIMIT 5
+#     """, as_dict=True)
+
+#     # 4. Check if type_of_expenses_id values exist in master
+#     all_ids = list({r.get('type_of_expenses_id') for r in (budget_raw + util_raw) if r.get('type_of_expenses_id')})
+#     matched = []
+#     if all_ids:
+#         matched = frappe.db.sql("""
+#             SELECT * FROM `tabBudget and Expense items list`
+#             WHERE name IN %(ids)s
+#         """, {'ids': all_ids}, as_dict=True)
+
+#     return {
+#         'parent_name': parent_name,
+#         'budget_items_raw_db': budget_raw,
+#         'util_items_raw_db': util_raw,
+#         'expense_master_first_5': expense_master,
+#         'type_of_expenses_ids_found': all_ids,
+#         'matched_in_master': matched,
+#     }
+
+
+# @frappe.whitelist()
+# def debug_line_items_old(parent_name):
+#     """
+#     Inspect child rows via frappe.get_doc (shows resolved fetched fields).
+#     Usage in browser console:
+#       frappe.call({
+#         method: 'creche_reports.api.dashboard.debug_line_items',
+#         args: { parent_name: 'BGD-0001' },
+#         callback(r) { console.log(r.message); }
+#       })
+#     """
+#     result = {'parent_name': parent_name}
+
+#     # Try as Creche Budget
+#     try:
+#         doc = frappe.get_doc('Creche Budget', parent_name)
+#         raw = doc.get('budget_items_list') or []
+#         result['doctype'] = 'Creche Budget'
+#         result['budget_items_via_get_doc'] = [
+#             {
+#                 'idx': r.idx,
+#                 'type_of_expenses_id': r.type_of_expenses_id,
+#                 'type_of_expenses':    r.type_of_expenses,
+#                 'budget_main_head':    r.budget_main_head,
+#                 'budget_sub_head':     r.budget_sub_head,
+#                 'year_1': r.year_1, 'year_2': r.year_2, 'year_3': r.year_3,
+#                 'total_amount': r.total_amount,
+#             }
+#             for r in raw
+#         ]
+#     except frappe.DoesNotExistError:
+#         result['budget_doc'] = 'not found'
+
+#     # Try as Creche utilisation
+#     try:
+#         udoc = frappe.get_doc('Creche utilisation', parent_name)
+#         uraw = udoc.get('utilisation_items_list') or []
+#         result['util_items_via_get_doc'] = [
+#             {
+#                 'idx': r.idx,
+#                 'type_of_expenses_id': r.type_of_expenses_id,
+#                 'type_of_expenses':    r.type_of_expenses,
+#                 'budget_main_head':    r.budget_main_head,
+#                 'budget_sub_head':     r.budget_sub_head,
+#                 'total_amount':        r.total_amount,
+#             }
+#             for r in uraw
+#         ]
+#     except frappe.DoesNotExistError:
+#         result['util_doc'] = 'not found'
+
+#     # DB raw comparison
+#     result['budget_items_db'] = frappe.db.get_list(
+#         'Budget Items',
+#         filters={'parent': parent_name},
+#         fields=['name', 'idx', 'type_of_expenses_id', 'type_of_expenses',
+#                 'budget_main_head', 'budget_sub_head',
+#                 'year_1', 'year_2', 'year_3', 'total_amount'],
+#         order_by='idx asc', limit=0,
+#     )
+
+#     # Expense master sample
+#     result['expense_master_sample'] = frappe.db.get_list(
+#         'Budget and Expense items list',
+#         fields=['name', 'type_of_expenses', 'budget_main_head', 'budget_sub_head'],
+#         limit=10,
+#     )
+
+#     all_ids = list({
+#         i.get('type_of_expenses_id')
+#         for i in result.get('budget_items_db', [])
+#         if i.get('type_of_expenses_id')
+#     })
+#     result['type_of_expenses_ids'] = all_ids
+
+#     if all_ids:
+#         result['matched_from_master'] = frappe.db.get_list(
+#             'Budget and Expense items list',
+#             filters={'name': ['in', all_ids]},
+#             fields=['name', 'type_of_expenses', 'budget_main_head', 'budget_sub_head'],
+#             limit=0,
+#         )
+
+#     return result

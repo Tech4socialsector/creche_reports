@@ -2916,3 +2916,1815 @@ class FinanceDashboard {
 }
 </style>`;}
 }
+
+
+
+
+
+// frappe.pages['creche-finance-dashboard'].on_page_load = function (wrapper) {
+
+// 	var page = frappe.ui.make_app_page({
+// 		parent: wrapper,
+// 		title: 'Finance Dashboard',
+// 		single_column: true,
+// 	});
+
+// 	/* ── API METHODS ───────────────────────────────────────── */
+// 	var API = {
+// 		filterOptions:   'creche_reports.api.dashboard.get_filter_options',
+// 		dashboardData:   'creche_reports.api.dashboard.get_dashboard_data',
+// 		drillData:       'creche_reports.api.dashboard.get_drill_data',
+// 		lineItems:       'creche_reports.api.dashboard.get_line_items',
+// 	};
+// 	var USE_LIVE_API = true;   /* set false to force TEST_DB */
+
+// 	/* ── TEST DATA ─────────────────────────────────────────── */
+// 	var TEST_DB = {
+// 		budgets: [
+// 			{ name:'BGD-0001', partner_id:'CP-001', partner_name:'Asha Foundation',  grant_id:'GR-2024-001', financial_year:'2024-25', state:'Jharkhand',    district:'Ranchi',     block:'Angara',   no_of_creches:32, total_budget:1450000 },
+// 			{ name:'BGD-0002', partner_id:'CP-002', partner_name:'Bal Kalyan Trust', grant_id:'GR-2024-002', financial_year:'2024-25', state:'Odisha',       district:'Sundargarh', block:'Chainpur', no_of_creches:28, total_budget:1280000 },
+// 			{ name:'BGD-0003', partner_id:'CP-003', partner_name:'Seva Sangh',       grant_id:'GR-2025-001', financial_year:'2024-25', state:'Chhattisgarh', district:'Gumla',      block:'Silli',    no_of_creches:45, total_budget:1160000 },
+// 			{ name:'BGD-0004', partner_id:'CP-004', partner_name:'Mamta Society',    grant_id:'GR-2024-001', financial_year:'2024-25', state:'Jharkhand',    district:'Khunti',     block:'Bero',     no_of_creches:37, total_budget: 930000 },
+// 		],
+// 		disbursements: [
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  grant:'GR-2024-001', ref:'BGD-0001', date:'12-Apr-2024', amount: 800000 },
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  grant:'GR-2024-001', ref:'BGD-0001', date:'10-Jul-2024', amount: 650000 },
+// 			{ budget:'BGD-0002', partner_id:'CP-002', partner:'Bal Kalyan Trust', grant:'GR-2024-002', ref:'BGD-0002', date:'15-May-2024', amount: 720000 },
+// 			{ budget:'BGD-0003', partner_id:'CP-003', partner:'Seva Sangh',       grant:'GR-2025-001', ref:'BGD-0003', date:'01-Jun-2024', amount: 580000 },
+// 			{ budget:'BGD-0004', partner_id:'CP-004', partner:'Mamta Society',    grant:'GR-2024-001', ref:'BGD-0004', date:'20-Apr-2024', amount: 400000 },
+// 		],
+// 		utilisations: [
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  month:'June', state:'Jharkhand',    district:'Ranchi',     block:'Angara',   fy:'2024-25', main:'Programme', sub:'Staff costs',       type:'Creche worker salary',  amount:240000, bank_bal: 62000, interest:1200 },
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  month:'June', state:'Jharkhand',    district:'Ranchi',     block:'Angara',   fy:'2024-25', main:'Programme', sub:'Nutrition',         type:'Food & nutrition',      amount: 85000, bank_bal:     0, interest:   0 },
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  month:'May',  state:'Jharkhand',    district:'Ranchi',     block:'Angara',   fy:'2024-25', main:'Admin',     sub:'Office expenses',   type:'Stationery & printing', amount: 18000, bank_bal:     0, interest:   0 },
+// 			{ budget:'BGD-0002', partner_id:'CP-002', partner:'Bal Kalyan Trust', month:'June', state:'Odisha',       district:'Sundargarh', block:'Chainpur', fy:'2024-25', main:'Admin',     sub:'Office expenses',   type:'Rent & utilities',      amount: 32000, bank_bal:110000, interest:2800 },
+// 			{ budget:'BGD-0002', partner_id:'CP-002', partner:'Bal Kalyan Trust', month:'June', state:'Odisha',       district:'Sundargarh', block:'Chainpur', fy:'2024-25', main:'Programme', sub:'Capacity building', type:'Training',              amount: 55000, bank_bal:     0, interest:   0 },
+// 			{ budget:'BGD-0003', partner_id:'CP-003', partner:'Seva Sangh',       month:'May',  state:'Chhattisgarh', district:'Gumla',      block:'Silli',    fy:'2024-25', main:'Programme', sub:'Staff costs',       type:'Supervisor salary',     amount:110000, bank_bal: 95000, interest:   0 },
+// 			{ budget:'BGD-0004', partner_id:'CP-004', partner:'Mamta Society',    month:'June', state:'Jharkhand',    district:'Khunti',     block:'Bero',     fy:'2024-25', main:'Programme', sub:'Nutrition',         type:'Supplementary food',    amount: 72000, bank_bal:103000, interest:1650 },
+// 		],
+// 	};
+
+// 	/* ── STYLES ────────────────────────────────────────────── */
+// 	var css = [
+// 		'/* Filter card */',
+// 		'.cfd-filter-row {',
+// 		'  display: flex; flex-wrap: wrap; gap: 14px 16px;',
+// 		'  padding: 18px 20px;',
+// 		'  background: var(--card-bg);',
+// 		'  border: 1px solid var(--border-color);',
+// 		'  border-radius: var(--border-radius-lg);',
+// 		'  margin: 16px 20px 0;',
+// 		'  box-shadow: 0 1px 3px rgba(0,0,0,0.06);',
+// 		'  align-items: flex-end;',
+// 		'}',
+// 		'.cfd-filter-col { flex: 1 1 155px; max-width: 230px; min-width: 130px; }',
+// 		'.cfd-filter-row .frappe-control { margin-bottom: 0 !important; }',
+// 		'.cfd-filter-row .form-group { margin-bottom: 0 !important; }',
+// 		'.cfd-filter-row .control-label { font-size:11px !important; font-weight:600 !important; color:var(--text-muted) !important; text-transform:uppercase; letter-spacing:0.07em; }',
+// 		'/* Body */',
+// 		'.cfd-body { padding: 16px 20px 28px; }',
+// 		'/* Test badge */',
+// 		'.cfd-test-badge { display:inline-flex; align-items:center; gap:5px; background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:var(--border-radius); padding:3px 10px; font-size:11px; font-weight:600; margin-bottom:10px; }',
+// 		'/* Summary strip */',
+// 		'.cfd-strip { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); display:flex; overflow:hidden; margin-bottom:12px; }',
+// 		'.cfd-si { flex:1; padding:9px 12px; border-right:1px solid var(--border-color); cursor:pointer; transition:background 0.12s; position:relative; }',
+// 		'.cfd-si:last-child { border-right:none; }',
+// 		'.cfd-si:hover { background:var(--bg-color); }',
+// 		'.cfd-si.active { background:var(--primary-light); }',
+// 		'.cfd-si::after { content:""; position:absolute; bottom:0; left:0; right:0; height:2px; background:transparent; }',
+// 		'.cfd-si.active::after { background:var(--primary); }',
+// 		'.cfd-si-lbl { font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.09em; margin-bottom:2px; white-space:nowrap; }',
+// 		'.cfd-si-val { font-size:18px; font-weight:700; color:var(--text-color); line-height:1; }',
+// 		'.cfd-si-sub { font-size:10px; color:var(--text-muted); margin-top:1px; }',
+// 		'/* Section heading */',
+// 		'.cfd-sec { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:5px; }',
+// 		'/* Cards */',
+// 		'.cfd-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-bottom:16px; }',
+// 		'@media(max-width:960px){ .cfd-cards { grid-template-columns:repeat(2,1fr); } }',
+// 		'@media(max-width:600px){ .cfd-cards { grid-template-columns:1fr; } }',
+// 		'.cfd-kc { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:11px 13px; cursor:pointer; transition:border-color 0.15s,box-shadow 0.15s; position:relative; overflow:hidden; }',
+// 		'.cfd-kc:hover { border-color:var(--primary); box-shadow:0 2px 6px rgba(0,0,0,0.07); }',
+// 		'.cfd-kc.active { border-color:var(--primary); box-shadow:0 0 0 2px var(--primary-light); }',
+// 		'.cfd-kc-accent { position:absolute; top:0; left:0; right:0; height:3px; }',
+// 		'.cfd-kc-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:7px; margin-top:4px; }',
+// 		'.cfd-kc-icon { width:28px; height:28px; border-radius:var(--border-radius); display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }',
+// 		'.cfd-kc-badge { font-size:10px; font-weight:700; padding:1px 6px; border-radius:8px; align-self:flex-start; }',
+// 		'.cfd-kc-lbl { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:3px; }',
+// 		'.cfd-kc-val { font-size:19px; font-weight:700; color:var(--text-color); line-height:1; margin-bottom:2px; }',
+// 		'.cfd-kc-sub { font-size:11px; color:var(--text-muted); }',
+// 		'.cfd-kc-foot { display:flex; align-items:center; justify-content:space-between; margin-top:9px; padding-top:7px; border-top:1px solid var(--border-color); }',
+// 		'.cfd-kc-flbl { font-size:10px; color:var(--text-extra-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:68%; }',
+// 		'.cfd-kc-flink { font-size:10px; color:var(--primary); display:flex; align-items:center; gap:3px; white-space:nowrap; font-weight:600; }',
+// 		'/* Drill panel */',
+// 		'.cfd-drill { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); overflow:hidden; margin-bottom:16px; }',
+// 		'.cfd-dh { display:flex; align-items:center; justify-content:space-between; padding:10px 15px; background:linear-gradient(90deg,#1a4f8a 0%,#1e5fa8 100%); }',
+// 		'.cfd-dhl { display:flex; align-items:center; gap:9px; }',
+// 		'.cfd-dht { font-size:13px; font-weight:700; color:#fff; }',
+// 		'.cfd-dhs { font-size:10px; color:rgba(255,255,255,0.6); margin-top:1px; }',
+// 		'.cfd-dcb { background:rgba(255,255,255,0.15); border:none; color:#fff; width:26px; height:26px; border-radius:5px; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; }',
+// 		'.cfd-dcb:hover { background:rgba(255,255,255,0.28); }',
+// 		'.cfd-tscroll { overflow-x:auto; overflow-y:auto; max-height:340px; }',
+// 		'.cfd-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:var(--text-sm); min-width:560px; }',
+// 		'.cfd-tbl thead tr { background:#1a4f8a; }',
+// 		'.cfd-tbl thead th { padding:8px 12px; text-align:left; font-size:10px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap; border-right:1px solid rgba(255,255,255,0.15); position:sticky; top:0; z-index:2; background:#1a4f8a; }',
+// 		'.cfd-tbl thead th:first-child { text-align:center; width:36px; }',
+// 		'.cfd-tbl thead th:last-child { border-right:none; }',
+// 		'.cfd-tbl tbody tr { background:#ffffff; }',
+// 		'.cfd-tbl tbody tr:nth-child(even) { background:#f7f9fc; }',
+// 		'.cfd-tbl tbody tr:hover { background:#e8f0fe !important; }',
+// 		'.cfd-tbl tbody tr:hover td { color:#1a3a6b; }',
+// 		'.cfd-tbl tbody tr.cfd-row-clickable { cursor:pointer; }',
+// 		/* Grant ID grouping */
+// 		/* ── Grant group header ── */
+// 		'.cfd-grant-hdr { background:#1a3a6b !important; cursor:pointer; user-select:none; transition:background .15s,color .15s; }',
+// 		'.cfd-grant-hdr > td { color:#fff !important; font-size:12px !important; font-weight:700 !important; padding:10px 13px !important; border-right:1px solid rgba(255,255,255,0.12) !important; border-bottom:2px solid rgba(255,255,255,0.1) !important; white-space:nowrap; vertical-align:middle; }',
+// 		'.cfd-grant-hdr > td:last-child { border-right:none !important; }',
+// 		'.cfd-grant-hdr:hover { background:#f0f4ff !important; }',
+// 		'.cfd-grant-hdr:hover > td { color:#1a3a6b !important; border-right-color:var(--border-color) !important; }',
+// 		'.cfd-grant-hdr:hover .cfd-grant-badge { background:#1a3a6b !important; color:#fff !important; }',
+// 		'.cfd-grant-toggle { font-size:11px; margin-right:8px; display:inline-block; transition:transform .2s; vertical-align:middle; }',
+// 		'.cfd-grant-hdr.collapsed .cfd-grant-toggle { transform:rotate(-90deg); }',
+// 		/* Child rows */
+// 		'.cfd-grant-child > td { padding-left:13px !important; }',
+// 		'.cfd-grant-child > td:nth-child(2) { padding-left:26px !important; font-weight:600; }',
+// 		'.cfd-grant-child.row-hidden { display:none; }',
+// 		'.cfd-grant-child:hover > td { background:#f0f4ff !important; }',
+// 		/* Grant badge */
+// 		'.cfd-grant-badge { display:inline-flex; align-items:center; font-size:10px; font-weight:700; background:rgba(255,255,255,0.2); color:#fff; border-radius:20px; padding:1px 9px; margin-left:9px; vertical-align:middle; transition:background .15s,color .15s; }',
+// 		/* Numeric cells right-aligned */
+// 		'.cfd-grant-hdr .num { text-align:right !important; }',
+// 		'.cfd-grant-child .num { text-align:right; }',
+// 		/* ── Parent doctype detail strip ── */
+// 		'.cfd-parent-strip { background:var(--bg-color); border-bottom:1px solid var(--border-color); padding:14px 16px; }',
+// 		'.cfd-parent-strip-label { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.08em; display:flex; align-items:center; gap:5px; margin-bottom:10px; }',
+// 		'.cfd-parent-cards-row { display:flex; flex-wrap:wrap; gap:10px; }',
+// 		'.cfd-parent-card { flex:1; min-width:260px; max-width:380px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:12px 14px; border-left:3px solid #1a4f8a; }',
+// 		'.cfd-parent-card-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-color); }',
+// 		'.cfd-parent-card-name { font-size:13px; font-weight:700; color:var(--text-color); }',
+// 		'.cfd-parent-card-ref { font-size:11px; font-weight:600; color:var(--primary); background:var(--primary-light); border-radius:4px; padding:1px 7px; white-space:nowrap; }',
+// 		'.cfd-parent-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px 10px; margin-bottom:10px; }',
+// 		'.cfd-parent-field-lbl { font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.07em; margin-bottom:2px; }',
+// 		'.cfd-parent-field-val { font-size:12px; font-weight:600; color:var(--text-color); }',
+// 		'.cfd-parent-card-bar-wrap { margin-top:4px; }',
+// 		'.cfd-tbl tbody tr.cfd-row-clickable:hover td { color:var(--primary); font-weight:600; }',
+// 		'.cfd-tbl tbody td { padding:8px 12px; font-size:var(--text-sm); color:var(--text-color); border-right:1px solid var(--border-color); border-bottom:1px solid var(--border-color); white-space:nowrap; }',
+// 		'.cfd-tbl tbody tr:last-child td { border-bottom:none; }',
+// 		'.cfd-tbl tbody td:last-child { border-right:none; }',
+// 		'.cfd-tdn { text-align:center; font-size:11px; color:var(--text-muted); }',
+// 		'.cfd-tbold { font-weight:700; }',
+// 		'.cfd-tbl tfoot tr td { background:#0b2e70 !important; color:#fff !important; font-weight:700 !important; padding:8px 12px; border-right:1px solid rgba(255,255,255,0.2); white-space:nowrap; font-size:var(--text-sm); }',
+// 		'.cfd-tbl tfoot tr td:last-child { border-right:none; }',
+// 		'/* Line item popup table */',
+// 		'.cfd-li-tbl { width:100%; border-collapse:collapse; font-size:13px; }',
+// 		'.cfd-li-tbl thead th { background:#1a4f8a; color:#fff; padding:8px 12px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap; }',
+// 		'.cfd-li-tbl thead th:first-child { text-align:center; width:36px; }',
+// 		'.cfd-li-tbl tbody tr:nth-child(even) { background:var(--bg-color); }',
+// 		'.cfd-li-tbl tbody tr:hover { background:var(--primary-light); }',
+// 		'.cfd-li-tbl tbody td { padding:8px 12px; border-bottom:1px solid var(--border-color); white-space:nowrap; font-size:13px; color:var(--text-color); }',
+// 		'.cfd-li-tbl tbody tr:last-child td { border-bottom:none; }',
+// 		'.cfd-li-tbl tfoot td { background:#0b2e70 !important; color:#fff !important; font-weight:700; padding:8px 12px; white-space:nowrap; }',
+// 		'/* Dialog pills */',
+// 		'.cfd-dlg-pill { display:inline-flex; align-items:center; border:1px solid var(--border-color); border-radius:var(--border-radius); overflow:hidden; font-size:12px; height:26px; background:var(--card-bg); margin:3px; }',
+// 		'.cfd-dlg-pill-lbl { padding:0 7px; color:var(--text-muted); font-size:11px; font-weight:700; background:var(--bg-color); border-right:1px solid var(--border-color); height:100%; display:flex; align-items:center; text-transform:uppercase; letter-spacing:0.05em; }',
+// 		'.cfd-dlg-pill-val { padding:0 8px; color:var(--text-color); font-size:12px; font-weight:500; height:100%; display:flex; align-items:center; }',
+// 		'.cfd-dlg-pill-x { display:flex; align-items:center; justify-content:center; width:24px; height:100%; border:none; border-left:1px solid var(--border-color); background:transparent; cursor:pointer; color:var(--text-muted); padding:0; transition:background 0.12s,color 0.12s; flex-shrink:0; }',
+// 		'.cfd-dlg-pill-x:hover { background:var(--red-light); color:var(--red); }',
+// 		'.cfd-dlg-pills-wrap { display:flex; flex-wrap:wrap; padding:4px 0; min-height:36px; }',
+// 		'.cfd-dlg-empty { color:var(--text-muted); font-size:13px; padding:8px 4px; }',
+// 		/* View button */
+// 		'.cfd-view-btn { display:inline-flex; align-items:center; justify-content:center; gap:3px; font-size:11px; font-weight:600; color:var(--primary); background:transparent; border:none; border-radius:4px; padding:4px 6px; cursor:pointer; white-space:nowrap; transition:background 0.12s,color 0.12s; line-height:1; }',
+// 		'.cfd-view-btn:hover { background:var(--primary-light); color:var(--primary); }',
+// 		/* Line item popup */
+// 		'.cfd-li-wrap { font-family:var(--font-stack); }',
+// 		/* Tabs */
+// 		'.cfd-li-tabs { display:flex; gap:0; border-bottom:1px solid var(--border-color); margin-bottom:14px; padding:0 2px; }',
+// 		'.cfd-li-tab { display:flex; align-items:center; gap:5px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; color:var(--text-muted); border-bottom:2px solid transparent; margin-bottom:-1px; transition:color 0.15s,border-color 0.15s; white-space:nowrap; }',
+// 		'.cfd-li-tab:hover { color:var(--text-color); }',
+// 		'.cfd-li-tab.active { color:var(--primary); border-bottom-color:var(--primary); }',
+// 		'.cfd-li-tab .cfd-tab-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }',
+// 		'.cfd-li-tab .cfd-tab-amt { font-size:10px; font-weight:500; color:var(--text-muted); margin-left:2px; }',
+// 		'.cfd-li-tab.active .cfd-tab-amt { color:var(--primary); opacity:0.7; }',
+// 		/* Summary bar */
+// 		'.cfd-li-summary { display:flex; align-items:stretch; gap:0; margin-bottom:14px; border:1px solid var(--border-color); border-radius:var(--border-radius-lg); overflow:hidden; }',
+// 		'.cfd-li-sum-item { flex:1; padding:12px 16px; border-right:1px solid var(--border-color); }',
+// 		'.cfd-li-sum-item:last-child { border-right:none; }',
+// 		'.cfd-li-sum-lbl { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px; }',
+// 		'.cfd-li-sum-val { font-size:18px; font-weight:700; color:var(--text-color); line-height:1; }',
+// 		'.cfd-li-sum-val.primary { color:var(--primary); }',
+// 		/* Table wrapper */
+// 		'.cfd-li-tbl-wrap { overflow-x:auto; overflow-y:auto; max-height:360px; border:1px solid var(--border-color); border-radius:var(--border-radius-lg); }',
+// 		'.cfd-li-tbl2 { width:100%; border-collapse:separate; border-spacing:0; min-width:380px; }',
+// 		'.cfd-li-tbl2 th { background:#1a4f8a; color:#fff; padding:8px 14px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap; position:sticky; top:0; z-index:2; border-right:1px solid rgba(255,255,255,0.15); }',
+// 		'.cfd-li-tbl2 th:last-child { text-align:right; border-right:none; }',
+// 		'.cfd-li-tbl2 td { padding:0; border-right:1px solid var(--border-color); border-bottom:1px solid var(--border-color); white-space:nowrap; }',
+// 		'.cfd-li-tbl2 tbody tr:last-child td { border-bottom:none; }',
+// 		'.cfd-li-tbl2 td:last-child { border-right:none; text-align:right; }',
+// 		/* Main head rows */
+// 		'.cfd-li-head { }',
+// 		'.cfd-li-head td { background:var(--bg-color) !important; }',
+// 		'.cfd-li-head-cell { display:flex; align-items:center; gap:8px; padding:9px 14px; font-size:12px; font-weight:700; color:var(--text-color); }',
+// 		'.cfd-li-head-bar { width:3px; height:16px; border-radius:2px; flex-shrink:0; }',
+// 		'.cfd-li-head-amt { padding:9px 14px; font-size:12px; font-weight:700; text-align:right; }',
+// 		/* Sub-head rows */
+// 		'.cfd-li-sub td { background:var(--card-bg) !important; }',
+// 		'.cfd-li-sub-cell { display:flex; align-items:center; gap:6px; padding:7px 14px 7px 28px; font-size:12px; font-weight:600; color:var(--text-muted); }',
+// 		'.cfd-li-sub-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; opacity:0.6; }',
+// 		'.cfd-li-sub-amt { padding:7px 14px; font-size:12px; font-weight:600; color:var(--text-muted); text-align:right; }',
+// 		/* Line item rows */
+// 		'.cfd-li-item td { background:var(--card-bg) !important; transition:background 0.1s; }',
+// 		'.cfd-li-item:hover td { background:var(--primary-light) !important; }',
+// 		'.cfd-li-item-cell { padding:6px 14px 6px 44px; font-size:12px; color:var(--text-color); }',
+// 		'.cfd-li-item-amt { padding:6px 14px; font-size:12px; color:var(--text-color); text-align:right; }',
+// 		/* Footer */
+// 		'.cfd-li-tbl2 tfoot td { background:#0b2e70 !important; color:#fff !important; font-weight:700; padding:9px 14px; border:none; }',
+// 		'.cfd-li-tbl2 tfoot td:last-child { text-align:right; }',
+// 		/* ── Slide-in panel (from reference design) ── */
+// 		'#cfd-panel-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; justify-content:flex-end; align-items:stretch; }',
+// 		'#cfd-panel-overlay.open { display:flex; }',
+// 		'#cfd-slide-panel { background:#f7f8fa; width:min(900px,100vw); display:flex; flex-direction:column; overflow:hidden; align-self:stretch; box-shadow:-8px 0 40px rgba(0,0,0,.18); animation:cfdPanelIn .28s cubic-bezier(.22,.68,0,1.15); }',
+// 		'@keyframes cfdPanelIn { from{transform:translateX(80px);opacity:0} to{transform:translateX(0);opacity:1} }',
+// 		'@keyframes cfdRowIn { from{opacity:0;transform:translateX(14px)} to{opacity:1;transform:translateX(0)} }',
+// 		'@keyframes cfdTabSlide { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }',
+// 		'@keyframes cfdPillPop { 0%{transform:scale(.7);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }',
+// 		/* Panel header */
+// 		'#cfd-panel-header { display:flex; align-items:center; gap:14px; padding:0 20px; height:52px; flex-shrink:0; background:#1a4f8a; }',
+// 		'#cfd-panel-close { background:rgba(255,255,255,.15); border:none; cursor:pointer; width:30px; height:30px; border-radius:7px; font-size:17px; color:#fff; display:flex; align-items:center; justify-content:center; transition:background .15s; flex-shrink:0; }',
+// 		'#cfd-panel-close:hover { background:rgba(255,255,255,.28); }',
+// 		'#cfd-panel-title { flex:1; font-size:14px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
+// 		/* Sidebar (tabs + summary strip) */
+// 		'#cfd-panel-sidebar { flex-shrink:0; background:#fff; border-bottom:1px solid #e4e8ef; }',
+// 		'#cfd-panel-tab-bar { display:flex; align-items:center; overflow-x:auto; padding:0 14px; scrollbar-width:none; gap:0; animation:cfdTabSlide .22s ease .1s both; }',
+// 		'#cfd-panel-tab-bar::-webkit-scrollbar { display:none; }',
+// 		'.cfd-panel-tab { display:flex; align-items:center; gap:6px; padding:9px 13px; cursor:pointer; font-size:12px; font-weight:600; color:#666; border-bottom:2px solid transparent; white-space:nowrap; transition:color .15s,border-color .15s; flex-shrink:0; }',
+// 		'.cfd-panel-tab:hover { color:#1a4f8a; }',
+// 		'.cfd-panel-tab.active { color:#1a4f8a; border-bottom-color:#1a4f8a; }',
+// 		'.cfd-panel-tab-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }',
+// 		/* Summary strip */
+// 		'#cfd-panel-strip { display:flex; align-items:center; gap:20px; padding:6px 14px 8px; background:#f7f9fc; border-top:1px solid #e8edf3; font-size:11px; }',
+// 		'.cfd-panel-sum-lbl { font-size:9px; font-weight:700; letter-spacing:.5px; color:#aaa; text-transform:uppercase; }',
+// 		'.cfd-panel-sum-val { font-size:14px; font-weight:700; color:#1a4f8a; }',
+// 		/* Column header */
+// 		'#cfd-panel-col-hdr { display:grid; background:#1a4f8a; font-size:10px; font-weight:700; color:#fff; letter-spacing:.3px; text-transform:uppercase; border-bottom:2px solid #134278; flex-shrink:0; }',
+// 		'#cfd-panel-col-hdr > div { padding:9px 12px; border-right:1px solid rgba(255,255,255,.15); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
+// 		'#cfd-panel-col-hdr > div:last-child { border-right:none; }',
+// 		/* Scrollable rows */
+// 		'#cfd-panel-rows { flex:1; overflow-y:auto; min-height:0; background:#f7f8fa; }',
+// 		/* Section header row */
+// 		'.cfd-panel-sec { display:grid; background:#eaf3fb; border-top:2px solid #1a4f8a; border-bottom:1px solid #c8dff0; cursor:pointer; user-select:none; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#1a4f8a; animation:cfdRowIn .14s ease both; }',
+// 		'.cfd-panel-sec > div { padding:9px 12px; border-right:1px solid #c8dff0; }',
+// 		'.cfd-panel-sec > div:last-child { border-right:none; }',
+// 		'.cfd-panel-sec-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; margin-right:7px; }',
+// 		'.cfd-panel-sec-toggle { font-size:10px; color:#1a4f8a; transition:transform .2s; display:inline-block; margin-left:auto; flex-shrink:0; }',
+// 		'.cfd-panel-sec.collapsed .cfd-panel-sec-toggle { transform:rotate(-90deg); }',
+// 		/* Sub-head row */
+// 		'.cfd-panel-sub { display:grid; background:#f4f6f9; border-bottom:1px solid #d8e2ec; cursor:pointer; animation:cfdRowIn .14s ease both; }',
+// 		'.cfd-panel-sub > div { padding:8px 12px; border-right:1px solid #e8edf3; font-size:12px; font-weight:700; color:#1a2a3a; display:flex; align-items:center; justify-content:flex-end; }',
+// 		'.cfd-panel-sub > div:first-child { justify-content:flex-start; padding-left:22px; }',
+// 		'.cfd-panel-sub > div:last-child { border-right:none; }',
+// 		'.cfd-panel-sub:hover > div { background:#deeaf5; }',
+// 		/* Line item row */
+// 		'.cfd-panel-item { display:grid; border-bottom:1px solid #e8edf3; animation:cfdRowIn .14s ease both; transition:background .12s; }',
+// 		'.cfd-panel-item > div { padding:7px 12px; border-right:1px solid #e8edf3; font-size:12px; color:#333; display:flex; align-items:center; justify-content:flex-end; }',
+// 		'.cfd-panel-item > div:first-child { justify-content:flex-start; padding-left:32px; color:#444; }',
+// 		'.cfd-panel-item > div:last-child { border-right:none; }',
+// 		'.cfd-panel-item:hover > div { background:#f0f5fb; }',
+// 		'.cfd-panel-item.row-hidden { display:none; }',
+// 		/* Total row */
+// 		'.cfd-panel-total { display:grid; background:#0b2e70 !important; border-top:2px solid #002a47; position:sticky; bottom:0; z-index:5; animation:cfdRowIn .2s ease both; }',
+// 		'.cfd-panel-total > div { padding:9px 12px; border-right:1px solid rgba(255,255,255,.15); font-size:12px; font-weight:700; color:#fff; display:flex; align-items:center; justify-content:flex-end; }',
+// 		'.cfd-panel-total > div:first-child { justify-content:flex-start; }',
+// 		'.cfd-panel-total > div:last-child { border-right:none; }',
+// 		/* Util pill */
+// 		'.cfd-panel-pill { display:inline-block; padding:2px 7px; border-radius:9px; font-size:10px; font-weight:700; white-space:nowrap; animation:cfdPillPop .25s ease both; }',
+// 	].join('\n');
+
+// 	$('<style>' + css + '</style>').appendTo('head');
+// 	/* ── TEST DATA ─────────────────────────────────────────── */
+// 	var TEST_DB = {
+// 		budgets: [
+// 			{ name:'BGD-0001', partner_id:'CP-001', partner_name:'Asha Foundation',  grant_id:'GR-2024-001', financial_year:'2024-25', state:'Jharkhand',    district:'Ranchi',     block:'Angara',   no_of_creches:32, total_budget:1450000 },
+// 			{ name:'BGD-0002', partner_id:'CP-002', partner_name:'Bal Kalyan Trust', grant_id:'GR-2024-002', financial_year:'2024-25', state:'Odisha',       district:'Sundargarh', block:'Chainpur', no_of_creches:28, total_budget:1280000 },
+// 			{ name:'BGD-0003', partner_id:'CP-003', partner_name:'Seva Sangh',       grant_id:'GR-2025-001', financial_year:'2024-25', state:'Chhattisgarh', district:'Gumla',      block:'Silli',    no_of_creches:45, total_budget:1160000 },
+// 			{ name:'BGD-0004', partner_id:'CP-004', partner_name:'Mamta Society',    grant_id:'GR-2024-001', financial_year:'2024-25', state:'Jharkhand',    district:'Khunti',     block:'Bero',     no_of_creches:37, total_budget: 930000 },
+// 		],
+// 		disbursements: [
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  grant:'GR-2024-001', ref:'BGD-0001', date:'12-Apr-2024', amount: 800000 },
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  grant:'GR-2024-001', ref:'BGD-0001', date:'10-Jul-2024', amount: 650000 },
+// 			{ budget:'BGD-0002', partner_id:'CP-002', partner:'Bal Kalyan Trust', grant:'GR-2024-002', ref:'BGD-0002', date:'15-May-2024', amount: 720000 },
+// 			{ budget:'BGD-0003', partner_id:'CP-003', partner:'Seva Sangh',       grant:'GR-2025-001', ref:'BGD-0003', date:'01-Jun-2024', amount: 580000 },
+// 			{ budget:'BGD-0004', partner_id:'CP-004', partner:'Mamta Society',    grant:'GR-2024-001', ref:'BGD-0004', date:'20-Apr-2024', amount: 400000 },
+// 		],
+// 		utilisations: [
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  month:'June', state:'Jharkhand',    district:'Ranchi',     block:'Angara',   fy:'2024-25', main:'Programme', sub:'Staff costs',       type:'Creche worker salary',  amount:240000, bank_bal: 62000, interest:1200 },
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  month:'June', state:'Jharkhand',    district:'Ranchi',     block:'Angara',   fy:'2024-25', main:'Programme', sub:'Nutrition',         type:'Food & nutrition',      amount: 85000, bank_bal:     0, interest:   0 },
+// 			{ budget:'BGD-0001', partner_id:'CP-001', partner:'Asha Foundation',  month:'May',  state:'Jharkhand',    district:'Ranchi',     block:'Angara',   fy:'2024-25', main:'Admin',     sub:'Office expenses',   type:'Stationery & printing', amount: 18000, bank_bal:     0, interest:   0 },
+// 			{ budget:'BGD-0002', partner_id:'CP-002', partner:'Bal Kalyan Trust', month:'June', state:'Odisha',       district:'Sundargarh', block:'Chainpur', fy:'2024-25', main:'Admin',     sub:'Office expenses',   type:'Rent & utilities',      amount: 32000, bank_bal:110000, interest:2800 },
+// 			{ budget:'BGD-0002', partner_id:'CP-002', partner:'Bal Kalyan Trust', month:'June', state:'Odisha',       district:'Sundargarh', block:'Chainpur', fy:'2024-25', main:'Programme', sub:'Capacity building', type:'Training',              amount: 55000, bank_bal:     0, interest:   0 },
+// 			{ budget:'BGD-0003', partner_id:'CP-003', partner:'Seva Sangh',       month:'May',  state:'Chhattisgarh', district:'Gumla',      block:'Silli',    fy:'2024-25', main:'Programme', sub:'Staff costs',       type:'Supervisor salary',     amount:110000, bank_bal: 95000, interest:   0 },
+// 			{ budget:'BGD-0004', partner_id:'CP-004', partner:'Mamta Society',    month:'June', state:'Jharkhand',    district:'Khunti',     block:'Bero',     fy:'2024-25', main:'Programme', sub:'Nutrition',         type:'Supplementary food',    amount: 72000, bank_bal:103000, interest:1650 },
+// 		],
+// 	};
+
+// 	/* ── STYLES ────────────────────────────────────────────── */
+// 	var css = [
+// 		'/* Filter card */',
+// 		'.cfd-filter-row {',
+// 		'  display: flex; flex-wrap: wrap; gap: 14px 16px;',
+// 		'  padding: 18px 20px;',
+// 		'  background: var(--card-bg);',
+// 		'  border: 1px solid var(--border-color);',
+// 		'  border-radius: var(--border-radius-lg);',
+// 		'  margin: 16px 20px 0;',
+// 		'  box-shadow: 0 1px 3px rgba(0,0,0,0.06);',
+// 		'  align-items: flex-end;',
+// 		'}',
+// 		'.cfd-filter-col { flex: 1 1 155px; max-width: 230px; min-width: 130px; }',
+// 		'.cfd-filter-row .frappe-control { margin-bottom: 0 !important; }',
+// 		'.cfd-filter-row .form-group { margin-bottom: 0 !important; }',
+// 		'.cfd-filter-row .control-label { font-size:11px !important; font-weight:600 !important; color:var(--text-muted) !important; text-transform:uppercase; letter-spacing:0.07em; }',
+// 		'/* Body */',
+// 		'.cfd-body { padding: 16px 20px 28px; }',
+// 		'/* Test badge */',
+// 		'.cfd-test-badge { display:inline-flex; align-items:center; gap:5px; background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:var(--border-radius); padding:3px 10px; font-size:11px; font-weight:600; margin-bottom:10px; }',
+// 		'/* Summary strip */',
+// 		'.cfd-strip { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); display:flex; overflow:hidden; margin-bottom:12px; }',
+// 		'.cfd-si { flex:1; padding:9px 12px; border-right:1px solid var(--border-color); cursor:pointer; transition:background 0.12s; position:relative; }',
+// 		'.cfd-si:last-child { border-right:none; }',
+// 		'.cfd-si:hover { background:var(--bg-color); }',
+// 		'.cfd-si.active { background:var(--primary-light); }',
+// 		'.cfd-si::after { content:""; position:absolute; bottom:0; left:0; right:0; height:2px; background:transparent; }',
+// 		'.cfd-si.active::after { background:var(--primary); }',
+// 		'.cfd-si-lbl { font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.09em; margin-bottom:2px; white-space:nowrap; }',
+// 		'.cfd-si-val { font-size:18px; font-weight:700; color:var(--text-color); line-height:1; }',
+// 		'.cfd-si-sub { font-size:10px; color:var(--text-muted); margin-top:1px; }',
+// 		'/* Section heading */',
+// 		'.cfd-sec { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:5px; }',
+// 		'/* Cards */',
+// 		'.cfd-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-bottom:16px; }',
+// 		'@media(max-width:960px){ .cfd-cards { grid-template-columns:repeat(2,1fr); } }',
+// 		'@media(max-width:600px){ .cfd-cards { grid-template-columns:1fr; } }',
+// 		'.cfd-kc { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:11px 13px; cursor:pointer; transition:border-color 0.15s,box-shadow 0.15s; position:relative; overflow:hidden; }',
+// 		'.cfd-kc:hover { border-color:var(--primary); box-shadow:0 2px 6px rgba(0,0,0,0.07); }',
+// 		'.cfd-kc.active { border-color:var(--primary); box-shadow:0 0 0 2px var(--primary-light); }',
+// 		'.cfd-kc-accent { position:absolute; top:0; left:0; right:0; height:3px; }',
+// 		'.cfd-kc-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:7px; margin-top:4px; }',
+// 		'.cfd-kc-icon { width:28px; height:28px; border-radius:var(--border-radius); display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }',
+// 		'.cfd-kc-badge { font-size:10px; font-weight:700; padding:1px 6px; border-radius:8px; align-self:flex-start; }',
+// 		'.cfd-kc-lbl { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:3px; }',
+// 		'.cfd-kc-val { font-size:19px; font-weight:700; color:var(--text-color); line-height:1; margin-bottom:2px; }',
+// 		'.cfd-kc-sub { font-size:11px; color:var(--text-muted); }',
+// 		'.cfd-kc-foot { display:flex; align-items:center; justify-content:space-between; margin-top:9px; padding-top:7px; border-top:1px solid var(--border-color); }',
+// 		'.cfd-kc-flbl { font-size:10px; color:var(--text-extra-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:68%; }',
+// 		'.cfd-kc-flink { font-size:10px; color:var(--primary); display:flex; align-items:center; gap:3px; white-space:nowrap; font-weight:600; }',
+// 		'/* Drill panel */',
+// 		'.cfd-drill { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); overflow:hidden; margin-bottom:16px; }',
+// 		'.cfd-dh { display:flex; align-items:center; justify-content:space-between; padding:10px 15px; background:linear-gradient(90deg,#1a4f8a 0%,#1e5fa8 100%); }',
+// 		'.cfd-dhl { display:flex; align-items:center; gap:9px; }',
+// 		'.cfd-dht { font-size:13px; font-weight:700; color:#fff; }',
+// 		'.cfd-dhs { font-size:10px; color:rgba(255,255,255,0.6); margin-top:1px; }',
+// 		'.cfd-dcb { background:rgba(255,255,255,0.15); border:none; color:#fff; width:26px; height:26px; border-radius:5px; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; }',
+// 		'.cfd-dcb:hover { background:rgba(255,255,255,0.28); }',
+// 		'.cfd-tscroll { overflow-x:auto; overflow-y:auto; max-height:340px; }',
+// 		'.cfd-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:var(--text-sm); min-width:560px; }',
+// 		'.cfd-tbl thead tr { background:#1a4f8a; }',
+// 		'.cfd-tbl thead th { padding:8px 12px; text-align:left; font-size:10px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap; border-right:1px solid rgba(255,255,255,0.15); position:sticky; top:0; z-index:2; background:#1a4f8a; }',
+// 		'.cfd-tbl thead th:first-child { text-align:center; width:36px; }',
+// 		'.cfd-tbl thead th:last-child { border-right:none; }',
+// 		'.cfd-tbl tbody tr { background:#ffffff; }',
+// 		'.cfd-tbl tbody tr:nth-child(even) { background:#f7f9fc; }',
+// 		'.cfd-tbl tbody tr:hover { background:#e8f0fe !important; }',
+// 		'.cfd-tbl tbody tr:hover td { color:#1a3a6b; }',
+// 		'.cfd-tbl tbody tr.cfd-row-clickable { cursor:pointer; }',
+// 		/* Grant ID grouping */
+// 		/* ── Grant group header ── */
+// 		'.cfd-grant-hdr { background:#1a3a6b !important; cursor:pointer; user-select:none; transition:background .15s,color .15s; }',
+// 		'.cfd-grant-hdr > td { color:#fff !important; font-size:12px !important; font-weight:700 !important; padding:10px 13px !important; border-right:1px solid rgba(255,255,255,0.12) !important; border-bottom:2px solid rgba(255,255,255,0.1) !important; white-space:nowrap; vertical-align:middle; }',
+// 		'.cfd-grant-hdr > td:last-child { border-right:none !important; }',
+// 		'.cfd-grant-hdr:hover { background:#f0f4ff !important; }',
+// 		'.cfd-grant-hdr:hover > td { color:#1a3a6b !important; border-right-color:var(--border-color) !important; }',
+// 		'.cfd-grant-hdr:hover .cfd-grant-badge { background:#1a3a6b !important; color:#fff !important; }',
+// 		'.cfd-grant-toggle { font-size:11px; margin-right:8px; display:inline-block; transition:transform .2s; vertical-align:middle; }',
+// 		'.cfd-grant-hdr.collapsed .cfd-grant-toggle { transform:rotate(-90deg); }',
+// 		/* Child rows */
+// 		'.cfd-grant-child > td { padding-left:13px !important; }',
+// 		'.cfd-grant-child > td:nth-child(2) { padding-left:26px !important; font-weight:600; }',
+// 		'.cfd-grant-child.row-hidden { display:none; }',
+// 		'.cfd-grant-child:hover > td { background:#f0f4ff !important; }',
+// 		/* Grant badge */
+// 		'.cfd-grant-badge { display:inline-flex; align-items:center; font-size:10px; font-weight:700; background:rgba(255,255,255,0.2); color:#fff; border-radius:20px; padding:1px 9px; margin-left:9px; vertical-align:middle; transition:background .15s,color .15s; }',
+// 		/* Numeric cells right-aligned */
+// 		'.cfd-grant-hdr .num { text-align:right !important; }',
+// 		'.cfd-grant-child .num { text-align:right; }',
+// 		/* ── Parent doctype detail strip ── */
+// 		'.cfd-parent-strip { background:var(--bg-color); border-bottom:1px solid var(--border-color); padding:14px 16px; }',
+// 		'.cfd-parent-strip-label { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.08em; display:flex; align-items:center; gap:5px; margin-bottom:10px; }',
+// 		'.cfd-parent-cards-row { display:flex; flex-wrap:wrap; gap:10px; }',
+// 		'.cfd-parent-card { flex:1; min-width:260px; max-width:380px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:12px 14px; border-left:3px solid #1a4f8a; }',
+// 		'.cfd-parent-card-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-color); }',
+// 		'.cfd-parent-card-name { font-size:13px; font-weight:700; color:var(--text-color); }',
+// 		'.cfd-parent-card-ref { font-size:11px; font-weight:600; color:var(--primary); background:var(--primary-light); border-radius:4px; padding:1px 7px; white-space:nowrap; }',
+// 		'.cfd-parent-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px 10px; margin-bottom:10px; }',
+// 		'.cfd-parent-field-lbl { font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.07em; margin-bottom:2px; }',
+// 		'.cfd-parent-field-val { font-size:12px; font-weight:600; color:var(--text-color); }',
+// 		'.cfd-parent-card-bar-wrap { margin-top:4px; }',
+// 		'.cfd-tbl tbody tr.cfd-row-clickable:hover td { color:var(--primary); font-weight:600; }',
+// 		'.cfd-tbl tbody td { padding:8px 12px; font-size:var(--text-sm); color:var(--text-color); border-right:1px solid var(--border-color); border-bottom:1px solid var(--border-color); white-space:nowrap; }',
+// 		'.cfd-tbl tbody tr:last-child td { border-bottom:none; }',
+// 		'.cfd-tbl tbody td:last-child { border-right:none; }',
+// 		'.cfd-tdn { text-align:center; font-size:11px; color:var(--text-muted); }',
+// 		'.cfd-tbold { font-weight:700; }',
+// 		'.cfd-tbl tfoot tr td { background:#0b2e70 !important; color:#fff !important; font-weight:700 !important; padding:8px 12px; border-right:1px solid rgba(255,255,255,0.2); white-space:nowrap; font-size:var(--text-sm); }',
+// 		'.cfd-tbl tfoot tr td:last-child { border-right:none; }',
+// 		'/* Line item popup table */',
+// 		'.cfd-li-tbl { width:100%; border-collapse:collapse; font-size:13px; }',
+// 		'.cfd-li-tbl thead th { background:#1a4f8a; color:#fff; padding:8px 12px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap; }',
+// 		'.cfd-li-tbl thead th:first-child { text-align:center; width:36px; }',
+// 		'.cfd-li-tbl tbody tr:nth-child(even) { background:var(--bg-color); }',
+// 		'.cfd-li-tbl tbody tr:hover { background:var(--primary-light); }',
+// 		'.cfd-li-tbl tbody td { padding:8px 12px; border-bottom:1px solid var(--border-color); white-space:nowrap; font-size:13px; color:var(--text-color); }',
+// 		'.cfd-li-tbl tbody tr:last-child td { border-bottom:none; }',
+// 		'.cfd-li-tbl tfoot td { background:#0b2e70 !important; color:#fff !important; font-weight:700; padding:8px 12px; white-space:nowrap; }',
+// 		'/* Dialog pills */',
+// 		'.cfd-dlg-pill { display:inline-flex; align-items:center; border:1px solid var(--border-color); border-radius:var(--border-radius); overflow:hidden; font-size:12px; height:26px; background:var(--card-bg); margin:3px; }',
+// 		'.cfd-dlg-pill-lbl { padding:0 7px; color:var(--text-muted); font-size:11px; font-weight:700; background:var(--bg-color); border-right:1px solid var(--border-color); height:100%; display:flex; align-items:center; text-transform:uppercase; letter-spacing:0.05em; }',
+// 		'.cfd-dlg-pill-val { padding:0 8px; color:var(--text-color); font-size:12px; font-weight:500; height:100%; display:flex; align-items:center; }',
+// 		'.cfd-dlg-pill-x { display:flex; align-items:center; justify-content:center; width:24px; height:100%; border:none; border-left:1px solid var(--border-color); background:transparent; cursor:pointer; color:var(--text-muted); padding:0; transition:background 0.12s,color 0.12s; flex-shrink:0; }',
+// 		'.cfd-dlg-pill-x:hover { background:var(--red-light); color:var(--red); }',
+// 		'.cfd-dlg-pills-wrap { display:flex; flex-wrap:wrap; padding:4px 0; min-height:36px; }',
+// 		'.cfd-dlg-empty { color:var(--text-muted); font-size:13px; padding:8px 4px; }',
+// 		/* View button */
+// 		'.cfd-view-btn { display:inline-flex; align-items:center; justify-content:center; gap:3px; font-size:11px; font-weight:600; color:var(--primary); background:transparent; border:none; border-radius:4px; padding:4px 6px; cursor:pointer; white-space:nowrap; transition:background 0.12s,color 0.12s; line-height:1; }',
+// 		'.cfd-view-btn:hover { background:var(--primary-light); color:var(--primary); }',
+// 		/* Line item popup */
+// 		'.cfd-li-tabs { display:flex; gap:0; border-bottom:2px solid var(--border-color); margin-bottom:12px; }',
+// 		'.cfd-li-tab { padding:7px 16px; font-size:12px; font-weight:600; cursor:pointer; color:var(--text-muted); border-bottom:2px solid transparent; margin-bottom:-2px; transition:color 0.15s,border-color 0.15s; }',
+// 		'.cfd-li-tab.active { color:var(--primary); border-bottom-color:var(--primary); }',
+// 		'.cfd-li-total-bar { display:flex; align-items:baseline; gap:8px; margin-bottom:12px; padding:10px 14px; background:var(--bg-color); border-radius:var(--border-radius); border:1px solid var(--border-color); }',
+// 		'.cfd-li-total-lbl { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; }',
+// 		'.cfd-li-total-val { font-size:22px; font-weight:700; color:var(--text-color); }',
+// 		'.cfd-li-tbl-wrap { overflow-x:auto; overflow-y:auto; max-height:400px; }',
+// 		'.cfd-li-tbl2 { width:100%; border-collapse:collapse; min-width:400px; }',
+// 		'.cfd-li-tbl2 th { background:#1a4f8a; color:#fff; padding:8px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap; position:sticky; top:0; z-index:2; }',
+// 		'.cfd-li-tbl2 th:last-child { text-align:right; }',
+// 		'.cfd-li-tbl2 td { padding:8px 12px; border-bottom:1px solid var(--border-color); font-size:13px; color:var(--text-color); white-space:nowrap; }',
+// 		'.cfd-li-tbl2 td:last-child { text-align:right; font-weight:600; }',
+// 		'.cfd-li-tbl2 tbody tr:hover td { background:var(--primary-light); }',
+// 		'.cfd-li-tbl2 tbody tr:last-child td { border-bottom:none; }',
+// 		/* Head group row */
+// 		'.cfd-li-head { background:var(--light) !important; cursor:pointer; }',
+// 		'.cfd-li-head td { font-weight:700 !important; font-size:12px !important; color:var(--text-color) !important; border-top:2px solid var(--border-color); }',
+// 		'.cfd-li-head td:first-child { padding-left:12px !important; }',
+// 		'.cfd-li-head-accent { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:8px; flex-shrink:0; }',
+// 		/* Sub-head group row */
+// 		'.cfd-li-sub { background:var(--bg-color) !important; }',
+// 		'.cfd-li-sub td { font-weight:600 !important; font-size:12px !important; color:var(--text-muted) !important; }',
+// 		'.cfd-li-sub td:first-child { padding-left:24px !important; }',
+// 		/* Line item row */
+// 		'.cfd-li-item td:first-child { padding-left:36px !important; font-size:12px !important; }',
+// 		/* Footer */
+// 		'.cfd-li-tbl2 tfoot td { background:#0b2e70 !important; color:#fff !important; font-weight:700 !important; padding:9px 12px; border:none; }',
+// 		/* View line items button in drill table */
+// 		'.cfd-view-btn { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:var(--primary); background:var(--primary-light); border:1px solid var(--primary); border-radius:4px; padding:2px 8px; cursor:pointer; white-space:nowrap; transition:background 0.12s; }',
+// 		'.cfd-view-btn:hover { background:var(--primary); color:#fff; }',
+// 		/* Line item popup layout */
+// 		'.cfd-li-wrap { display:flex; flex-direction:column; height:100%; }',
+// 		'.cfd-li-tabs { display:flex; gap:0; border-bottom:2px solid var(--border-color); margin-bottom:14px; }',
+// 		'.cfd-li-tab { padding:7px 16px; font-size:12px; font-weight:600; cursor:pointer; color:var(--text-muted); border-bottom:2px solid transparent; margin-bottom:-2px; transition:color 0.15s,border-color 0.15s; }',
+// 		'.cfd-li-tab:hover { color:var(--text-color); }',
+// 		'.cfd-li-tab.active { color:var(--primary); border-bottom-color:var(--primary); }',
+// 		'.cfd-li-total-bar { display:flex; align-items:baseline; gap:6px; margin-bottom:14px; padding:10px 14px; background:var(--bg-color); border-radius:var(--border-radius); border:1px solid var(--border-color); }',
+// 		'.cfd-li-total-lbl { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; }',
+// 		'.cfd-li-total-val { font-size:22px; font-weight:700; color:var(--text-color); }',
+// 		'.cfd-li-table-wrap { overflow-x:auto; overflow-y:auto; max-height:400px; }',
+// 		'.cfd-li-head-row { background:var(--primary) !important; cursor:pointer; }',
+// 		'.cfd-li-head-row td { color:#fff !important; font-weight:700 !important; font-size:12px !important; padding:9px 12px !important; }',
+// 		'.cfd-li-head-row td:first-child { padding-left:14px !important; }',
+// 		'.cfd-li-head-row .cfd-li-toggle { font-size:11px; margin-right:6px; transition:transform 0.15s; display:inline-block; }',
+// 		'.cfd-li-head-row.collapsed .cfd-li-toggle { transform:rotate(-90deg); }',
+// 		'.cfd-li-item-row td { padding-left:32px !important; font-size:12px !important; color:var(--text-color) !important; }',
+// 		'.cfd-li-item-row:hover td { background:var(--primary-light) !important; }',
+// 		'.cfd-li-sub-row td { background:var(--bg-color) !important; font-size:12px !important; }',
+// 		'.cfd-li-tbl2 { width:100%; border-collapse:collapse; min-width:400px; }',
+// 		'.cfd-li-tbl2 th { background:#1a4f8a; color:#fff; padding:8px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap; position:sticky; top:0; z-index:2; }',
+// 		'.cfd-li-tbl2 th:last-child { text-align:right; }',
+// 		'.cfd-li-tbl2 td:last-child { text-align:right; }',
+// 		'.cfd-li-tbl2 tfoot td { background:#0b2e70 !important; color:#fff !important; font-weight:700; padding:9px 12px; }',
+// 	].join('\n');
+
+// 	$('<style>' + css + '</style>').appendTo('head');
+
+// 	/* ── HELPERS ───────────────────────────────────────────── */
+// 	function inr(v) {
+// 		v = parseFloat(v) || 0;
+// 		var s = Math.round(v).toString(), r = '';
+// 		if (s.length > 3) {
+// 			r = ',' + s.slice(-3); s = s.slice(0, -3);
+// 			while (s.length > 2) { r = ',' + s.slice(-2) + r; s = s.slice(0, -2); }
+// 			r = s + r;
+// 		} else { r = s; }
+// 		return '\u20B9' + r;
+// 	}
+// 	function pctStr(a, b) { return b ? ((a / b) * 100).toFixed(1) + '%' : '0%'; }
+// 	function unique(arr) { return arr.filter(function(v, i, s) { return s.indexOf(v) === i; }); }
+
+// 	/* ── FILTER CONTROLS ───────────────────────────────────── */
+// 	/* ── Slide-in panel DOM ── */
+// 	$(page.body).append(
+// 		'<div id="cfd-panel-overlay">' +
+// 		'  <div id="cfd-slide-panel">' +
+// 		'    <div id="cfd-panel-header">' +
+// 		'      <button id="cfd-panel-close">&#215;</button>' +
+// 		'      <div id="cfd-panel-title">Line Items</div>' +
+// 		'    </div>' +
+// 		'    <div id="cfd-panel-sidebar">' +
+// 		'      <div id="cfd-panel-tab-bar"></div>' +
+// 		'      <div id="cfd-panel-strip"></div>' +
+// 		'    </div>' +
+// 		'    <div id="cfd-panel-col-hdr"></div>' +
+// 		'    <div id="cfd-panel-rows"></div>' +
+// 		'  </div>' +
+// 		'</div>'
+// 	);
+
+// 	/* Close panel */
+// 	$(document).on('click', '#cfd-panel-close', function() {
+// 		$('#cfd-panel-overlay').removeClass('open');
+// 	});
+// 	$(document).on('click', '#cfd-panel-overlay', function(e) {
+// 		if (e.target === this) $('#cfd-panel-overlay').removeClass('open');
+// 	});
+
+// 	var $filter_row = $('<div class="cfd-filter-row"></div>').appendTo(page.body);
+// 	function makeCol() { return $('<div class="cfd-filter-col"></div>').appendTo($filter_row); }
+
+// 	var fy_ctrl = frappe.ui.form.make_control({
+// 		parent: makeCol(),
+// 		df: { label:'Financial Year', fieldtype:'Select', fieldname:'financial_year',
+// 			  options: ['2022-23','2023-24','2024-25','2025-26'].join('\n'),
+// 			  change: function() {
+// 				  loadFilterOptions();
+// 				  loadData();
+// 			  } },
+// 		render_input: true,
+// 	});
+// 	fy_ctrl.refresh();
+
+// 	var month_ctrl = frappe.ui.form.make_control({
+// 		parent: makeCol(),
+// 		df: { label:'Month', fieldtype:'MultiSelectList', fieldname:'month',
+// 			  get_data: function() { return _filterOpts.months || []; },
+// 			  change: function() { updateFilterBtn(); loadData(); } },
+// 		render_input: true,
+// 	}); month_ctrl.refresh();
+
+// 	var partner_ctrl = frappe.ui.form.make_control({
+// 		parent: makeCol(),
+// 		df: { label:'Partner', fieldtype:'MultiSelectList', fieldname:'partner_id',
+// 			  get_data: function() { return _filterOpts.partners || []; },
+// 			  change: function() { updateFilterBtn(); loadData(); } },
+// 		render_input: true,
+// 	}); partner_ctrl.refresh();
+
+// 	var grant_ctrl = frappe.ui.form.make_control({
+// 		parent: makeCol(),
+// 		df: { label:'Grant ID', fieldtype:'MultiSelectList', fieldname:'grant_id',
+// 			  get_data: function() { return _filterOpts.grant_ids || []; },
+// 			  change: function() { updateFilterBtn(); loadData(); } },
+// 		render_input: true,
+// 	}); grant_ctrl.refresh();
+
+// 	var state_ctrl = frappe.ui.form.make_control({
+// 		parent: makeCol(),
+// 		df: { label:'State', fieldtype:'MultiSelectList', fieldname:'state',
+// 			  get_data: function() { return _filterOpts.states || []; },
+// 			  change: function() { updateFilterBtn(); loadData(); } },
+// 		render_input: true,
+// 	}); state_ctrl.refresh();
+
+// 	var district_ctrl = frappe.ui.form.make_control({
+// 		parent: makeCol(),
+// 		df: { label:'District', fieldtype:'MultiSelectList', fieldname:'district',
+// 			  get_data: function() { return _filterOpts.districts || []; },
+// 			  change: function() { updateFilterBtn(); loadData(); } },
+// 		render_input: true,
+// 	}); district_ctrl.refresh();
+
+// 	var block_ctrl = frappe.ui.form.make_control({
+// 		parent: makeCol(),
+// 		df: { label:'Block', fieldtype:'MultiSelectList', fieldname:'block',
+// 			  get_data: function() { return _filterOpts.blocks || []; },
+// 			  change: function() { updateFilterBtn(); loadData(); } },
+// 		render_input: true,
+// 	}); block_ctrl.refresh();
+
+// 	/* ── Live filter options cache ── */
+// 	var _filterOpts = { months:[], partners:[], grant_ids:[], states:[], districts:[], blocks:[] };
+
+// 	function loadFilterOptions() {
+// 		if (!USE_LIVE_API) return;
+// 		var fy = fy_ctrl.get_value();
+// 		frappe.call({
+// 			method: API.filterOptions,
+// 			args: { financial_year: fy || '' },
+// 			callback: function(r) {
+// 				console.log('[CFD] get_filter_options response:', r.message);
+// 				if (!r.message) return;
+// 				_filterOpts = r.message;
+// 				/* Set FY select options */
+// 				if (r.message.financial_years && r.message.financial_years.length) {
+// 					fy_ctrl.df.options = r.message.financial_years.join('\n');
+// 					fy_ctrl.refresh();
+// 					if (!fy_ctrl.get_value()) {
+// 						fy_ctrl.set_value(r.message.financial_years[0]);
+// 					}
+// 				}
+// 			},
+// 		});
+// 	}
+
+// 	var CTRL_MAP = {
+// 		month:      { ctrl: month_ctrl,    label: 'Month' },
+// 		partner_id: { ctrl: partner_ctrl,  label: 'Partner' },
+// 		grant_id:   { ctrl: grant_ctrl,    label: 'Grant ID' },
+// 		state:      { ctrl: state_ctrl,    label: 'State' },
+// 		district:   { ctrl: district_ctrl, label: 'District' },
+// 		block:      { ctrl: block_ctrl,    label: 'Block' },
+// 	};
+
+// 	function getFilters() {
+// 		return {
+// 			financial_year: fy_ctrl.get_value()       || '',
+// 			month:          month_ctrl.get_value()    || [],
+// 			partner_id:     partner_ctrl.get_value()  || [],
+// 			grant_id:       grant_ctrl.get_value()    || [],
+// 			state:          state_ctrl.get_value()    || [],
+// 			district:       district_ctrl.get_value() || [],
+// 			block:          block_ctrl.get_value()    || [],
+// 		};
+// 	}
+
+// 	function hasActiveFilters() {
+// 		var f = getFilters();
+// 		return ['month','partner_id','grant_id','state','district','block']
+// 			.some(function(k) { return (f[k] || []).length > 0; });
+// 	}
+
+// 	/* ── PAGE HEADER BUTTONS ───────────────────────────────── */
+// 	var $filterBtn = page.add_inner_button(__('Applied filters'), function() {
+// 		openFilterDialog();
+// 	});
+// 	$filterBtn.addClass('btn-default').hide();
+
+// 	var $clearBtn = page.add_inner_button(__('Clear all filters'), function() {
+// 		clearAllFilters();
+// 	});
+// 	$clearBtn.addClass('btn-danger').hide();
+
+// 	function updateFilterBtn() {
+// 		if (hasActiveFilters()) {
+// 			var total = Object.keys(CTRL_MAP).reduce(function(s, k) {
+// 				return s + (getFilters()[k] || []).length;
+// 			}, 0);
+// 			$filterBtn.text('Applied filters (' + total + ')').show();
+// 			$clearBtn.show();
+// 		} else {
+// 			$filterBtn.hide();
+// 			$clearBtn.hide();
+// 		}
+// 	}
+
+// 	function clearAllFilters() {
+// 		Object.keys(CTRL_MAP).forEach(function(k) { CTRL_MAP[k].ctrl.set_value([]); });
+// 		updateFilterBtn();
+// 		loadData();
+// 	}
+
+// 	/* ── FILTER DIALOG ─────────────────────────────────────── */
+// 	function openFilterDialog() {
+// 		var $wrap = $('<div class="cfd-dlg-pills-wrap"></div>');
+// 		renderDialogPills($wrap);
+// 		var d = new frappe.ui.Dialog({
+// 			title: 'Applied filters',
+// 			fields: [{ fieldtype:'HTML', fieldname:'pills_html' }],
+// 			primary_action_label: 'Close',
+// 			primary_action: function() { d.hide(); },
+// 		});
+// 		d.show();
+// 		d.fields_dict.pills_html.$wrapper.empty().append($wrap);
+// 	}
+
+// 	function renderDialogPills($wrap) {
+// 		$wrap.empty();
+// 		var f = getFilters();
+// 		var count = 0;
+// 		Object.keys(CTRL_MAP).forEach(function(key) {
+// 			(f[key] || []).forEach(function(v) {
+// 				count++;
+// 				var info = CTRL_MAP[key];
+// 				var $pill = $('<span class="cfd-dlg-pill">'
+// 					+ '<span class="cfd-dlg-pill-lbl">' + info.label + '</span>'
+// 					+ '<span class="cfd-dlg-pill-val">' + v + '</span>'
+// 					+ '<button class="cfd-dlg-pill-x" title="Remove">'
+// 					+ '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+// 					+ '</button></span>');
+// 				$pill.find('.cfd-dlg-pill-x').on('click', function() {
+// 					var current = (info.ctrl.get_value() || []).filter(function(x) { return x !== v; });
+// 					info.ctrl.set_value(current);
+// 					updateFilterBtn();
+// 					loadData();
+// 					renderDialogPills($wrap);
+// 					if (!hasActiveFilters()) { $wrap.closest('.modal').find('[data-dismiss="modal"]').trigger('click'); }
+// 				});
+// 				$wrap.append($pill);
+// 			});
+// 		});
+// 		if (!count) { $wrap.append('<span class="cfd-dlg-empty">No active filters</span>'); }
+// 	}
+
+// 	/* ── APPLY FILTERS TO DB ───────────────────────────────── */
+// 	function applyFilters(db) {
+// 		var f = getFilters();
+// 		var budgets = db.budgets.filter(function(b) {
+// 			if (f.partner_id.length && f.partner_id.indexOf(b.partner_id) < 0) return false;
+// 			if (f.grant_id.length   && f.grant_id.indexOf(b.grant_id)     < 0) return false;
+// 			if (f.state.length      && f.state.indexOf(b.state)           < 0) return false;
+// 			if (f.district.length   && f.district.indexOf(b.district)     < 0) return false;
+// 			if (f.block.length      && f.block.indexOf(b.block)           < 0) return false;
+// 			return true;
+// 		});
+// 		var budgetNames = budgets.map(function(b) { return b.name; });
+// 		var disbursements = db.disbursements.filter(function(d) {
+// 			if (budgetNames.indexOf(d.budget) < 0) return false;
+// 			if (f.partner_id.length && f.partner_id.indexOf(d.partner_id) < 0) return false;
+// 			return true;
+// 		});
+// 		var utilisations = db.utilisations.filter(function(u) {
+// 			if (budgetNames.indexOf(u.budget) < 0) return false;
+// 			if (f.partner_id.length && f.partner_id.indexOf(u.partner_id) < 0) return false;
+// 			if (f.month.length      && f.month.indexOf(u.month)           < 0) return false;
+// 			if (f.state.length      && f.state.indexOf(u.state)           < 0) return false;
+// 			if (f.district.length   && f.district.indexOf(u.district)     < 0) return false;
+// 			if (f.block.length      && f.block.indexOf(u.block)           < 0) return false;
+// 			return true;
+// 		});
+// 		return { budgets: budgets, disbursements: disbursements, utilisations: utilisations };
+// 	}
+
+// 	/* ── COMPUTE SUMMARY ───────────────────────────────────── */
+// 	function computeSummary(db) {
+// 		var tB  = db.budgets.reduce(function(s, r) { return s + r.total_budget; }, 0);
+// 		var tD  = db.disbursements.reduce(function(s, r) { return s + r.amount; }, 0);
+// 		var tU  = db.utilisations.reduce(function(s, r) { return s + r.amount; }, 0);
+// 		var tBk = db.utilisations.filter(function(u) { return u.bank_bal > 0; })
+// 			.reduce(function(s, u) { return s + u.bank_bal + u.interest; }, 0);
+// 		return {
+// 			summary: {
+// 				partners:  unique(db.budgets.map(function(b) { return b.partner_id; })).length,
+// 				states:    unique(db.budgets.map(function(b) { return b.state; })).length,
+// 				districts: unique(db.budgets.map(function(b) { return b.district; })).length,
+// 				blocks:    unique(db.budgets.map(function(b) { return b.block; })).length,
+// 				creches:   db.budgets.reduce(function(s, b) { return s + b.no_of_creches; }, 0),
+// 			},
+// 			cards: {
+// 				budget:         { value: tB,       pct: null },
+// 				utilisation:    { value: tU,       pct: tB ? parseFloat(((tU / tB) * 100).toFixed(1)) : 0 },
+// 				disbursed:      { value: tD,       pct: tB ? parseFloat(((tD / tB) * 100).toFixed(1)) : 0 },
+// 				budget_balance: { value: tB - tU,  pct: null },
+// 				bank_balance:   { value: tBk,      pct: null },
+// 				balance_amount: { value: tB - tD,  pct: null },
+// 			},
+// 		};
+// 	}
+
+// 	/* ── COMPUTE DRILL ─────────────────────────────────────── */
+// 	function computeDrill(key, db) {
+// 		if (key === 'partners') {
+// 			var rows = db.budgets.map(function(b) { return [b.partner_name,b.partner_id,b.grant_id,b.state,b.district,b.block,b.no_of_creches,inr(b.total_budget)]; });
+// 			return { heads:['#','Partner name','Partner ID','Grant ID','State','District','Block','Crèches','Total budget'], rows:rows, totals:['Total',null,null,null,null,null, db.budgets.reduce(function(s,b){return s+b.no_of_creches;},0), inr(db.budgets.reduce(function(s,b){return s+b.total_budget;},0))] };
+// 		}
+// 		if (key === 'states') {
+// 			var sm = {};
+// 			db.budgets.forEach(function(b) {
+// 				if (!sm[b.state]) sm[b.state] = { p:[], c:0, d:[], budget:0 };
+// 				if (sm[b.state].p.indexOf(b.partner_id) < 0) sm[b.state].p.push(b.partner_id);
+// 				if (sm[b.state].d.indexOf(b.district)   < 0) sm[b.state].d.push(b.district);
+// 				sm[b.state].c += b.no_of_creches; sm[b.state].budget += b.total_budget;
+// 			});
+// 			var rows = Object.keys(sm).map(function(s) { return [s,sm[s].p.length,sm[s].c,sm[s].d.length,inr(sm[s].budget)]; });
+// 			return { heads:['#','State','Partners','Crèches','Districts','Total budget'], rows:rows, totals:['Total',null, db.budgets.reduce(function(s,b){return s+b.no_of_creches;},0),null, inr(db.budgets.reduce(function(s,b){return s+b.total_budget;},0))] };
+// 		}
+// 		if (key === 'districts') {
+// 			var rows = db.budgets.map(function(b) { return [b.district,b.state,b.partner_name,b.block,b.no_of_creches]; });
+// 			return { heads:['#','District','State','Partner','Block','Crèches'], rows:rows, totals:['Total',null,null,null, db.budgets.reduce(function(s,b){return s+b.no_of_creches;},0)] };
+// 		}
+// 		if (key === 'blocks') {
+// 			var rows = db.budgets.map(function(b) { return [b.block,b.district,b.state,b.partner_name,b.no_of_creches]; });
+// 			return { heads:['#','Block','District','State','Partner','Crèches'], rows:rows, totals:['Total',null,null,null, db.budgets.reduce(function(s,b){return s+b.no_of_creches;},0)] };
+// 		}
+// 		if (key === 'creches') {
+// 			var rows = db.budgets.map(function(b) { return [b.partner_name,b.state,b.district,b.block,b.grant_id,b.financial_year,b.no_of_creches]; });
+// 			return { heads:['#','Partner','State','District','Block','Grant ID','Financial year','Crèches'], rows:rows, totals:['Total',null,null,null,null,null, db.budgets.reduce(function(s,b){return s+b.no_of_creches;},0)] };
+// 		}
+// 		if (key === 'budget') {
+// 			var rows = db.budgets.map(function(b) { return [b.partner_name,b.grant_id,b.name,b.financial_year,b.no_of_creches,inr(b.total_budget),b.state]; });
+// 			return { heads:['#','Partner name','Grant ID','Budget ref.','Financial year','Crèches','Total budget','State'], rows:rows, totals:['Total',null,null,null, db.budgets.reduce(function(s,b){return s+b.no_of_creches;},0), inr(db.budgets.reduce(function(s,b){return s+b.total_budget;},0)),null] };
+// 		}
+// 		if (key === 'utilisation') {
+// 			/* Group by parent doc: partner + month + financial year (parent-level fields) */
+// 			var seen = {}, parentRows = [];
+// 			db.utilisations.forEach(function(u) {
+// 				var key2 = u.partner + '||' + u.month + '||' + u.fy;
+// 				if (!seen[key2]) {
+// 					seen[key2] = {
+// 						partner:    u.partner,
+// 						month:      u.month,
+// 						fy:         u.fy,
+// 						state:      u.state,
+// 						district:   u.district,
+// 						block:      u.block,
+// 						total_util: 0,
+// 						bank_bal:   u.bank_bal || 0,
+// 						interest:   u.interest || 0,
+// 					};
+// 					parentRows.push(seen[key2]);
+// 				}
+// 				seen[key2].total_util += u.amount;
+// 			});
+// 			var rows = parentRows.map(function(p) {
+// 				return [
+// 					p.partner,
+// 					p.month,
+// 					p.fy,
+// 					p.state,
+// 					p.district,
+// 					p.block,
+// 					inr(p.total_util),
+// 					p.bank_bal > 0 ? inr(p.bank_bal) : '—',
+// 				];
+// 			});
+// 			var tTotalUtil = parentRows.reduce(function(s,p){return s+p.total_util;},0);
+// 			return {
+// 				heads: ['#','Partner','Month','Financial year','State','District','Block','Total utilisation','Bank balance'],
+// 				rows:  rows,
+// 				totals: ['Total',null,null,null,null,null, inr(tTotalUtil), null]
+// 			};
+// 		}
+// 		if (key === 'disbursed') {
+// 			var cum = {};
+// 			var rows = db.disbursements.map(function(d) { cum[d.budget]=(cum[d.budget]||0)+d.amount; return [d.partner,d.grant,d.ref,d.date,inr(d.amount),inr(cum[d.budget])]; });
+// 			return { heads:['#','Partner name','Grant ID','Budget ref.','Date','Disbursed amount','Cumulative total'], rows:rows, totals:['Total',null,null,null, inr(db.disbursements.reduce(function(s,d){return s+d.amount;},0)),null] };
+// 		}
+// 		if (key === 'budget_balance') {
+// 			var rows = db.budgets.map(function(b) {
+// 				var u = db.utilisations.filter(function(x){return x.budget===b.name;}).reduce(function(s,x){return s+x.amount;},0);
+// 				return [b.partner_name,b.grant_id,inr(b.total_budget),inr(u),inr(b.total_budget-u),pctStr(u,b.total_budget)];
+// 			});
+// 			var tBd = db.budgets.reduce(function(s,b){return s+b.total_budget;},0);
+// 			var tU  = db.utilisations.reduce(function(s,u){return s+u.amount;},0);
+// 			return { heads:['#','Partner name','Grant ID','Total budget','Total utilised','Balance','% used'], rows:rows, totals:['Total',null,inr(tBd),inr(tU),inr(tBd-tU),pctStr(tU,tBd)] };
+// 		}
+// 		if (key === 'bank_balance') {
+// 			var rows = db.utilisations.filter(function(u){return u.bank_bal>0;}).map(function(u) {
+// 				var bg = db.budgets.find(function(x){return x.name===u.budget;});
+// 				return [u.partner, bg?bg.grant_id:'—', u.month, u.fy, inr(u.bank_bal), inr(u.interest)];
+// 			});
+// 			return { heads:['#','Partner name','Grant ID','Month','Financial year','Cash + bank balance','Interest from bank'], rows:rows, totals:['Total',null,null,null, inr(db.utilisations.reduce(function(s,u){return s+u.bank_bal;},0)), inr(db.utilisations.reduce(function(s,u){return s+u.interest;},0))] };
+// 		}
+// 		if (key === 'balance_amount') {
+// 			var rows = db.budgets.map(function(b) {
+// 				var d = db.disbursements.filter(function(x){return x.budget===b.name;}).reduce(function(s,x){return s+x.amount;},0);
+// 				return [b.partner_name,b.grant_id,b.name,inr(b.total_budget),inr(d),inr(b.total_budget-d)];
+// 			});
+// 			var tBd = db.budgets.reduce(function(s,b){return s+b.total_budget;},0);
+// 			var tD  = db.disbursements.reduce(function(s,d){return s+d.amount;},0);
+// 			return { heads:['#','Partner name','Grant ID','Budget ref.','Total budget','Total disbursed','Balance available'], rows:rows, totals:['Total',null,null,inr(tBd),inr(tD),inr(tBd-tD)] };
+// 		}
+// 		return { heads:[], rows:[], totals:[] };
+// 	}
+
+// 	/* ── CARD DEFS ─────────────────────────────────────────── */
+// 	var CARD_DEFS = [
+// 		{ key:'budget',         label:'Total budget',               sub:'Approved grant budget',    badge:null,                                           accent:'#1a5fa8', iconBg:'#dbeafe', iconClr:'#1e40af', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>', foot:'Σ Creche Budget → total_budget' },
+// 		{ key:'utilisation',    label:'Total utilisation',          sub:'Spent against budget',     badge:{ bg:'#fef3c7', clr:'#92400e' },                accent:'#f59e0b', iconBg:'#fef3c7', iconClr:'#92400e', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>', foot:'Σ Utilisation Items → total_amount' },
+// 		{ key:'disbursed',      label:'Total disbursed',            sub:'Released to partners',     badge:{ bg:'#d1fae5', clr:'#065f46' },                accent:'#10b981', iconBg:'#d1fae5', iconClr:'#065f46', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>', foot:'Σ Disbursement Tracker → disbursed_amount' },
+// 		{ key:'budget_balance', label:'Budget utilisation balance', sub:'Budget − utilisation',     badge:{ label:'Remaining', bg:'#ede9fe', clr:'#5b21b6' }, accent:'#7c3aed', iconBg:'#ede9fe', iconClr:'#5b21b6', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>', foot:'total_budget − Σ utilisation' },
+// 		{ key:'bank_balance',   label:'Bank & cash balance',        sub:'Cash + bank at month end', badge:null,                                           accent:'#ef4444', iconBg:'#fee2e2', iconClr:'#b91c1c', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M19 8V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>', foot:'balance_amount + interest_from_bank' },
+// 		{ key:'balance_amount', label:'Balance amount',             sub:'Budget − disbursed',       badge:{ label:'Undisbursed', bg:'#fce7f3', clr:'#9d174d' }, accent:'#ec4899', iconBg:'#fce7f3', iconClr:'#9d174d', icon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>', foot:'total_budget − total_disbursement' },
+// 	];
+
+// 	var DRILL_META = {
+// 		partners:       { title:'Active partners',                       sub:'Creche Budget → partner_id (distinct)' },
+// 		states:         { title:'Working states',                        sub:'Creche Budget → state (distinct)' },
+// 		districts:      { title:'Working districts',                     sub:'Creche Budget → district (distinct)' },
+// 		blocks:         { title:'Working blocks',                        sub:'Creche Budget → block (distinct)' },
+// 		creches:        { title:'Crèche count by partner',               sub:'Creche Budget → no_of_creches' },
+// 		budget:         { title:'Budget by partner & grant',             sub:'Click ᴇ to view line items for a row' },
+// 		utilisation:    { title:'Utilisation by expense head',           sub:'Click ᴇ to view line items for a row' },
+// 		disbursed:      { title:'Disbursement history',                  sub:'Creche Disbursement → Disbursement Tracker' },
+// 		budget_balance: { title:'Budget utilisation balance by partner', sub:'total_budget − Σ utilisation_items.total_amount' },
+// 		bank_balance:   { title:'Bank & cash balance — end of month',    sub:'Creche utilisation → balance_amount + interest_from_bank' },
+// 		balance_amount: { title:'Balance amount (budget − disbursed)',   sub:'Creche Disbursement → balence_budget' },
+// 	};
+
+// 	/* ── MAIN BODY ─────────────────────────────────────────── */
+// 	var $body = $('<div class="cfd-body"></div>').appendTo(page.body);
+
+// 	$body.append('<div class="cfd-test-badge">'
+// 		+ '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+// 		+ ' Showing test data — wire loadData() to live API when ready</div>');
+
+// 	var $strip = $('<div class="cfd-strip">'
+// 		+ '<div class="cfd-si" data-key="partners" ><div class="cfd-si-lbl">Partners</div> <div class="cfd-si-val" id="sv-partners">—</div><div class="cfd-si-sub">Active</div></div>'
+// 		+ '<div class="cfd-si" data-key="states"   ><div class="cfd-si-lbl">States</div>   <div class="cfd-si-val" id="sv-states">—</div>  <div class="cfd-si-sub">Working</div></div>'
+// 		+ '<div class="cfd-si" data-key="districts"><div class="cfd-si-lbl">Districts</div><div class="cfd-si-val" id="sv-districts">—</div><div class="cfd-si-sub">Working</div></div>'
+// 		+ '<div class="cfd-si" data-key="blocks"   ><div class="cfd-si-lbl">Blocks</div>   <div class="cfd-si-val" id="sv-blocks">—</div>  <div class="cfd-si-sub">Working</div></div>'
+// 		+ '<div class="cfd-si" data-key="creches"  ><div class="cfd-si-lbl">Crèches</div>  <div class="cfd-si-val" id="sv-creches">—</div> <div class="cfd-si-sub">Operational</div></div>'
+// 		+ '</div>').appendTo($body);
+// 	$strip.find('.cfd-si').on('click', function() { openDrill($(this).data('key')); });
+
+// 	$body.append('<div class="cfd-sec">'
+// 		+ '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+// 		+ ' Financial overview — click any card to drill down</div>');
+
+// 	var $cards = $('<div class="cfd-cards" id="cfd-cards"></div>').appendTo($body);
+// 	var $drill = $('<div id="cfd-drill"></div>').appendTo($body).hide();
+
+// 	/* ── LOAD DATA ─────────────────────────────────────────── */
+// 	var _lastDrillKey = null;
+
+// 	function loadData() {
+// 		if (!USE_LIVE_API) {
+// 			var filtered = applyFilters(TEST_DB);
+// 			var data     = computeSummary(filtered);
+// 			renderStrip(data.summary);
+// 			renderCards(data.cards);
+// 			if (_lastDrillKey) { openDrill(_lastDrillKey); } else { closeDrill(); }
+// 			return;
+// 		}
+// 		var filters = JSON.stringify(getFilters());
+// 		frappe.call({
+// 			method: API.dashboardData,
+// 			args: { filters: filters },
+// 			callback: function(r) {
+// 				console.log('[CFD] get_dashboard_data response:', r.message);
+// 				if (!r.message) return;
+// 				renderStrip(r.message.summary);
+// 				renderCards(r.message.cards);
+// 				if (_lastDrillKey) { openDrill(_lastDrillKey); } else { closeDrill(); }
+// 			},
+// 		});
+// 	}
+
+// 	function renderStrip(s) {
+// 		$('#sv-partners').text(s.partners);
+// 		$('#sv-states').text(s.states);
+// 		$('#sv-districts').text(s.districts);
+// 		$('#sv-blocks').text(s.blocks);
+// 		$('#sv-creches').text(s.creches);
+// 	}
+
+// 	function renderCards(data) {
+// 		$cards.empty();
+// 		CARD_DEFS.forEach(function(c) {
+// 			var d = data[c.key] || { value:0, pct:null };
+// 			var pctLabel = (d.pct !== null && d.pct !== undefined)
+// 				? parseFloat(d.pct).toFixed(1) + '% of budget'
+// 				: (c.badge && c.badge.label ? c.badge.label : '');
+// 			var badgeHtml = c.badge
+// 				? '<span class="cfd-kc-badge" style="background:' + c.badge.bg + ';color:' + c.badge.clr + '">' + pctLabel + '</span>'
+// 				: '<span></span>';
+// 			var $card = $('<div class="cfd-kc" id="cfd-kc-' + c.key + '">'
+// 				+ '<div class="cfd-kc-accent" style="background:' + c.accent + '"></div>'
+// 				+ '<div class="cfd-kc-top">'
+// 				+ '<div class="cfd-kc-icon" style="background:' + c.iconBg + ';color:' + c.iconClr + '">' + c.icon + '</div>'
+// 				+ badgeHtml + '</div>'
+// 				+ '<div class="cfd-kc-lbl">' + c.label + '</div>'
+// 				+ '<div class="cfd-kc-val">' + inr(d.value) + '</div>'
+// 				+ '<div class="cfd-kc-sub">' + c.sub + '</div>'
+// 				+ '<div class="cfd-kc-foot">'
+// 				+ '<span class="cfd-kc-flbl">' + c.foot + '</span>'
+// 				+ '<span class="cfd-kc-flink"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg> Details</span>'
+// 				+ '</div></div>');
+// 			$card.on('click', function() { openDrill(c.key); });
+// 			$cards.append($card);
+// 		});
+// 	}
+
+// 	/* ── DRILL-DOWN ───────────────────────────────────────
+// 	/* ═══════════════════════════════════════════════════════
+// 	   DETAIL PAGE — shown when a card/strip/table row is clicked
+// 	   Shows budget + utilisation summary for the selected entity,
+// 	   then lets the user open the slide panel for line items.
+// 	═══════════════════════════════════════════════════════ */
+
+// 	/* ── Detail page CSS (injected once) ── */
+// 	(function() {
+// 		if (document.getElementById('cfd-detail-css')) return;
+// 		var s = document.createElement('style');
+// 		s.id = 'cfd-detail-css';
+// 		s.textContent = [
+// 			/* Detail page container */
+// 			'.cfd-detail { animation: cfdDetailIn .22s ease; }',
+// 			'@keyframes cfdDetailIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }',
+// 			/* Back bar */
+// 			'.cfd-detail-back { display:flex; align-items:center; gap:10px; padding:10px 0 14px; border-bottom:1px solid var(--border-color); margin-bottom:16px; }',
+// 			'.cfd-detail-back-btn { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:var(--border-radius); background:var(--bg-color); border:1px solid var(--border-color); font-size:12px; font-weight:600; color:var(--text-muted); cursor:pointer; transition:background .12s; }',
+// 			'.cfd-detail-back-btn:hover { background:var(--border-color); color:var(--text-color); }',
+// 			'.cfd-detail-back-title { font-size:15px; font-weight:700; color:var(--text-color); }',
+// 			'.cfd-detail-back-sub { font-size:11px; color:var(--text-muted); margin-left:auto; }',
+// 			/* Partner meta strip */
+// 			'.cfd-detail-meta { display:flex; flex-wrap:wrap; gap:0; background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); overflow:hidden; margin-bottom:14px; }',
+// 			'.cfd-detail-meta-item { flex:1; min-width:120px; padding:10px 16px; border-right:1px solid var(--border-color); }',
+// 			'.cfd-detail-meta-item:last-child { border-right:none; }',
+// 			'.cfd-detail-meta-lbl { font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:3px; }',
+// 			'.cfd-detail-meta-val { font-size:13px; font-weight:700; color:var(--text-color); }',
+// 			/* Section heading */
+// 			'.cfd-detail-sec { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.08em; margin:14px 0 9px; padding-bottom:6px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:6px; }',
+// 			/* Summary cards row */
+// 			'.cfd-detail-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }',
+// 			'@media(max-width:900px){ .cfd-detail-cards{grid-template-columns:repeat(2,1fr);} }',
+// 			/* Summary card */
+// 			'.cfd-detail-card { background:var(--card-bg); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:13px 15px; position:relative; overflow:hidden; cursor:pointer; transition:border-color .15s,box-shadow .15s; }',
+// 			'.cfd-detail-card:hover { border-color:var(--primary); box-shadow:0 2px 8px rgba(0,0,0,.07); }',
+// 			'.cfd-detail-card-accent { position:absolute; top:0; left:0; right:0; height:3px; }',
+// 			'.cfd-detail-card-lbl { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px; margin-top:6px; }',
+// 			'.cfd-detail-card-val { font-size:20px; font-weight:700; color:var(--text-color); line-height:1; margin-bottom:3px; }',
+// 			'.cfd-detail-card-sub { font-size:11px; color:var(--text-muted); }',
+// 			'.cfd-detail-card-foot { display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding-top:8px; border-top:1px solid var(--border-color); }',
+// 			'.cfd-detail-card-hint { font-size:10px; color:var(--primary); font-weight:600; display:flex; align-items:center; gap:3px; }',
+// 			/* Progress bar inside card */
+// 			'.cfd-detail-bar { height:4px; background:var(--border-color); border-radius:2px; margin-top:8px; overflow:hidden; }',
+// 			'.cfd-detail-bar-fill { height:100%; border-radius:2px; transition:width .5s ease; }',
+// 			/* Utilisation table */
+// 			'.cfd-detail-tbl-wrap { overflow-x:auto; overflow-y:auto; max-height:340px; border:1px solid var(--border-color); border-radius:var(--border-radius-lg); margin-bottom:16px; }',
+// 			'.cfd-detail-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:var(--text-sm); min-width:520px; }',
+// 			'.cfd-detail-tbl thead tr { background:#1a4f8a; }',
+// 			'.cfd-detail-tbl thead th { padding:8px 12px; text-align:left; font-size:10px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; border-right:1px solid rgba(255,255,255,.15); position:sticky; top:0; z-index:2; background:#1a4f8a; }',
+// 			'.cfd-detail-tbl thead th:first-child { text-align:center; width:36px; }',
+// 			'.cfd-detail-tbl thead th:last-child { border-right:none; }',
+// 			'.cfd-detail-tbl tbody tr { background:var(--card-bg); }',
+// 			'.cfd-detail-tbl tbody tr:nth-child(even) { background:var(--bg-color); }',
+// 			'.cfd-detail-tbl tbody tr:hover { background:var(--primary-light) !important; }',
+// 			'.cfd-detail-tbl tbody td { padding:8px 12px; font-size:var(--text-sm); color:var(--text-color); border-right:1px solid var(--border-color); border-bottom:1px solid var(--border-color); white-space:nowrap; }',
+// 			'.cfd-detail-tbl tbody tr:last-child td { border-bottom:none; }',
+// 			'.cfd-detail-tbl tbody td:last-child { border-right:none; }',
+// 			'.cfd-detail-tbl tfoot td { background:#0b2e70 !important; color:#fff !important; font-weight:700; padding:8px 12px; border-right:1px solid rgba(255,255,255,.2); }',
+// 			'.cfd-detail-tbl tfoot td:last-child { border-right:none; }',
+// 			'.cfd-detail-tdn { text-align:center; font-size:11px; color:var(--text-muted); }',
+// 			'.cfd-detail-view-btn { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:4px; border:none; background:transparent; cursor:pointer; color:var(--primary); transition:background .12s; }',
+// 			'.cfd-detail-view-btn:hover { background:var(--primary-light); }',
+// 		].join('\n');
+// 		document.head.appendChild(s);
+// 	}());
+
+// 	function openDrill(key) {
+// 		_lastDrillKey = key;
+// 		$('.cfd-kc,.cfd-si').removeClass('active');
+// 		$('#cfd-kc-' + key).addClass('active');
+// 		$('.cfd-si[data-key="' + key + '"]').addClass('active');
+
+// 		var meta      = DRILL_META[key] || { title: key, sub: '' };
+// 		var isLineKey = (key === 'budget' || key === 'utilisation');
+
+// 		function _renderDrill(d) {
+// 			var allRows = d.rows || [];
+// 			var total   = allRows.length;
+// 			var hasRef  = d.heads && d.heads[d.heads.length - 1] === '_ref';
+
+// 			/* Strip _ref from display heads */
+// 			var displayHeads = hasRef ? d.heads.slice(0, d.heads.length - 1) : (d.heads || []);
+
+// 			/* ────────────────────────────────────────────────────────────
+// 			   BUDGET grouping
+// 			   row idx: [0]partner_name [1]grant_id [2]budget_ref
+// 			            [3]fy [4]creches [5]total_budget [6]state [7]_ref
+
+// 			   Group header shows: Partner | Grant ID | Crèches | Budget | State
+// 			   Expanded child shows: Budget ref | FY | Crèches | Budget | State | 👁
+// 			─────────────────────────────────────────────────────────── */
+// 			var thead = '', tbody = '';
+
+// 			if (key === 'budget') {
+// 				thead = '<th style="width:36px;">#</th>'
+// 					+ '<th style="min-width:180px;">Partner name</th>'
+// 					+ '<th style="min-width:120px;">Grant ID</th>'
+// 					+ '<th style="min-width:160px;">Budget ref.</th>'
+// 					+ '<th style="min-width:100px;">Financial year</th>'
+// 					+ '<th style="text-align:right;min-width:80px;">Crèches</th>'
+// 					+ '<th style="text-align:right;min-width:120px;">Total budget</th>'
+// 					+ '<th style="min-width:100px;">State</th>'
+// 					+ '<th style="width:42px;text-align:center;"></th>';
+
+// 				/* Group by Grant ID */
+// 				var gMap = {}, gOrder = [];
+// 				allRows.forEach(function(row, i) {
+// 					var gid = row[1] || '—';
+// 					if (!gMap[gid]) { gMap[gid] = []; gOrder.push(gid); }
+// 					gMap[gid].push({ row: row, origIdx: i });
+// 				});
+
+// 				var rowNum = 0;
+// 				gOrder.forEach(function(gid) {
+// 					var members = gMap[gid];
+// 					/* Aggregate for header */
+// 					var partners = [], states = [], totalCreches = 0, totalBudgetSum = 0;
+// 					members.forEach(function(m) {
+// 						var r = m.row;
+// 						if (r[0] && partners.indexOf(r[0]) < 0) partners.push(r[0]);
+// 						if (r[6] && states.indexOf(r[6]) < 0) states.push(r[6]);
+// 						totalCreches += parseInt(r[4]) || 0;
+// 						totalBudgetSum += parseFloat(String(r[5] || '0').replace(/[^\d.]/g, '')) || 0;
+// 					});
+// 					var budgetFmt = '\u20b9' + Math.round(totalBudgetSum).toLocaleString('en-IN');
+// 					var count = members.length;
+
+// 					/* ── Collect budget refs & FY range ── */
+// 					var budgetRefs = members.map(function(m) { return m.row[2] || ''; }).filter(Boolean);
+// 					var fyList = members.map(function(m) { return m.row[3] || ''; }).filter(Boolean);
+// 					/* FY range: sort fy strings like "2024-25", pick min and max */
+// 					var fySorted = fyList.slice().sort();
+// 					/* FY "2023-24,2024-25,2025-26" → "2023-26"
+// 					   startYr = first 4 chars of earliest FY
+// 					   endYr   = start of latest FY + 1 */
+// 					var fyRange = '';
+// 					if (fySorted.length === 1) {
+// 						fyRange = fySorted[0];
+// 					} else if (fySorted.length > 1) {
+// 						var _startYr   = fySorted[0].split('-')[0];
+// 						var _lastStart = parseInt((fySorted[fySorted.length-1]).split('-')[0]);
+// 						var _endYr     = String(_lastStart + 1);
+// 						fyRange = _startYr + '–' + _endYr;
+// 					}
+
+// 					/* ── Group header row (collapsed) ── */
+// 					tbody += '<tr class="cfd-grant-hdr collapsed" data-grant="' + gid + '">'
+// 						/* # + Partner */
+// 						+ '<td></td>'
+// 						+ '<td style="display:flex;align-items:center;gap:0;border-right:none !important;">'
+// 						+ '<span class="cfd-grant-toggle">&#9654;</span>'
+// 						+ partners.join(', ')
+// 						+ '<span class="cfd-grant-badge">'
+// 						+ count + (count > 1 ? ' budgets' : ' budget')
+// 						+ '</span>'
+// 						+ '</td>'
+// 						/* Grant ID */
+// 						+ '<td>' + gid + '</td>'
+// 						/* Budget refs — comma separated */
+// 						+ '<td style="font-size:11px;opacity:.9;">' + budgetRefs.join(', ') + '</td>'
+// 						/* FY range */
+// 						+ '<td style="font-size:11px;opacity:.9;">' + fyRange + '</td>'
+// 						/* Crèches */
+// 						+ '<td class="num">' + totalCreches + '</td>'
+// 						/* Total budget */
+// 						+ '<td class="num">' + budgetFmt + '</td>'
+// 						/* State */
+// 						+ '<td>' + states.join(', ') + '</td>'
+// 						/* Consolidated view button for all budgets in this grant */
+// 						+ '<td style="text-align:center;padding:0 4px;">'
+// 						+ '<button class="cfd-view-btn cfd-grant-view-btn" '
+// 						+ 'data-grant-ids="' + members.map(function(m){return m.origIdx;}).join(',') + '" '
+// 						+ 'title="View all line items for this grant">'
+// 						+ '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+// 						+ '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>'
+// 						+ '<circle cx="12" cy="12" r="3"/></svg>'
+// 						+ '</button>'
+// 						+ '</td>'
+// 						+ '</tr>';
+
+// 					/* ── Child rows (hidden initially) ── */
+// 					members.forEach(function(m) {
+// 						rowNum++;
+// 						var r = m.row;
+// 						var viewBtn = '<td style="text-align:center;padding:0 4px;">'
+// 							+ '<button class="cfd-view-btn" data-row-idx="' + m.origIdx + '" title="View line items">'
+// 							+ '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+// 							+ '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>'
+// 							+ '<circle cx="12" cy="12" r="3"/></svg></button></td>';
+// 						tbody += '<tr class="cfd-grant-child row-hidden" data-grant-child="' + gid + '" data-row-idx="' + m.origIdx + '">'
+// 							+ '<td class="cfd-tdn">' + rowNum + '</td>'
+// 							+ '<td>' + (r[0] || '') + '</td>'             /* Partner name */
+// 							+ '<td>' + (r[1] || '') + '</td>'             /* Grant ID */
+// 							+ '<td style="font-weight:700;">' + (r[2] || '') + '</td>'  /* Budget ref */
+// 							+ '<td>' + (r[3] || '') + '</td>'             /* FY */
+// 							+ '<td class="num">' + (r[4] || '') + '</td>' /* Crèches */
+// 							+ '<td class="num">' + (r[5] || '') + '</td>' /* Budget */
+// 							+ '<td>' + (r[6] || '') + '</td>'             /* State */
+// 							+ viewBtn + '</tr>';
+// 					});
+// 				});
+
+// 			/* ────────────────────────────────────────────────────────────
+// 			   UTILISATION grouping
+// 			   row idx: [0]partner [1]month [2]fy [3]state
+// 			            [4]district [5]block [6]total_util [7]bank_bal [8]_ref
+// 			─────────────────────────────────────────────────────────── */
+// 			} else if (key === 'utilisation') {
+// 				thead = '<th style="width:36px;">#</th>'
+// 					+ '<th style="min-width:180px;">Partner</th>'
+// 					+ '<th style="min-width:100px;">Month</th>'
+// 					+ '<th style="min-width:100px;">Financial year</th>'
+// 					+ '<th style="min-width:100px;">State</th>'
+// 					+ '<th style="min-width:100px;">District</th>'
+// 					+ '<th style="min-width:80px;">Block</th>'
+// 					+ '<th style="text-align:right;min-width:130px;">Total utilisation</th>'
+// 					+ '<th style="text-align:right;min-width:110px;">Bank balance</th>'
+// 					+ '<th style="width:42px;text-align:center;"></th>';
+
+// 				/* Group by Month */
+// 				var gMap = {}, gOrder = [];
+// 				allRows.forEach(function(row, i) {
+// 					var gid = row[1] || '—';
+// 					if (!gMap[gid]) { gMap[gid] = []; gOrder.push(gid); }
+// 					gMap[gid].push({ row: row, origIdx: i });
+// 				});
+
+// 				var rowNum = 0;
+// 				gOrder.forEach(function(gid) {
+// 					var members = gMap[gid];
+// 					var partners = [], states = [], totalUtil = 0;
+// 					members.forEach(function(m) {
+// 						var r = m.row;
+// 						if (r[0] && partners.indexOf(r[0]) < 0) partners.push(r[0]);
+// 						if (r[3] && states.indexOf(r[3]) < 0) states.push(r[3]);
+// 						totalUtil += parseFloat(String(r[6] || '0').replace(/[^\d.]/g, '')) || 0;
+// 					});
+// 					var utilFmt = '\u20b9' + Math.round(totalUtil).toLocaleString('en-IN');
+// 					var count = members.length;
+// 					var fy = members[0].row[2] || '';
+
+// 					/* Group header */
+// 					tbody += '<tr class="cfd-grant-hdr collapsed" data-grant="' + gid + '">'
+// 						+ '<td></td>'
+// 						+ '<td style="display:flex;align-items:center;gap:0;border-right:none !important;">'
+// 						+ '<span class="cfd-grant-toggle">&#9654;</span>'
+// 						+ partners.join(', ')
+// 						+ '<span class="cfd-grant-badge">'
+// 						+ count + (count > 1 ? ' records' : ' record')
+// 						+ '</span>'
+// 						+ '</td>'
+// 						+ '<td>' + gid + '</td>'      /* Month */
+// 						+ '<td>' + fy + '</td>'        /* FY */
+// 						+ '<td>' + states.join(', ') + '</td>'
+// 						+ '<td></td><td></td>'
+// 						+ '<td class="num">' + utilFmt + '</td>'
+// 						+ '<td class="num"></td>'
+// 						+ '<td></td>'
+// 						+ '</tr>';
+
+// 					/* Child rows */
+// 					members.forEach(function(m) {
+// 						rowNum++;
+// 						var r = m.row;
+// 						var viewBtn = '<td style="text-align:center;padding:0 4px;">'
+// 							+ '<button class="cfd-view-btn" data-row-idx="' + m.origIdx + '" title="View line items">'
+// 							+ '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+// 							+ '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>'
+// 							+ '<circle cx="12" cy="12" r="3"/></svg></button></td>';
+// 						tbody += '<tr class="cfd-grant-child row-hidden" data-grant-child="' + gid + '" data-row-idx="' + m.origIdx + '">'
+// 							+ '<td class="cfd-tdn">' + rowNum + '</td>'
+// 							+ '<td>' + (r[0] || '') + '</td>'
+// 							+ '<td>' + (r[1] || '') + '</td>'
+// 							+ '<td>' + (r[2] || '') + '</td>'
+// 							+ '<td>' + (r[3] || '') + '</td>'
+// 							+ '<td>' + (r[4] || '') + '</td>'
+// 							+ '<td>' + (r[5] || '') + '</td>'
+// 							+ '<td class="num">' + (r[6] || '') + '</td>'
+// 							+ '<td class="num">' + (r[7] || '\u2014') + '</td>'
+// 							+ viewBtn + '</tr>';
+// 					});
+// 				});
+
+// 			/* ── All other drill keys — flat table ── */
+// 			} else {
+// 				thead = displayHeads.map(function(h) { return '<th>' + h + '</th>'; }).join('')
+// 					+ (isLineKey ? '<th style="width:42px;text-align:center;"></th>' : '');
+// 				allRows.forEach(function(row, i) {
+// 					var displayRow = hasRef ? row.slice(0, row.length - 1) : row;
+// 					var cells = displayRow.map(function(cell, ci) {
+// 						return '<td' + (ci === 0 ? ' class="cfd-tbold"' : '') + '>' + (cell != null ? cell : '') + '</td>';
+// 					}).join('');
+// 					var viewBtn = isLineKey
+// 						? '<td style="text-align:center;padding:0 4px;">'
+// 						  + '<button class="cfd-view-btn" data-row-idx="' + i + '" title="View line items">'
+// 						  + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+// 						  + '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>'
+// 						  + '<circle cx="12" cy="12" r="3"/></svg></button></td>'
+// 						: '';
+// 					tbody += '<tr data-row-idx="' + i + '"><td class="cfd-tdn">' + (i + 1) + '</td>' + cells + viewBtn + '</tr>';
+// 				});
+// 			}
+
+// 			/* ── Total footer ── */
+// 			var tfoot = '';
+// 			if (d.totals && d.totals.length && key !== 'budget' && key !== 'utilisation') {
+// 				var displayTotals = hasRef ? d.totals.slice(0, d.totals.length - 1) : d.totals;
+// 				var tcells = displayTotals.map(function(t, ti) {
+// 					return '<td style="text-align:' + (ti > 0 ? 'right' : 'left') + '">' + (t != null ? t : '') + '</td>';
+// 				}).join('');
+// 				tfoot = '<tfoot><tr><td></td>' + tcells + (isLineKey ? '<td></td>' : '') + '</tr></tfoot>';
+// 			} else if ((key === 'budget' || key === 'utilisation') && d.totals && d.totals.length) {
+// 				/* Custom total for grouped tables */
+// 				var grandCreches = '', grandBudget = '';
+// 				if (key === 'budget') {
+// 					grandCreches = d.totals[4] != null ? d.totals[4] : '';
+// 					grandBudget  = d.totals[5] != null ? d.totals[5] : '';
+// 					tfoot = '<tfoot><tr>'
+// 						+ '<td colspan="5" style="text-align:left;"><strong>Total</strong></td>'
+// 						+ '<td style="text-align:right;">' + grandCreches + '</td>'
+// 						+ '<td style="text-align:right;">' + grandBudget + '</td>'
+// 						+ '<td></td><td></td>'
+// 						+ '</tr></tfoot>';
+// 				} else {
+// 					var totalUtil = d.totals[6] != null ? d.totals[6] : '';
+// 					tfoot = '<tfoot><tr>'
+// 						+ '<td colspan="7" style="text-align:left;"><strong>Total</strong></td>'
+// 						+ '<td style="text-align:right;">' + totalUtil + '</td>'
+// 						+ '<td></td><td></td>'
+// 						+ '</tr></tfoot>';
+// 				}
+// 			}
+
+// 			/* ── Panel HTML ── */
+// 			$drill.html('<div class="cfd-drill">'
+// 				+ '<div class="cfd-dh">'
+// 				+ '<div class="cfd-dhl">'
+// 				+ '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>'
+// 				+ '<div><div class="cfd-dht">' + meta.title + '</div><div class="cfd-dhs">' + meta.sub + '</div></div>'
+// 				+ '</div>'
+// 				+ '<div style="display:flex;align-items:center;gap:10px;">'
+// 				+ '<span style="font-size:11px;font-weight:600;background:rgba(255,255,255,0.15);color:#fff;padding:2px 8px;border-radius:4px;">' + total + ' records</span>'
+// 				+ '<button class="cfd-dcb" id="cfd-drill-close">&#215;</button>'
+// 				+ '</div></div>'
+// 				+ '<div class="cfd-tscroll">'
+// 				+ '<table class="cfd-tbl"><thead><tr>' + thead + '</tr></thead>'
+// 				+ '<tbody>' + tbody + '</tbody>' + tfoot + '</table>'
+// 				+ '</div></div>').show();
+
+// 			/* ── Bindings ── */
+// 			$('#cfd-drill-close').on('click', closeDrill);
+
+// 			$drill.find('.cfd-grant-hdr').on('click', function() {
+// 				var gid  = $(this).data('grant');
+// 				var isCollapsed = $(this).hasClass('collapsed');
+// 				$(this).toggleClass('collapsed', !isCollapsed);
+// 				/* Toggle arrow */
+// 				$(this).find('.cfd-grant-toggle').html(isCollapsed ? '&#9660;' : '&#9654;');
+// 				$drill.find('.cfd-grant-child[data-grant-child="' + gid + '"]').toggleClass('row-hidden', !isCollapsed);
+// 			});
+
+// 			if (isLineKey) {
+// 				/* Individual row view */
+// 				$drill.find('.cfd-view-btn:not(.cfd-grant-view-btn)').on('click', function(e) {
+// 					e.stopPropagation();
+// 					var rowIdx = parseInt($(this).data('row-idx'));
+// 					var row    = allRows[rowIdx];
+// 					if (!row) return;
+// 					if (USE_LIVE_API) {
+// 						openLinePanelLive(key, row[row.length - 1], row);
+// 					} else {
+// 						openLineItemPopup(key, row, applyFilters(TEST_DB));
+// 					}
+// 				});
+// 				/* Consolidated grant view */
+// 				$drill.find('.cfd-grant-view-btn').on('click', function(e) {
+// 					e.stopPropagation();
+// 					var idxList  = $(this).data('grant-ids').toString().split(',').map(Number);
+// 					var rows     = idxList.map(function(i) { return allRows[i]; }).filter(Boolean);
+// 					if (!rows.length) return;
+// 					var grantId  = rows[0][1];
+// 					var partners = [];
+// 					rows.forEach(function(r) { if (r[0] && partners.indexOf(r[0]) < 0) partners.push(r[0]); });
+// 					var title = partners.join(', ') + ' — Grant ' + grantId + ' (Consolidated)';
+// 					if (USE_LIVE_API) {
+// 						openConsolidatedPanel(key, title, rows);
+// 					} else {
+// 						openConsolidatedPopupTestDB(key, title, rows, applyFilters(TEST_DB));
+// 					}
+// 				});
+// 			}
+
+// 			$drill[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+// 		} /* end _renderDrill */
+
+// 		if (!USE_LIVE_API) {
+// 			var filtered = applyFilters(TEST_DB);
+// 			_renderDrill(computeDrill(key, filtered));
+// 			return;
+// 		}
+// 		/* Live API */
+// 		frappe.call({
+// 			method: API.drillData,
+// 			args: { drill_key: key, filters: JSON.stringify(getFilters()) },
+// 			callback: function(r) {
+// 				console.log('[CFD] get_drill_data (' + key + ') response:', r.message);
+// 				_renderDrill(r.message || { heads:[], rows:[], totals:[] });
+// 			},
+// 		});
+// 	}
+
+// 	/* ── Build parent doctype detail strip above the drill table ── */
+// 	function buildParentDetailStrip(key, allRows, db) {
+// 		if (!allRows || !allRows.length) return '';
+
+// 		/* Collect unique budget records referenced in these rows */
+// 		var budgetRefs = [];
+// 		if (key === 'budget') {
+// 			/* row = [partner_name, grant_id, budget_ref, fy, creches, total_budget, state] */
+// 			allRows.forEach(function(r) { if (r[2] && budgetRefs.indexOf(r[2]) < 0) budgetRefs.push(r[2]); });
+// 		} else {
+// 			/* utilisation row = [partner, month, main, sub, type, amount]
+// 			   find budget recs by partner name */
+// 			allRows.forEach(function(r) {
+// 				var b = db.budgets.filter(function(b) { return b.partner_name === r[0]; })[0];
+// 				if (b && budgetRefs.indexOf(b.name) < 0) budgetRefs.push(b.name);
+// 			});
+// 		}
+
+// 		var budgets = db.budgets.filter(function(b) { return budgetRefs.indexOf(b.name) >= 0; });
+// 		if (!budgets.length) return '';
+
+// 		/* One detail card per partner budget record */
+// 		var cards = budgets.map(function(b) {
+// 			var utilRows = db.utilisations.filter(function(u) { return u.budget === b.name; });
+// 			var disbRows = db.disbursements.filter(function(d) { return d.budget === b.name; });
+// 			var totalUtil = utilRows.reduce(function(s, u) { return s + u.amount; }, 0);
+// 			var totalDisb = disbRows.reduce(function(s, d) { return s + d.amount; }, 0);
+// 			var utilPct   = b.total_budget ? Math.round((totalUtil / b.total_budget) * 100) : 0;
+// 			var disbPct   = b.total_budget ? Math.round((totalDisb / b.total_budget) * 100) : 0;
+// 			var uc = utilPct > 80 ? '#ef4444' : utilPct > 50 ? '#f59e0b' : '#10b981';
+
+// 			return '<div class="cfd-parent-card">'
+// 				/* Header row */
+// 				+ '<div class="cfd-parent-card-head">'
+// 				+ '<div class="cfd-parent-card-name">' + (b.partner_name || b.partner_id) + '</div>'
+// 				+ '<span class="cfd-parent-card-ref">' + b.name + '</span>'
+// 				+ '</div>'
+// 				/* Field grid */
+// 				+ '<div class="cfd-parent-card-grid">'
+// 				+ pField('Grant ID',       b.grant_id)
+// 				+ pField('Financial year', b.financial_year)
+// 				+ pField('State',          b.state)
+// 				+ pField('District',       b.district)
+// 				+ pField('Block',          b.block)
+// 				+ pField('Crèches',        b.no_of_creches)
+// 				+ pField('Total budget',   inr(b.total_budget))
+// 				+ pField('Utilised',       inr(totalUtil) + ' <span style="color:' + uc + ';font-size:10px;font-weight:700;">(' + utilPct + '%)</span>')
+// 				+ pField('Disbursed',      inr(totalDisb) + ' <span style="color:#185fa5;font-size:10px;font-weight:700;">(' + disbPct + '%)</span>')
+// 				+ pField('Balance',        inr(b.total_budget - totalUtil))
+// 				+ '</div>'
+// 				/* Utilisation progress bar */
+// 				+ '<div class="cfd-parent-card-bar-wrap">'
+// 				+ '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-bottom:3px;">'
+// 				+ '<span>Utilisation</span><span style="color:' + uc + ';font-weight:700;">' + utilPct + '%</span>'
+// 				+ '</div>'
+// 				+ '<div style="height:5px;background:var(--border-color);border-radius:3px;overflow:hidden;">'
+// 				+ '<div style="height:100%;border-radius:3px;background:' + uc + ';width:' + Math.min(utilPct, 100) + '%;transition:width .5s;"></div>'
+// 				+ '</div>'
+// 				+ '</div>'
+// 				+ '</div>';
+// 		});
+
+// 		return '<div class="cfd-parent-strip"><div class="cfd-parent-strip-label">'
+// 			+ '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+// 			+ ' Partner details from Creche Budget</div>'
+// 			+ '<div class="cfd-parent-cards-row">' + cards.join('') + '</div>'
+// 			+ '</div>';
+// 	}
+
+// 	function pField(label, value) {
+// 		return '<div class="cfd-parent-field">'
+// 			+ '<div class="cfd-parent-field-lbl">' + label + '</div>'
+// 			+ '<div class="cfd-parent-field-val">' + (value != null ? value : '—') + '</div>'
+// 			+ '</div>';
+// 	}
+
+// 	/* ── Line item popup → builds groups then opens slide panel ── */
+// 	/* ── Live API: fetch child line items then open slide panel ── */
+// 	/* ── Consolidated panel: merges line items from multiple budget docs ── */
+// 	function openConsolidatedPanel(key, title, rows) {
+// 		/* rows = array of allRows entries, each has _ref at last index */
+// 		var docNames = rows.map(function(r) { return r[r.length - 1]; }).filter(Boolean);
+// 		if (!docNames.length) {
+// 			frappe.msgprint({ title:'No records', message:'No document refs found.', indicator:'orange' });
+// 			return;
+// 		}
+// 		var dtKey = (key === 'budget') ? 'budget' : 'utilisation';
+
+// 		/* Fetch line items for each doc in parallel, then merge */
+// 		var promises = docNames.map(function(docName) {
+// 			return new Promise(function(resolve) {
+// 				frappe.call({
+// 					method: API.lineItems,
+// 					args:   { doctype_key: dtKey, parent_name: docName },
+// 					callback: function(r) { resolve(r.message || []); },
+// 				});
+// 			});
+// 		});
+
+// 		Promise.all(promises).then(function(allGroups) {
+// 			/* Merge groups: same label → merge subs → same sub label → merge items */
+// 			var mergedMap = {};
+// 			var mergedOrder = [];
+// 			allGroups.forEach(function(groups) {
+// 				(groups || []).forEach(function(g) {
+// 					if (!mergedMap[g.label]) {
+// 						mergedMap[g.label] = { label:g.label, color:g.color, total:0, subMap:{}, subOrder:[] };
+// 						mergedOrder.push(g.label);
+// 					}
+// 					var mg = mergedMap[g.label];
+// 					mg.total += g.total || 0;
+// 					(g.subs || []).forEach(function(sh) {
+// 						if (!mg.subMap[sh.label]) {
+// 							mg.subMap[sh.label] = [];
+// 							mg.subOrder.push(sh.label);
+// 						}
+// 						(sh.items || []).forEach(function(item) { mg.subMap[sh.label].push(item); });
+// 					});
+// 				});
+// 			});
+
+// 			var merged = mergedOrder.map(function(label) {
+// 				var mg = mergedMap[label];
+// 				return {
+// 					label: label, color: mg.color, total: mg.total,
+// 					subs: mg.subOrder.map(function(sl) {
+// 						return { label: sl, items: mg.subMap[sl] };
+// 					}),
+// 				};
+// 			});
+
+// 			if (!merged.length) {
+// 				frappe.msgprint({ title:'No line items', message:'No child records found for this grant.', indicator:'orange' });
+// 				return;
+// 			}
+// 			var total = merged.reduce(function(s,g){return s+g.total;},0);
+// 			openSlidePanel(title, total, merged);
+// 		});
+// 	}
+
+// 	/* TEST_DB consolidated fallback */
+// 	function openConsolidatedPopupTestDB(key, title, rows, db) {
+// 		var PALETTE = ['#1a4f8a','#f59e0b','#10b981','#7c3aed','#ef4444','#ec4899'];
+// 		var mainMap = {}, mainOrder = [];
+
+// 		rows.forEach(function(row) {
+// 			var budgetRef = row[2];
+// 			var items = db.utilisations.filter(function(u) { return u.budget === budgetRef; });
+// 			items.forEach(function(u) {
+// 				if (!mainMap[u.main]) { mainMap[u.main] = {}; mainOrder.push(u.main); }
+// 				if (!mainMap[u.main][u.sub]) mainMap[u.main][u.sub] = [];
+// 				mainMap[u.main][u.sub].push({ name: u.type, amount: u.amount });
+// 			});
+// 		});
+
+// 		var ci = 0;
+// 		var groups = mainOrder.map(function(main) {
+// 			var color = PALETTE[ci++ % PALETTE.length];
+// 			var subs  = Object.keys(mainMap[main]).map(function(sub) {
+// 				return { label: sub, items: mainMap[main][sub] };
+// 			});
+// 			var total = subs.reduce(function(s,sh){return s+sh.items.reduce(function(s2,i){return s2+i.amount;},0);},0);
+// 			return { label:main, color:color, total:total, subs:subs };
+// 		});
+
+// 		if (!groups.length) {
+// 			frappe.msgprint({ title:'No line items', message:'No records found.', indicator:'orange' });
+// 			return;
+// 		}
+// 		var total = groups.reduce(function(s,g){return s+g.total;},0);
+// 		openSlidePanel(title, total, groups);
+// 	}
+
+// 	function openLinePanelLive(key, docName, row) {
+// 		var dtKey = (key === 'budget') ? 'budget' : 'utilisation';
+// 		/* Title from row: budget=[partner,grant,ref,...], util=[partner,month,...] */
+// 		/* budget row  = [partner_name, grant_id, budget_ref_name, fy, creches, total_budget, state, _ref]
+// 		   util row   = [partner_name, month, financial_year, state, district, block, total_util, bank_bal, _ref] */
+// 		var title = key === 'budget'
+// 			? (row[0] + ' — ' + (row[2] || docName))
+// 			: (row[0] + ' — ' + row[1] + ' (' + (row[2] || '') + ')');
+// 		frappe.call({
+// 			method: API.lineItems,
+// 			args:   { doctype_key: dtKey, parent_name: docName },
+// 			callback: function(r) {
+// 				console.log('[CFD] get_line_items (' + dtKey + ', ' + docName + ') response:', r.message);
+// 				if (!r.message || !r.message.length) {
+// 					frappe.msgprint({ title:'No line items', message:'No child records found for: ' + docName, indicator:'orange' });
+// 					return;
+// 				}
+// 				var groups = r.message;
+// 				console.log('[CFD] groups:', JSON.stringify(groups, null, 2));
+// 				var total  = groups.reduce(function(s,g){return s+g.total;},0);
+// 				openSlidePanel(title, total, groups);
+// 			},
+// 		});
+// 	}
+
+// 	function openLineItemPopup(key, row, db) {
+// 		var title, totalAmount, groups;
+
+// 		if (key === 'budget') {
+// 			/* row = [partner_name, grant_id, budget_ref, fy, creches, total_budget, state] */
+// 			var budgetRef   = row[2];
+// 			var partnerName = row[0];
+// 			var budgetRec   = db.budgets.filter(function(b) { return b.name === budgetRef; })[0];
+// 			totalAmount = budgetRec ? budgetRec.total_budget : 0;
+// 			var items   = db.utilisations.filter(function(u) { return u.budget === budgetRef; });
+// 			title = partnerName + ' — ' + budgetRef;
+// 			var mainMap = {};
+// 			items.forEach(function(u) {
+// 				if (!mainMap[u.main]) mainMap[u.main] = {};
+// 				if (!mainMap[u.main][u.sub]) mainMap[u.main][u.sub] = [];
+// 				mainMap[u.main][u.sub].push({ name: u.type, amount: u.amount });
+// 			});
+// 			var palette = ['#1a4f8a','#f59e0b','#10b981','#7c3aed','#ef4444','#ec4899'];
+// 			var ci = 0;
+// 			groups = Object.keys(mainMap).map(function(main) {
+// 				var color = palette[ci++ % palette.length];
+// 				var subs  = Object.keys(mainMap[main]).map(function(sub) {
+// 					return { label: sub, items: mainMap[main][sub] };
+// 				});
+// 				var total = subs.reduce(function(s, sh) {
+// 					return s + sh.items.reduce(function(s2, i) { return s2 + i.amount; }, 0);
+// 				}, 0);
+// 				return { label: main, color: color, total: total, subs: subs };
+// 			});
+// 		}
+
+// 		if (key === 'utilisation') {
+// 			/* row = [partner, month, fy, state, district, block, total_util, bank_bal]
+// 			   Fetch ALL utilisation child items for this partner + month, group by main head */
+// 			var partnerName = row[0], month = row[1];
+// 			var items = db.utilisations.filter(function(u) {
+// 				return u.partner === partnerName && u.month === month;
+// 			});
+// 			totalAmount = items.reduce(function(s, u) { return s + u.amount; }, 0);
+// 			title = partnerName + ' — ' + month;
+// 			/* Group by main head → sub head → type of expenses */
+// 			var mainMap = {};
+// 			items.forEach(function(u) {
+// 				if (!mainMap[u.main]) mainMap[u.main] = {};
+// 				if (!mainMap[u.main][u.sub]) mainMap[u.main][u.sub] = [];
+// 				mainMap[u.main][u.sub].push({ name: u.type, amount: u.amount });
+// 			});
+// 			var palette = ['#1a4f8a','#f59e0b','#10b981','#7c3aed','#ef4444','#ec4899'];
+// 			var ci = 0;
+// 			groups = Object.keys(mainMap).map(function(main) {
+// 				var color = palette[ci++ % palette.length];
+// 				var subs  = Object.keys(mainMap[main]).map(function(sub) {
+// 					return { label: sub, items: mainMap[main][sub] };
+// 				});
+// 				var total = subs.reduce(function(s, sh) {
+// 					return s + sh.items.reduce(function(s2, i) { return s2 + i.amount; }, 0);
+// 				}, 0);
+// 				return { label: main, color: color, total: total, subs: subs };
+// 			});
+// 		}
+
+// 		if (!groups || !groups.length) {
+// 			frappe.msgprint({ title: 'No line items', message: 'No records found for this row.', indicator: 'orange' });
+// 			return;
+// 		}
+
+// 		openSlidePanel(title, totalAmount, groups);
+// 	}
+
+// 	/* ── Slide panel: renders groups into the right-side panel ── */
+// 	function openSlidePanel(title, totalAmount, groups) {
+// 		var esc    = function(s) { return frappe.utils.escape_html(String(s || '')); };
+// 		var inrFmt = function(v) { return '₹' + Math.round(v || 0).toLocaleString('en-IN'); };
+// 		var COLS   = '1fr 130px';
+
+// 		$('#cfd-panel-title').text(title);
+// 		$('#cfd-panel-col-hdr')
+// 			.css('grid-template-columns', COLS)
+// 			.html('<div>Expense item</div><div style="text-align:right;">Amount</div>');
+
+// 		var grandTotal = groups.reduce(function(s, g) { return s + g.total; }, 0);
+// 		var totalItems = groups.reduce(function(s, g) {
+// 			return s + g.subs.reduce(function(s2, sh) { return s2 + sh.items.length; }, 0);
+// 		}, 0);
+
+// 		/* Summary strip */
+// 		$('#cfd-panel-strip').html(
+// 			'<div style="display:flex;align-items:center;gap:20px;padding:6px 14px 8px;">'
+// 			+ '<div><div class="cfd-panel-sum-lbl">Total amount</div><div class="cfd-panel-sum-val">' + inrFmt(grandTotal) + '</div></div>'
+// 			+ '<div><div class="cfd-panel-sum-lbl">Expense heads</div><div class="cfd-panel-sum-val">' + groups.length + '</div></div>'
+// 			+ '<div><div class="cfd-panel-sum-lbl">Line items</div><div class="cfd-panel-sum-val">' + totalItems + '</div></div>'
+// 			+ '</div>'
+// 		);
+
+// 		/* Tab defs: All + one per main head */
+// 		var tabDefs = [{ id: '__all__', label: 'All Items', color: '#1a4f8a', groups: groups }]
+// 			.concat(groups.map(function(g) {
+// 				return { id: g.label, label: g.label, color: g.color, groups: [g] };
+// 			}));
+
+// 		/* Tab bar */
+// 		var $tabBar = $('#cfd-panel-tab-bar').empty();
+// 		tabDefs.forEach(function(tab) {
+// 			var amtHtml = tab.id !== '__all__'
+// 				? '<span style="font-size:10px;color:#aaa;margin-left:3px;">' + inrFmt(tab.groups[0].total) + '</span>'
+// 				: '';
+// 			var $t = $('<div class="cfd-panel-tab' + (tab.id === '__all__' ? ' active' : '') + '" data-tab="' + tab.id + '">'
+// 				+ '<span class="cfd-panel-tab-dot" style="background:' + tab.color + ';"></span>'
+// 				+ esc(tab.label) + amtHtml + '</div>');
+// 			$t.on('click', function() { activateTab($(this).data('tab')); });
+// 			$tabBar.append($t);
+// 		});
+
+// 		/* Render rows for a tab */
+// 		function renderRows(tabGroups) {
+// 			var $rows  = $('#cfd-panel-rows').empty();
+// 			var gTotal = tabGroups.reduce(function(s, g) { return s + g.total; }, 0);
+
+// 			tabGroups.forEach(function(g, gi) {
+// 				/* Section header */
+// 				var $sec = $('<div class="cfd-panel-sec" style="grid-template-columns:' + COLS + ';">'
+// 					+ '<div style="display:flex;align-items:center;">'
+// 					+ '<span class="cfd-panel-sec-dot" style="background:' + g.color + ';"></span>'
+// 					+ '<strong>' + esc(g.label) + '</strong>'
+// 					+ '<span class="cfd-panel-sec-toggle" style="margin-left:8px;">&#9660;</span>'
+// 					+ '</div>'
+// 					+ '<div style="text-align:right;padding:9px 12px;">' + inrFmt(g.total) + '</div>'
+// 					+ '</div>').css('animation-delay', (gi * 30) + 'ms');
+// 				$rows.append($sec);
+
+// 				g.subs.forEach(function(sh, si) {
+// 					var shTotal = sh.items.reduce(function(s, i) { return s + i.amount; }, 0);
+// 					var subItems = [];
+
+// 					/* Sub-head row */
+// 					var $sub = $('<div class="cfd-panel-sub" style="grid-template-columns:' + COLS + ';">'
+// 						+ '<div><span style="font-size:9px;margin-right:5px;color:#888;" class="sub-tog">&#9660;</span>' + esc(sh.label) + '</div>'
+// 						+ '<div>' + inrFmt(shTotal) + '</div>'
+// 						+ '</div>').css('animation-delay', (gi * 30 + si * 18 + 15) + 'ms');
+
+// 					/* Line item rows */
+// 					sh.items.forEach(function(item, ii) {
+// 						var $item = $('<div class="cfd-panel-item" style="grid-template-columns:' + COLS + ';">'
+// 							+ '<div>' + esc(item.name) + '</div>'
+// 							+ '<div>' + inrFmt(item.amount) + '</div>'
+// 							+ '</div>').css('animation-delay', (gi * 30 + si * 18 + ii * 10 + 25) + 'ms');
+// 						subItems.push($item);
+// 					});
+
+// 					/* Sub-head toggle */
+// 					$sub.on('click', function() {
+// 						var open = $(this).data('open') !== false;
+// 						$(this).data('open', !open);
+// 						$(this).find('.sub-tog').html(open ? '&#9654;' : '&#9660;');
+// 						subItems.forEach(function($i) { $i.toggleClass('row-hidden', open); });
+// 					});
+
+// 					$rows.append($sub);
+// 					subItems.forEach(function($i) { $rows.append($i); });
+// 				});
+
+// 				/* Section toggle */
+// 				$sec.on('click', function() {
+// 					var open = !$(this).hasClass('collapsed');
+// 					$(this).toggleClass('collapsed', open);
+// 					$(this).nextUntil('.cfd-panel-sec, .cfd-panel-total').toggle(!open);
+// 				});
+// 			});
+
+// 			/* Total row */
+// 			$rows.append($('<div class="cfd-panel-total" style="grid-template-columns:' + COLS + ';">'
+// 				+ '<div>TOTAL</div>'
+// 				+ '<div>' + inrFmt(gTotal) + '</div>'
+// 				+ '</div>'));
+// 		}
+
+// 		function activateTab(tabId) {
+// 			$('#cfd-panel-tab-bar .cfd-panel-tab').removeClass('active');
+// 			$('#cfd-panel-tab-bar .cfd-panel-tab[data-tab="' + tabId + '"]').addClass('active');
+// 			var tab = tabDefs.filter(function(t) { return t.id === tabId; })[0];
+// 			$('#cfd-panel-rows').css('opacity', 0);
+// 			setTimeout(function() {
+// 				renderRows(tab.groups);
+// 				$('#cfd-panel-rows').css({ opacity: 1, transition: 'opacity .12s' });
+// 			}, 60);
+// 		}
+
+// 		renderRows(groups);
+// 		$('#cfd-panel-overlay').addClass('open');
+// 	}
+
+// 	function closeDrill() {
+// 		_lastDrillKey = null;
+// 		$drill.empty().hide();
+// 		$('.cfd-kc,.cfd-si').removeClass('active');
+// 	}
+
+
+// 	/* ── INIT ──────────────────────────────────────────────── */
+// 	if (USE_LIVE_API) {
+// 		loadFilterOptions();
+// 		/* loadData() is called after FY is set in loadFilterOptions callback */
+// 		setTimeout(loadData, 400); /* fallback if no FY returned */
+// 	} else {
+// 		fy_ctrl.set_value('2024-25');
+// 		loadData();
+// 	}
+// };

@@ -1987,7 +1987,7 @@ def download_utilisation_template(data=None):
                 f"=SUM(Q{start_row}:Q{end_row})",  # S - Total Utilisation
                 0,                                  # T - Bank + Cash Balance
                 0,                                  # U - Interest from Bank
-                0                                   # V - Declaration
+                1                                   # V - Declaration
             ])
         else:
             row.extend(["", "", "", ""])

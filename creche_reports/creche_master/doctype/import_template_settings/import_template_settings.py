@@ -15,7 +15,8 @@ class ImportTemplatesettings(Document):
 		from creche_reports.creche_child.doctype.import_template_items.import_template_items import ImportTemplateItems
 		from frappe.types import DF
 
-		partner_name: DF.Link | None
+		partner__name: DF.Data | None
+		partner_id: DF.Link | None
 		table_jndv: DF.Table[ImportTemplateItems]
 		user: DF.Link | None
 		user_name: DF.Data | None

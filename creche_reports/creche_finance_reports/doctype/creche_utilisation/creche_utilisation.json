@@ -112,16 +112,19 @@
    "options": "Utilisation Items"
   },
   {
+   "default": "0",
    "fieldname": "total_utilisation",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Total Utilisation",
+   "mask": 1,
    "non_negative": 1,
    "read_only": 1,
    "reqd": 1
   },
   {
+   "default": "0",
    "fieldname": "balance_amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -178,6 +181,7 @@
    "reqd": 1
   },
   {
+   "default": "0",
    "fieldname": "interest_from_bank",
    "fieldtype": "Currency",
    "label": "Interest from Bank"
@@ -204,7 +208,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-26 12:37:14.770061",
+ "modified": "2026-06-11 10:03:36.568689",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche utilisation",

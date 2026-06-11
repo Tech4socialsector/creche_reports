@@ -3,6 +3,7 @@
  "allow_rename": 1,
  "creation": "2026-05-04 10:38:21.304647",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "type_of_expenses_id",
@@ -63,7 +64,8 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Type of expenses"
+   "label": "Type of expenses",
+   "read_only": 1
   },
   {
    "fetch_from": "type_of_expenses_id.budget_main_head",
@@ -71,14 +73,16 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Budget main head"
+   "label": "Budget main head",
+   "read_only": 1
   },
   {
    "fetch_from": "type_of_expenses_id.budget_sub_head",
    "fieldname": "budget_sub_head",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Budget sub head"
+   "label": "Budget sub head",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_blxj",
@@ -89,7 +93,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-03 23:27:52.975950",
+ "modified": "2026-06-10 16:09:19.028442",
  "modified_by": "Administrator",
  "module": "Creche Child",
  "name": "Budget Items",

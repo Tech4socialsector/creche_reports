@@ -219,12 +219,12 @@ def send_import_email(doc, method=None):
 def send_utilisation_import_email(doc, method=None):
     recipients = [
         "vijay.singh@azimpremjifoundation.org",
-        "augustin.moses@azimpremjifoundation.org"
+        # "augustin.moses@azimpremjifoundation.org"
 
     ]
 
     cc = [
-        # "abhisek.dutta@azimpremjifoundation.org",
+        "abhisek.dutta@azimpremjifoundation.org",
     ]
 
     site_url = frappe.utils.get_url()

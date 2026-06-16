@@ -918,14 +918,14 @@
 
 
 
-
 import frappe
-from frappe.utils import flt, getdate, now_datetime
+from frappe.utils import flt, getdate, nowdate, add_days, now_datetime, get_datetime
 from datetime import date as _date, datetime
 import calendar as _calendar
+import json
 
 # ──────────────────────────────────────────────────────────────────────────────
-# PRO-RATA BUDGET HELPERS  (same logic as the report)
+# PRO-RATA BUDGET HELPERS
 # ──────────────────────────────────────────────────────────────────────────────
 
 _FY_MONTH_NAMES = [
@@ -984,13 +984,8 @@ def _prorata_for_fy(year_amount, bud_start, bud_end, fy_start, fy_end, filt_star
 	return float(year_amount) / active * selected
 
 def _compute_prorata_budget(budget_name, bud_start, bud_end, filter_segments):
-	"""
-	Fetch Budget Items for budget_name and compute pro-rata budget for the
-	given filter_segments (list of (start, end) date tuples).
-	Returns 0.0 if no filter_segments (caller must use raw total_budget).
-	"""
 	if not filter_segments:
-		return None  # signal: use raw total_budget
+		return None
 
 	rows = frappe.db.sql(
 		"""
@@ -1024,10 +1019,6 @@ def _compute_prorata_budget(budget_name, bud_start, bud_end, filter_segments):
 	return round(total, 2)
 
 def _build_filter_segments(filters):
-	"""
-	Convert the active filters into a list of (start_date, end_date) segments
-	for pro-rata budget calculation. Returns [] if no period filter is active.
-	"""
 	raw_start = _to_date(filters.get("start_date"))
 	raw_end   = _to_date(filters.get("end_date"))
 
@@ -1063,10 +1054,10 @@ def _build_filter_segments(filters):
 			segs.append((fy_s, fy_e))
 		return segs
 
-	return []   # no period filter → use raw total_budget
+	return []
 
 # ──────────────────────────────────────────────────────────────────────────────
-# PERMISSION HELPERS  (unchanged)
+# PERMISSION HELPERS
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _get_user_permitted_partners():
@@ -1099,8 +1090,14 @@ def _empty_summary():
 		"utilisation_pct":0,"disbursement_pct":0,
 	}
 
+def _assert_partner_access(partner_id: str):
+	permitted = _get_user_permitted_partners()
+	if permitted is None: return
+	if partner_id not in permitted:
+		frappe.throw(frappe._("You do not have permission to access this partner"), frappe.PermissionError)
+
 # ──────────────────────────────────────────────────────────────────────────────
-# PARTNER OPTIONS  (unchanged)
+# PARTNER OPTIONS
 # ──────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
@@ -1132,7 +1129,7 @@ def get_user_permission_scope():
 	return {"restricted": True, "partner_ids": permitted}
 
 # ──────────────────────────────────────────────────────────────────────────────
-# MAIN SUMMARY  (patched: pro-rata budget + correct util/bank-balance)
+# MAIN SUMMARY
 # ──────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
@@ -1151,7 +1148,6 @@ def get_partner_budget_summary(filters=None):
 	start_date = filters.get("start_date") or None
 	end_date   = filters.get("end_date")   or None
 
-	# Build filter segments for pro-rata calculation
 	filter_segments = _build_filter_segments(filters)
 	apply_prorata   = bool(filter_segments)
 
@@ -1184,7 +1180,27 @@ def get_partner_budget_summary(filters=None):
 
 	budget_ids = [b.name for b in budgets]
 
-	# ── Disbursement (unchanged — date-based) ─────────────────────────────────
+	# ── Budget Items sums (bulk) ──────────────────────────────────────────────
+	budget_items_map = {}
+	if budget_ids:
+		ph_bi = ", ".join([f"%(bim{i})s" for i in range(len(budget_ids))])
+		bim_params = {f"bim{i}": n for i, n in enumerate(budget_ids)}
+		bi_rows = frappe.db.sql(
+			"SELECT parent,"
+			" SUM(COALESCE(year_1,0)) AS year_1,"
+			" SUM(COALESCE(year_2,0)) AS year_2,"
+			" SUM(COALESCE(year_3,0)) AS year_3"
+			" FROM `tabBudget Items`"
+			f" WHERE parent IN ({ph_bi}) AND parenttype = 'Creche Budget'"
+			" GROUP BY parent",
+			bim_params, as_dict=True,
+		)
+		for r in bi_rows:
+			budget_items_map[r.parent] = (
+				float(r.year_1 or 0) + float(r.year_2 or 0) + float(r.year_3 or 0)
+			)
+
+	# ── Disbursement (date-based) ─────────────────────────────────────────────
 	disbursement_map = {}
 	if budget_ids:
 		disb_headers = frappe.get_all("Creche Disbursement",
@@ -1194,13 +1210,11 @@ def get_partner_budget_summary(filters=None):
 		disb_bid_map = {d.name: d.budget_reference_id for d in disb_headers}
 
 		if disb_parent_names:
-			# Fetch all tracker rows then post-filter by date range
 			tracker_rows = frappe.get_all("Disbursement Tracker",
 				filters={"parent": ["in", disb_parent_names], "parenttype": "Creche Disbursement"},
 				fields=["parent","date_of_disbursement","disbursed_amount"],
 				ignore_permissions=True)
 
-			# Apply FY / month filter to disbursements via date range
 			if filter_segments:
 				tracker_rows = [
 					t for t in tracker_rows
@@ -1222,10 +1236,10 @@ def get_partner_budget_summary(filters=None):
 				if bid:
 					disbursement_map[bid] = disbursement_map.get(bid, 0.0) + flt(t.disbursed_amount)
 
-	# ── Utilisation (patched: FY+month linked-pair filtering) ─────────────────
-	utilisation_map = {}
+	# ── Utilisation: sum from Utilisation Items child rows ────────────────────
+	utilisation_map  = {}
 	bank_balance_map = {}
-	interest_map = {}
+	interest_map     = {}
 
 	if budget_ids:
 		filter_fys = filters.get("financial_year") or []
@@ -1234,11 +1248,10 @@ def get_partner_budget_summary(filters=None):
 		if isinstance(month_raw, str): month_raw = [month_raw] if month_raw.strip() else []
 		month_filters = [m.strip() for m in month_raw if str(m).strip()]
 
-		util_extra = ""
+		util_extra  = ""
 		util_params = {}
 
 		if start_date and end_date:
-			# Derive (FY, month) pairs for date range — inlined to avoid fragile import
 			def _local_fy_month_pairs(sd, ed):
 				sd = _to_date(sd); ed = _to_date(ed)
 				if not sd or not ed: return []
@@ -1257,7 +1270,7 @@ def get_partner_budget_summary(filters=None):
 				for i, (fy, mn) in enumerate(pairs):
 					util_params[f"ufy{i}"] = fy
 					util_params[f"umn{i}"] = mn
-					clauses.append(f"(financial_year = %(ufy{i})s AND month = %(umn{i})s)")
+					clauses.append(f"(cu.financial_year = %(ufy{i})s AND cu.month = %(umn{i})s)")
 				util_extra = " AND (" + " OR ".join(clauses) + ")"
 			else:
 				util_extra = " AND 1=0"
@@ -1269,22 +1282,21 @@ def get_partner_budget_summary(filters=None):
 				for mn in month_filters:
 					util_params[f"ufy{k}"] = fy
 					util_params[f"umn{k}"] = mn
-					clauses.append(f"(financial_year = %(ufy{k})s AND month = %(umn{k})s)")
+					clauses.append(f"(cu.financial_year = %(ufy{k})s AND cu.month = %(umn{k})s)")
 					k += 1
 			util_extra = " AND (" + " OR ".join(clauses) + ")"
 
 		elif filter_fys:
 			ph = ", ".join([f"%(ufy{i})s" for i in range(len(filter_fys))])
 			for i, fy in enumerate(filter_fys): util_params[f"ufy{i}"] = fy
-			util_extra = f" AND financial_year IN ({ph})"
+			util_extra = f" AND cu.financial_year IN ({ph})"
 
 		elif month_filters:
 			ph = ", ".join([f"%(umn{i})s" for i in range(len(month_filters))])
 			for i, m in enumerate(month_filters): util_params[f"umn{i}"] = m
-			util_extra = f" AND month IN ({ph})"
+			util_extra = f" AND cu.month IN ({ph})"
 
 		elif start_date:
-			# Only start_date — derive (FY, month) pairs from start_date to today
 			from datetime import date as _dt_today
 			today = _dt_today.today()
 			def _local_fy_month_pairs2(sd, ed):
@@ -1298,60 +1310,72 @@ def get_partner_budget_summary(filters=None):
 					pairs.append((fy, _cal.month_name[cur.month]))
 					cur = _date(cur.year + 1, 1, 1) if cur.month == 12 else _date(cur.year, cur.month + 1, 1)
 				return pairs
-
 			pairs = _local_fy_month_pairs2(start_date, today)
 			if pairs:
 				clauses = []
 				for i, (fy, mn) in enumerate(pairs):
 					util_params[f"ufy{i}"] = fy
 					util_params[f"umn{i}"] = mn
-					clauses.append(f"(financial_year = %(ufy{i})s AND month = %(umn{i})s)")
+					clauses.append(f"(cu.financial_year = %(ufy{i})s AND cu.month = %(umn{i})s)")
 				util_extra = " AND (" + " OR ".join(clauses) + ")"
-			else:
-				util_extra = ""
 
-		# Only end_date (no start_date) — derive FY+month pairs from earliest budget start to end_date
 		if not util_extra and not filter_fys and not month_filters and not start_date and end_date:
-			from datetime import date as _dt_ed
-			# Find earliest budget start date among current budgets
 			all_starts = [b.start_date for b in budgets if b.start_date]
+			from datetime import date as _dt_ed
 			earliestd = min((_to_date(s) for s in all_starts), default=_dt_ed.today())
 			import calendar as _cal2
-			pairs_ed = []; cur = _date(earliestd.year, earliestd.month, 1)
+			pairs_ed = []
+			cur = _date(earliestd.year, earliestd.month, 1)
 			end_mo2 = _date(_to_date(end_date).year, _to_date(end_date).month, 1)
 			while cur <= end_mo2:
-				util_params[f"ufy{len(pairs_ed)}"] = _date_to_fy(cur)
-				util_params[f"umn{len(pairs_ed)}"] = _cal2.month_name[cur.month]
-				pairs_ed.append((util_params[f"ufy{len(pairs_ed)-1}"], util_params[f"umn{len(pairs_ed)-1}"]))
-				cur = _date(cur.year+1,1,1) if cur.month==12 else _date(cur.year,cur.month+1,1)
+				idx = len(pairs_ed)
+				fy_val = _date_to_fy(cur)
+				mn_val = _cal2.month_name[cur.month]
+				util_params[f"ufy{idx}"] = fy_val
+				util_params[f"umn{idx}"] = mn_val
+				pairs_ed.append((fy_val, mn_val))
+				cur = _date(cur.year + 1, 1, 1) if cur.month == 12 else _date(cur.year, cur.month + 1, 1)
 			if pairs_ed:
 				util_extra = " AND (" + " OR ".join(
-					f"(financial_year = %(ufy{i})s AND month = %(umn{i})s)" for i in range(len(pairs_ed))
+					f"(cu.financial_year = %(ufy{i})s AND cu.month = %(umn{i})s)"
+					for i in range(len(pairs_ed))
 				) + ")"
 
-		# Sum utilisation per budget
-		# Build IN clause for budget_ids
 		bid_ph = ", ".join([f"%(bid{i})s" for i in range(len(budget_ids))])
 		for i, n in enumerate(budget_ids): util_params[f"bid{i}"] = n
 
 		util_rows = frappe.db.sql(
 			f"""
 			SELECT
-				budget_reference_id,
-				SUM(total_utilisation) AS total_util,
-				SUM(interest_from_bank) AS total_interest
-			FROM `tabCreche utilisation`
-			WHERE budget_reference_id IN ({bid_ph})
+				cu.budget_reference_id,
+				SUM(ui.total_amount) AS total_util
+			FROM `tabCreche utilisation` cu
+			INNER JOIN `tabUtilisation Items` ui
+				ON ui.parent = cu.name AND ui.parenttype = 'Creche utilisation'
+			WHERE cu.budget_reference_id IN ({bid_ph})
 			  {util_extra}
-			GROUP BY budget_reference_id
+			GROUP BY cu.budget_reference_id
 			""",
 			util_params, as_dict=True,
 		)
 		for r in util_rows:
 			utilisation_map[r.budget_reference_id] = flt(r.total_util)
-			interest_map[r.budget_reference_id]    = flt(r.total_interest)
 
-		# Bank balance: last month in filter window (Python-side sort)
+		interest_rows = frappe.db.sql(
+			f"""
+			SELECT
+				budget_reference_id,
+				SUM(interest_from_bank) AS total_interest
+			FROM `tabCreche utilisation`
+			WHERE budget_reference_id IN ({bid_ph})
+			  {util_extra.replace("cu.", "")}
+			GROUP BY budget_reference_id
+			""",
+			util_params, as_dict=True,
+		)
+		for r in interest_rows:
+			interest_map[r.budget_reference_id] = flt(r.total_interest)
+
 		_FY_POS = {
 			"April":1,"May":2,"June":3,"July":4,"August":5,"September":6,
 			"October":7,"November":8,"December":9,"January":10,"February":11,"March":12,
@@ -1365,11 +1389,11 @@ def get_partner_budget_summary(filters=None):
 				balance_amount
 			FROM `tabCreche utilisation`
 			WHERE budget_reference_id IN ({bid_ph})
-			  {util_extra}
+			  {util_extra.replace("cu.", "")}
 			""",
 			util_params, as_dict=True,
 		)
-		bal_best = {}  # bid → (fy, month_pos, balance)
+		bal_best = {}
 		for r in bal_rows:
 			bid = r.budget_reference_id
 			fy  = r.financial_year or ""
@@ -1386,13 +1410,16 @@ def get_partner_budget_summary(filters=None):
 	for budget in budgets:
 		bid = budget.name
 
-		# Pro-rata or raw budget amount
+		raw_items_total = budget_items_map.get(bid)
+		if raw_items_total is None:
+			raw_items_total = flt(budget.total_budget)
+
 		if apply_prorata:
 			budget_amount = _compute_prorata_budget(bid, budget.start_date, budget.end_date, filter_segments)
 			if budget_amount is None:
-				budget_amount = flt(budget.total_budget)
+				budget_amount = raw_items_total
 		else:
-			budget_amount = flt(budget.total_budget)
+			budget_amount = raw_items_total
 
 		disbursement = flt(disbursement_map.get(bid, 0))
 		utilisation  = flt(utilisation_map.get(bid, 0))
@@ -1417,8 +1444,6 @@ def get_partner_budget_summary(filters=None):
 		p["total_disbursement"]   += disbursement
 		p["total_utilisation"]    += utilisation
 		p["total_balance_budget"] += balance_budget
-		# Bank balance = last reported value, not a running sum.
-		# Keep the highest (most recent) bank balance across budgets for this partner.
 		if bank_balance > 0:
 			p["total_bank_balance"] = max(p["total_bank_balance"], bank_balance)
 		elif p["total_bank_balance"] == 0:
@@ -1469,16 +1494,12 @@ def get_partner_budget_summary(filters=None):
 	}
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ALL REMAINING FUNCTIONS — unchanged from original
-# (paste get_disbursement_panel_data, get_budget_line_items,
-#  get_utilisation_line_items, get_utilisation_submission_status,
-#  send_utilisation_reminder, all messaging functions here)
+# DISBURSEMENT PANEL DATA
 # ──────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
 def get_disbursement_panel_data(budget_ids=None, partner_ids=None, start_date=None, end_date=None,
                                 financial_year=None, month=None):
-	import json
 	permitted = _get_user_permitted_partners()
 	def _to_list(v):
 		if not v: return []
@@ -1527,7 +1548,6 @@ def get_disbursement_panel_data(budget_ids=None, partner_ids=None, start_date=No
 		fields=["parent","date_of_disbursement","disbursed_amount"],
 		order_by="date_of_disbursement asc", ignore_permissions=True)
 
-	# Build date filter segments from start/end date OR financial_year + month
 	filter_segments = _build_filter_segments({
 		"start_date": start_date, "end_date": end_date,
 		"financial_year": filter_fys, "month": month_filters,
@@ -1535,7 +1555,6 @@ def get_disbursement_panel_data(budget_ids=None, partner_ids=None, start_date=No
 	period_active = bool(filter_segments) or bool(start_date) or bool(end_date)
 
 	if filter_segments:
-		# Filter tracker rows to only those within any filter segment
 		tracker_rows = [
 			t for t in tracker_rows
 			if t.date_of_disbursement and any(
@@ -1575,6 +1594,10 @@ def get_disbursement_panel_data(budget_ids=None, partner_ids=None, start_date=No
 		result = [r for r in result if r["tracker"]]
 	return result
 
+# ──────────────────────────────────────────────────────────────────────────────
+# BUDGET LINE ITEMS
+# ──────────────────────────────────────────────────────────────────────────────
+
 @frappe.whitelist()
 def get_budget_line_items(budget_id: str, start_date=None, end_date=None,
                           financial_year=None, month=None):
@@ -1582,7 +1605,6 @@ def get_budget_line_items(budget_id: str, start_date=None, end_date=None,
 	partner_id = frappe.db.get_value("Creche Budget", budget_id, "partner_id")
 	_assert_partner_access(partner_id)
 
-	import json
 	def _pl(v):
 		if not v: return []
 		if isinstance(v, list): return [x for x in v if x]
@@ -1641,10 +1663,13 @@ def get_budget_line_items(budget_id: str, start_date=None, end_date=None,
 		})
 	return result
 
+# ──────────────────────────────────────────────────────────────────────────────
+# UTILISATION LINE ITEMS
+# ──────────────────────────────────────────────────────────────────────────────
+
 @frappe.whitelist()
 def get_utilisation_line_items(budget_id: str, start_date=None, end_date=None,
                                financial_year=None, month=None):
-	import json
 	if not budget_id: return {"months": [], "records": []}
 	partner_id = frappe.db.get_value("Creche Budget", budget_id, "partner_id")
 	_assert_partner_access(partner_id)
@@ -1702,12 +1727,3 @@ def get_utilisation_line_items(budget_id: str, start_date=None, end_date=None,
 	seen.sort(key=msort)
 	records.sort(key=lambda r: (r["financial_year"], msort(r["month"])))
 	return {"months": seen, "records": records}
-
-# ── Utilisation submission status, messaging, and other endpoints are
-#    identical to the original — include them verbatim from the original file.
-
-def _assert_partner_access(partner_id: str):
-	permitted = _get_user_permitted_partners()
-	if permitted is None: return
-	if partner_id not in permitted:
-		frappe.throw(frappe._("You do not have permission to access this partner"), frappe.PermissionError)	

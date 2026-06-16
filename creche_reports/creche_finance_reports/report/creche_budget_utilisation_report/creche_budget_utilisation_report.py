@@ -1560,7 +1560,6 @@
 # 	frappe.response["filename"]    = f"Budget_Utilisation_{safe_level}.xlsx"
 # 	frappe.response["filecontent"] = buf.getvalue()
 # 	frappe.response["type"]        = "binary"
-
 import frappe
 from frappe import _
 from collections import OrderedDict
@@ -1896,6 +1895,9 @@ def _budget_amounts_bulk(cb_names_start_dates, filters):
 
 
 # ─── Utilisation ──────────────────────────────────────────────────────────────
+# FIX: sum from tabUtilisation Items child rows (ui.total_amount) instead of
+#      the header-level CU.total_utilisation field, so this matches the
+#      dashboard number cards exactly.
 
 def _utilisation_amounts_bulk(cb_names, filters):
 	if not cb_names:
@@ -1921,7 +1923,6 @@ def _utilisation_amounts_bulk(cb_names, filters):
 	if isinstance(month_filter_raw, str):
 		month_filter_raw = [month_filter_raw] if month_filter_raw.strip() else []
 	month_filters = [m.strip() for m in month_filter_raw if str(m).strip()]
-	month_filter = month_filters[0] if len(month_filters) == 1 else ""
 
 	if filter_start and filter_end:
 		pairs = _fy_month_pairs_in_range(filter_start, filter_end)
@@ -1992,18 +1993,26 @@ def _utilisation_amounts_bulk(cb_names, filters):
 			extra_conditions.append(f"CU.month IN ({ph})")
 
 	where_extra      = (" AND " + " AND ".join(extra_conditions)) if extra_conditions else ""
+	# Bank balance query doesn't need CU. alias prefix
 	where_extra_bare = where_extra.replace("CU.", "") if where_extra else ""
 
 	name_ph = ", ".join([f"%(cb{i})s" for i in range(len(cb_names))])
 	for i, n in enumerate(cb_names):
 		params[f"cb{i}"] = n
 
+	# ── FIX: join to tabUtilisation Items and sum ui.total_amount ─────────────
+	# Previously used SUM(CU.total_utilisation) which reads the stored header
+	# field — that can drift from the actual line-item sum when items are
+	# added/edited after the parent doc is saved.  The dashboard number cards
+	# use SUM(ui.total_amount) so this now matches them exactly.
 	rows = frappe.db.sql(
 		f"""
 		SELECT
-			CU.budget_reference_id    AS cb_name,
-			SUM(CU.total_utilisation) AS total_utilisation
+			CU.budget_reference_id        AS cb_name,
+			SUM(ui.total_amount)          AS total_utilisation
 		FROM `tabCreche utilisation` CU
+		INNER JOIN `tabUtilisation Items` ui
+			ON ui.parent = CU.name AND ui.parenttype = 'Creche utilisation'
 		WHERE CU.budget_reference_id IN ({name_ph})
 		  {where_extra}
 		GROUP BY CU.budget_reference_id
@@ -2351,6 +2360,7 @@ def get_data(filters):
 @frappe.whitelist()
 def download_excel(filters=None):
 	import io, json
+	from datetime import date as _date_cls
 	import openpyxl
 	from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 	from openpyxl.utils import get_column_letter
@@ -2371,205 +2381,309 @@ def download_excel(filters=None):
 	wb = openpyxl.Workbook()
 	ws = wb.active
 	ws.title = level_label[:31]
+	ws.sheet_view.showGridLines = False
 
-	# ── Style helpers ──────────────────────────────────────────────────────────
-	def solid(h):
+	# ── Style primitives ───────────────────────────────────────────────────────
+	def S(h):
 		return PatternFill("solid", fgColor=h)
 
-	def fnt(bold=False, color="000000", size=10):
-		return Font(bold=bold, color=color, size=size)
+	def F(bold=False, color="1E293B", size=10, italic=False):
+		return Font(bold=bold, color=color, size=size, italic=italic, name="Calibri")
 
-	def border(color="D6DCE4", style="thin"):
-		"""Full 4-sided border with the given colour."""
-		s = Side(style=style, color=color)
-		return Border(top=s, bottom=s, left=s, right=s)
+	def sd(c, st="thin"):
+		return Side(style=st, color=c)
 
-	def thick_left_border(left_color="4A7AB5", cell_color="D6DCE4"):
-		"""Border with a thick coloured left side and thin other sides."""
-		cell = Side(style="thin",   color=cell_color)
-		left = Side(style="medium", color=left_color)
-		return Border(top=cell, bottom=cell, left=left, right=cell)
+	def B(t="CBD5E1", b="CBD5E1", l="CBD5E1", r="CBD5E1",
+	      ts="thin", bs="thin", ls="thin", rs="thin"):
+		return Border(top=sd(t, ts), bottom=sd(b, bs), left=sd(l, ls), right=sd(r, rs))
 
-	CENTER   = Alignment(horizontal="center", vertical="center", wrap_text=True)
-	RIGHT_VC = Alignment(horizontal="right",  vertical="center", wrap_text=True)
-	LEFT_VC  = Alignment(horizontal="left",   vertical="center", wrap_text=True)
+	MID  = Alignment(horizontal="center", vertical="center", wrap_text=True)
+	RVC  = Alignment(horizontal="right",  vertical="center")
+	LVC  = Alignment(horizontal="left",   vertical="center")
+	LIND = Alignment(horizontal="left",   vertical="center", indent=1)
 
-	# ── Colour palette (grey / neutral) ───────────────────────────────────────
-	HDR_FILL = solid("2C3E50");  HDR_FONT = fnt(bold=True,  color="FFFFFF", size=11)
-	PAR_FILL = solid("D6DCE4");  PAR_FONT = fnt(bold=True,  color="1E3A5F", size=10)
-	ODD_FILL = solid("F5F6F8");  EVEN_FILL = solid("FFFFFF")
-	BUD_FONT = fnt(size=10)
-	TOT_FILL = solid("2C3E50");  TOT_FONT = fnt(bold=True,  color="FFFFFF", size=11)
-	FLT_FILL = solid("EEF2F7");  FLT_FONT = fnt(size=10, color="1E3A5F")
-	TTL_FILL = solid("D6DCE4");  TTL_FONT = fnt(bold=True,  color="1E3A5F", size=13)
-	SUB_FILL = solid("EEF2F7")
+	# ── Palette — light throughout ─────────────────────────────────────────────
+	# Backgrounds
+	BG_TITLE  = "2D5F8A"   # soft steel-blue title bar
+	BG_META   = "F4F7FA"   # very pale grey-blue — meta / filter rows
+	BG_HDR_GR = "E8EFF6"   # soft silver-blue — column group row
+	BG_HDR    = "4A86C8"   # medium cornflower blue — column headers
+	BG_PAR    = "E3EEF9"   # soft ice-blue tint — partner / group rows
+	BG_ODD    = "F7FAFD"   # near-white with blue tint — odd child rows
+	BG_EVEN   = "FFFFFF"   # pure white — even child rows
+	BG_GTOT   = "2D5F8A"   # same steel-blue as title — grand total
 
-	# Traffic-light fills for % columns
-	G_FILL = solid("D6EAF8"); G_FONT = fnt(bold=True, color="1A5276")
-	O_FILL = solid("FDEBD0"); O_FONT = fnt(bold=True, color="784212")
-	R_FILL = solid("FADBD8"); R_FONT = fnt(bold=True, color="922B21")
+	# Text
+	FG_TITLE  = "FFFFFF"
+	FG_META   = "5A6E82"   # soft blue-grey
+	FG_GRP    = "3D5A73"   # muted blue-slate — group header label
+	FG_HDR    = "FFFFFF"
+	FG_PAR    = "1F4E79"   # dark ink-blue — partner row
+	FG_CHILD  = "3D5A73"   # muted blue-slate — body text
+	FG_GTOT   = "FFFFFF"
+	FG_FILTER = "2D6A9F"   # medium blue — filter chip text
 
-	# Pre-built border objects (reused for every cell)
-	HDR_BORDER  = border("4A7AB5", "medium")   # thick blue-grey for header row
-	PAR_BORDER  = border("B0BEC5", "thin")      # standard thin for parent rows
-	DATA_BORDER = border("D6DCE4", "thin")      # lightest for data cells
-	TOT_BORDER  = border("1A252F", "medium")    # dark for grand total
+	# Accents / rules
+	AC_BLUE   = "4A86C8"   # cornflower blue separators
+	AC_TEAL   = "3A9DA8"   # soft teal rule & bookend bars
+	AC_NAVY   = "2D5F8A"   # steel-blue left-stripe on partner rows
+	RULE_MED  = "AABDD0"   # medium blue-grey rule
+	RULE_LT   = "D6E4F0"   # light blue-grey cell border
+	CHIP_BG   = "D6E8F7"   # pale blue — filter chip background
 
+	# Traffic lights
+	TL_G_BG   = "DCFCE7";  TL_G_FG = "166534"
+	TL_A_BG   = "FEF9C3";  TL_A_FG = "854D0E"
+	TL_R_BG   = "FEE2E2";  TL_R_FG = "991B1B"
+
+	# ── Column definitions ─────────────────────────────────────────────────────
 	first_col_hdr = {
 		"budget wise": "Budget Reference", "state": "State / Partner",
-		"district": "District / Partner", "block": "Block / Partner",
+		"district":    "District / Partner", "block": "Block / Partner",
 	}.get(level, "Partner / Budget")
 
 	COLS = [
-		(first_col_hdr,                "row_name",             40, "str"),
-		("Partner ID",                 "partner_id",           18, "str"),
-		("State",                      "state",                18, "str"),
-		("Budget Approval FY",         "financial_year",       14, "str"),
-		("No of Creches",              "no_of_creches",        14, "int"),
-		("Start Date",                 "start_date",           14, "date"),
-		("End Date",                   "end_date",             14, "date"),
-		("Grant ID",                   "grant_id",             16, "str"),
-		("Approved Budget (₹)",        "total_budget",         22, "cur"),
-		("Utilisation (₹)",            "total_utilisation",    22, "cur"),
-		("Disbursed Amount (₹)",       "total_disbursed",      26, "cur"),
-		("Unutilized Disbursement (₹)","disb_minus_util",      28, "cur"),
-		("Reported Bank Balance (₹)",  "bank_balance",         26, "cur"),
-		("Budget vs Utilized %",       "utilised_vs_budget",   24, "pct"),
-		("Disbursed vs Utilized %",    "utilised_vs_disbursed",26, "pct"),
+		(first_col_hdr,              "row_name",              36, "str"),
+		("Partner ID",               "partner_id",            16, "str"),
+		("State",                    "state",                 18, "str"),
+		("Budget\nFY",               "financial_year",        11, "str"),
+		("Creches",                  "no_of_creches",          9, "int"),
+		("Start\nDate",              "start_date",            12, "date"),
+		("End\nDate",                "end_date",              12, "date"),
+		("Grant ID",                 "grant_id",              15, "str"),
+		("Approved\nBudget (\u20b9)",     "total_budget",          20, "cur"),
+		("Utilisation\n(\u20b9)",         "total_utilisation",     18, "cur"),
+		("Disbursed\n(\u20b9)",           "total_disbursed",       20, "cur"),
+		("Unutilized\nDisb. (\u20b9)",    "disb_minus_util",       20, "cur"),
+		("Bank\nBalance (\u20b9)",        "bank_balance",          19, "cur"),
+		("Budget\nvs Util %",        "utilised_vs_budget",    13, "pct"),
+		("Disb.\nvs Util %",         "utilised_vs_disbursed", 13, "pct"),
 	]
-	N_COLS = len(COLS)
+	N = len(COLS)
 
-	for i, (_h, _fn, width, _dt) in enumerate(COLS, 1):
-		ws.column_dimensions[get_column_letter(i)].width = width
+	COL_GROUPS = [
+		(1,  8,  "BUDGET IDENTITY"),
+		(9,  13, "FINANCIAL SUMMARY  (\u20b9)"),
+		(14, 15, "PERFORMANCE"),
+	]
+	GS = {g[0] for g in COL_GROUPS}
+	GE = {g[1] for g in COL_GROUPS}
 
+	for i, (_, _, w, _) in enumerate(COLS, 1):
+		ws.column_dimensions[get_column_letter(i)].width = w
+
+	# ── Row helper ─────────────────────────────────────────────────────────────
 	cur_row = 0
-
-	def next_row(height=16):
+	def nr(h=15):
 		nonlocal cur_row
 		cur_row += 1
-		ws.row_dimensions[cur_row].height = height
+		ws.row_dimensions[cur_row].height = h
 		return cur_row
 
-	def merge_row(r, value, fill, font, height=18, align=LEFT_VC, bdr=None):
-		ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=N_COLS)
-		cell = ws.cell(row=r, column=1, value=value)
+	def fill_row(r, fill, c1=1, c2=None):
+		for c in range(c1, (c2 or N) + 1):
+			ws.cell(row=r, column=c).fill = fill
+
+	def mrow(r, val, fill, font, align=LVC, c1=1, c2=None):
+		c2 = c2 or N
+		ws.merge_cells(start_row=r, start_column=c1, end_row=r, end_column=c2)
+		cell = ws.cell(row=r, column=c1, value=val)
 		cell.fill = fill; cell.font = font; cell.alignment = align
-		if bdr:
-			cell.border = bdr
-		ws.row_dimensions[r].height = height
+		fill_row(r, fill, c1, c2)
+		return cell
 
-	# ── Title ─────────────────────────────────────────────────────────────────
-	r = next_row(32)
-	merge_row(r, f"Creche Budget Utilisation Report — {level_label}",
-	          TTL_FILL, TTL_FONT, 32, CENTER, border("4A7AB5", "medium"))
+	# ── TITLE ──────────────────────────────────────────────────────────────────
+	r = nr(30)
+	mrow(r, "  Creche Budget Utilisation Report",
+	     S(BG_TITLE), F(bold=True, color=FG_TITLE, size=14))
 
-	# ── Active filters ────────────────────────────────────────────────────────
+	# Teal accent rule
+	r = nr(3)
+	mrow(r, None, S(AC_TEAL), F())
+
+	# Meta row: view (left) | generated date (right)
+	r = nr(18)
+	half = N // 2
+	ws.merge_cells(start_row=r, start_column=1,      end_row=r, end_column=half)
+	ws.merge_cells(start_row=r, start_column=half+1, end_row=r, end_column=N)
+	lc = ws.cell(row=r, column=1,      value=f"  View: {level_label}")
+	rc = ws.cell(row=r, column=half+1, value=f"Generated: {_date_cls.today().strftime('%d %B %Y')}  ")
+	for cell, al in ((lc, LVC), (rc, Alignment(horizontal="right", vertical="center"))):
+		cell.fill = S(BG_META); cell.font = F(color=FG_META, size=10); cell.alignment = al
+	fill_row(r, S(BG_META))
+
+	# ── FILTERS ────────────────────────────────────────────────────────────────
 	active = {k: v for k, v in filters.items()
 	          if v not in (None, "", []) and not (isinstance(v, list) and len(v) == 0)}
 	if active:
-		r = next_row(16)
-		merge_row(r, "Filters Applied", SUB_FILL,
-		          fnt(bold=True, color="1E3A5F", size=10), 16, LEFT_VC, border("B0BEC5"))
+		r = nr(18)
+		mrow(r, "  Filters Applied", S(BG_META), F(bold=True, color=AC_BLUE, size=9))
+		for c in range(1, N + 1):
+			ws.cell(row=r, column=c).border = B(b=RULE_MED, bs="thin")
+
+		r = nr(16)
+		fill_row(r, S(BG_META))
+		col_pos = 1
 		for key, val in active.items():
-			label       = _FILTER_LABELS.get(key, key.replace("_", " ").title())
-			display_val = ", ".join(str(v) for v in val) if isinstance(val, list) else str(val)
-			r = next_row(16)
-			ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=N_COLS)
-			cell = ws.cell(row=r, column=1, value=f"  {label}:  {display_val}")
-			cell.fill = FLT_FILL; cell.font = FLT_FONT
-			cell.alignment = LEFT_VC; cell.border = border("D6DCE4")
+			if col_pos > N:
+				break
+			label = _FILTER_LABELS.get(key, key.replace("_", " ").title())
+			dval  = ", ".join(str(x) for x in val) if isinstance(val, list) else str(val)
+			end_p = min(col_pos + 2, N)
+			ws.merge_cells(start_row=r, start_column=col_pos, end_row=r, end_column=end_p)
+			cc = ws.cell(row=r, column=col_pos, value=f"  {label}: {dval}  ")
+			cc.fill = S(CHIP_BG); cc.font = F(color=FG_FILTER, size=9, bold=True)
+			cc.alignment = LVC
+			cc.border = B(t=AC_BLUE, b=AC_BLUE, l=AC_BLUE, r=AC_BLUE)
+			col_pos = end_p + 1
 
-	# ── Spacer ────────────────────────────────────────────────────────────────
-	next_row(6)
+	# spacer
+	nr(8)
 
-	# ── Column headers ────────────────────────────────────────────────────────
-	r = next_row(32)
-	for i, (hdr, *_rest) in enumerate(COLS, 1):
-		cell = ws.cell(row=r, column=i, value=hdr)
-		cell.fill = HDR_FILL; cell.font = HDR_FONT
-		cell.alignment = CENTER; cell.border = HDR_BORDER
-	ws.freeze_panes = f"A{r + 1}"
+	# ── COLUMN GROUP HEADERS ───────────────────────────────────────────────────
+	rg = nr(14)
+	fill_row(rg, S(BG_HDR_GR))
+	for c1, c2, label in COL_GROUPS:
+		ws.merge_cells(start_row=rg, start_column=c1, end_row=rg, end_column=c2)
+		gc = ws.cell(row=rg, column=c1, value=label)
+		gc.fill = S(BG_HDR_GR); gc.font = F(bold=True, color=FG_GRP, size=8)
+		gc.alignment = MID
+		rule = AC_TEAL if "FINANCIAL" in label else AC_BLUE
+		for c in range(c1, c2 + 1):
+			ws.cell(row=rg, column=c).fill   = S(BG_HDR_GR)
+			ws.cell(row=rg, column=c).border = B(t=BG_HDR_GR, b=rule,
+			                                     l=BG_HDR_GR, r=BG_HDR_GR, bs="medium")
 
-	# ── Data rows ─────────────────────────────────────────────────────────────
-	do_pid_merge = (level in ("partner wise", "partner"))
+	# ── COLUMN HEADERS ─────────────────────────────────────────────────────────
+	rh = nr(36)
+	for i, (hdr, _, _, _) in enumerate(COLS, 1):
+		hc = ws.cell(row=rh, column=i, value=hdr)
+		hc.fill = S(BG_HDR); hc.font = F(bold=True, color=FG_HDR, size=9)
+		hc.alignment = MID
+		l_st = "medium" if i in GS else "thin"
+		r_st = "medium" if i in GE else "thin"
+		l_cl = RULE_LT  if i in GS else BG_HDR
+		r_cl = RULE_LT  if i in GE else BG_HDR
+		hc.border = B(t=BG_HDR, b=RULE_LT, l=l_cl, r=r_cl,
+		              ts="thin", bs="medium", ls=l_st, rs=r_st)
+
+	ws.freeze_panes = f"A{rh + 1}"
+
+	# ── DATA ROWS ──────────────────────────────────────────────────────────────
+	do_pid_merge = level in ("partner wise", "partner")
 	group_spans  = []
-	parent_r = last_child_r = None
-	alt = 0
+	par_r        = None
+	lch_r        = None
+	alt          = 0
 
 	for row_data in data:
 		is_grand   = bool(row_data.get("is_grand_total"))
 		is_parent  = row_data.get("indent", 0) == 0
 		is_bud_row = bool(row_data.get("is_budget_row"))
 
-		r = next_row(26 if is_grand else (22 if is_parent else 18))
+		r = nr(24 if is_grand else (21 if is_parent else 16))
 
 		if is_parent and not is_grand:
-			if do_pid_merge and parent_r and last_child_r:
-				group_spans.append((parent_r, last_child_r))
-			parent_r = r; last_child_r = None; alt = 0
+			if do_pid_merge and par_r and lch_r:
+				group_spans.append((par_r, lch_r))
+			par_r = r; lch_r = None; alt = 0
 		elif not is_parent:
-			last_child_r = r; alt += 1
+			lch_r = r; alt += 1
 
-		for col_idx, (_hdr, fieldname, _w, dtype) in enumerate(COLS, 1):
-			raw  = row_data.get(fieldname)
-			cell = ws.cell(row=r, column=col_idx)
+		for ci, (_, fn, _, dtype) in enumerate(COLS, 1):
+			raw  = row_data.get(fn)
+			cell = ws.cell(row=r, column=ci)
 
-			# ── Value ─────────────────────────────────────────────────────────
 			if dtype == "cur":
-				cell.value = float(raw or 0); cell.number_format = "#,##0.00"
+				cell.value = float(raw or 0); cell.number_format = '\u20b9#,##0'
 			elif dtype == "pct":
-				cell.value = float(raw or 0); cell.number_format = '0.00"%"'
+				cell.value = float(raw or 0); cell.number_format = '0.0"%"'
 			elif dtype == "int":
 				cell.value = int(raw or 0)
 			elif dtype == "date":
-				cell.value = raw if raw else ""; cell.number_format = "DD-MMM-YYYY"
+				cell.value = raw if raw else ""; cell.number_format = "DD-MMM-YY"
 			else:
 				val = str(raw) if raw not in (None, "") else ""
-				if fieldname == "row_name" and not is_parent:
-					val = "    " + val
+				if fn == "row_name" and not is_parent:
+					val = "       " + val.lstrip()
 				cell.value = val
 
-			# ── Style ─────────────────────────────────────────────────────────
 			is_num = dtype in ("cur", "pct", "int")
+			l_st   = "medium" if ci in GS else "thin"
+			r_st   = "medium" if ci in GE else "thin"
+			sep_l  = RULE_MED if ci in GS else RULE_LT
+			sep_r  = RULE_MED if ci in GE else RULE_LT
 
 			if is_grand:
-				cell.fill      = TOT_FILL
-				cell.font      = TOT_FONT
-				cell.border    = TOT_BORDER
-				cell.alignment = RIGHT_VC if is_num else LEFT_VC
+				cell.fill      = S(BG_GTOT)
+				cell.font      = F(bold=True, color=FG_GTOT, size=10)
+				cell.alignment = RVC if is_num else LIND
+				lc_ = AC_TEAL if ci == 1 else sep_l
+				ls_ = "medium" if ci == 1 else l_st
+				cell.border = B(t=AC_TEAL, b=AC_TEAL, l=lc_, r=sep_r,
+				                ts="medium", bs="medium", ls=ls_, rs=r_st)
 
-			elif is_parent and not is_bud_row:
-				cell.fill   = PAR_FILL
-				cell.font   = PAR_FONT
-				cell.border = (thick_left_border() if col_idx == 1 else PAR_BORDER)
-				cell.alignment = RIGHT_VC if is_num else LEFT_VC
+			elif is_parent:
+				cell.fill      = S(BG_PAR)
+				cell.font      = F(bold=True, color=FG_PAR, size=10)
+				cell.alignment = RVC if is_num else LIND
+				lc_ = AC_NAVY if ci == 1 else sep_l
+				ls_ = "medium" if ci == 1 else l_st
+				cell.border = B(t=RULE_LT, b=RULE_LT, l=lc_, r=sep_r,
+				                ts="thin", bs="thin", ls=ls_, rs=r_st)
 
 			else:
-				cell.fill      = ODD_FILL if alt % 2 == 1 else EVEN_FILL
-				cell.font      = BUD_FONT
-				cell.border    = DATA_BORDER
-				cell.alignment = RIGHT_VC if is_num else LEFT_VC
+				bg = BG_ODD if alt % 2 == 1 else BG_EVEN
+				cell.fill      = S(bg)
+				cell.font      = F(color=FG_CHILD, size=9)
+				cell.alignment = RVC if is_num else LIND
+				cell.border    = B(t=RULE_LT, b=RULE_LT, l=sep_l, r=sep_r,
+				                   ts="thin", bs="thin", ls=l_st, rs=r_st)
 
-			# ── Traffic-light override for % cells ────────────────────────────
-			if dtype == "pct" and not (is_parent and not is_bud_row) and not is_grand:
+			if dtype == "pct" and not is_grand:
 				pct_val = float(raw or 0)
-				cell.fill, cell.font = (
-					(G_FILL, G_FONT) if pct_val >= 75 else
-					(O_FILL, O_FONT) if pct_val >= 50 else
-					(R_FILL, R_FONT)
+				tl_bg, tl_fg = (
+					(TL_G_BG, TL_G_FG) if pct_val >= 75 else
+					(TL_A_BG, TL_A_FG) if pct_val >= 50 else
+					(TL_R_BG, TL_R_FG)
 				)
-				cell.border    = DATA_BORDER
-				cell.alignment = RIGHT_VC
+				cell.fill      = S(tl_bg)
+				cell.font      = F(bold=True, color=tl_fg, size=9)
+				cell.alignment = MID
+				cell.border    = B(t=tl_bg, b=tl_bg, l=tl_bg, r=tl_bg)
 
-	# ── Partner-ID column merge (Partner Wise view) ───────────────────────────
-	if do_pid_merge and parent_r and last_child_r:
-		group_spans.append((parent_r, last_child_r))
-	for p_r, last_c in group_spans:
-		if last_c > p_r:
-			ws.merge_cells(start_row=p_r, start_column=2, end_row=last_c, end_column=2)
-			ws.cell(row=p_r, column=2).alignment = CENTER
+	# ── Partner-ID column merge ────────────────────────────────────────────────
+	if do_pid_merge and par_r and lch_r:
+		group_spans.append((par_r, lch_r))
+	for p_r, lc_r in group_spans:
+		if lc_r > p_r:
+			ws.merge_cells(start_row=p_r, start_column=2, end_row=lc_r, end_column=2)
+			ws.cell(row=p_r, column=2).alignment = MID
 
-	# ── Stream to browser ─────────────────────────────────────────────────────
+	# ── BOTTOM RULE ────────────────────────────────────────────────────────────
+	r = nr(3)
+	mrow(r, None, S(AC_TEAL), F())
+
+	# ── FOOTER ─────────────────────────────────────────────────────────────────
+	r = nr(14)
+	mrow(r,
+	     f"  Creche Budget Utilisation  \u00b7  {level_label}  \u00b7  "
+	     f"Generated {_date_cls.today().strftime('%d %B %Y')}  \u00b7  Confidential",
+	     S(BG_META), F(color=FG_META, size=8, italic=True))
+
+	# ── Print / page setup ─────────────────────────────────────────────────────
+	ws.page_setup.orientation = "landscape"
+	ws.page_setup.paperSize   = 9
+	ws.page_setup.fitToPage   = True
+	ws.page_setup.fitToWidth  = 1
+	ws.page_setup.fitToHeight = 0
+	ws.print_title_rows       = f"{rh}:{rh}"
+	ws.page_margins.left      = 0.4
+	ws.page_margins.right     = 0.4
+	ws.page_margins.top       = 0.5
+	ws.page_margins.bottom    = 0.5
+
+	# ── Stream to browser ──────────────────────────────────────────────────────
 	buf = io.BytesIO()
 	wb.save(buf)
 	buf.seek(0)

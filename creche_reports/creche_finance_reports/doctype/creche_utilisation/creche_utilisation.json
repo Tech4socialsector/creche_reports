@@ -14,13 +14,14 @@
   "block",
   "district",
   "state",
+  "date",
   "column_break_kwjz",
   "budget_reference_name",
   "partner_name",
   "no_of_creches",
+  "no_of_running_creches",
   "financial_year",
   "month",
-  "date",
   "utilisation_items_and_spend_amount_section",
   "utilisation_items_list",
   "section_break_aagg",
@@ -46,7 +47,8 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Grant ID"
+   "label": "Grant ID",
+   "read_only": 1
   },
   {
    "fetch_from": "budget_reference_id.state",
@@ -79,6 +81,7 @@
    "in_standard_filter": 1,
    "label": "No of creches",
    "non_negative": 1,
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -118,7 +121,6 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Total Utilisation",
-   "mask": 1,
    "non_negative": 1,
    "read_only": 1,
    "reqd": 1
@@ -203,12 +205,21 @@
    "in_standard_filter": 1,
    "label": "District",
    "options": "District"
+  },
+  {
+   "fieldname": "no_of_running_creches",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "No of running creches",
+   "non_negative": 1,
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-11 10:03:36.568689",
+ "modified": "2026-06-25 10:56:50.769187",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche utilisation",

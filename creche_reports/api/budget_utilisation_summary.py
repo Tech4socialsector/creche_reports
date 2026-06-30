@@ -918,6 +918,37 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import frappe
 from frappe.utils import flt, getdate, nowdate, add_days, now_datetime, get_datetime
 from datetime import date as _date, datetime
@@ -1727,3 +1758,552 @@ def get_utilisation_line_items(budget_id: str, start_date=None, end_date=None,
 	seen.sort(key=msort)
 	records.sort(key=lambda r: (r["financial_year"], msort(r["month"])))
 	return {"months": seen, "records": records}
+
+
+
+"""
+creche_reports/api/export_utils.py
+
+Server-side export endpoints for the Creche Dashboard drill-down tables.
+Generates real .xlsx (via openpyxl) and PDF (via wkhtmltopdf through
+frappe.utils.pdf) files and returns a download URL.
+
+Usage from the client:
+    frappe.call({
+        method: 'creche_reports.api.export_utils.export_table',
+        args: {
+            title: 'Total Budget',
+            columns: [{label:'Partner', key:'partner'}, ...],
+            rows: [{partner:'ABC', budget:1234.5}, ...],
+            format: 'xlsx'   // or 'pdf'
+        },
+        callback: (r) => { window.open(r.message.file_url); }
+    });
+"""
+
+import frappe
+from frappe.utils import get_url
+import io
+import json
+
+
+@frappe.whitelist()
+def export_table(title="Report", columns=None, rows=None, format="xlsx"):
+	"""
+	Generate an .xlsx or .pdf file from tabular data and save it as a
+	private File doc, returning the file_url for the browser to open.
+
+	columns: JSON list of {"label": str, "key": str, "align": "left"|"right"}
+	rows:    JSON list of dicts keyed by column `key`
+	format:  "xlsx" or "pdf"
+	"""
+	if isinstance(columns, str):
+		columns = json.loads(columns)
+	if isinstance(rows, str):
+		rows = json.loads(rows)
+
+	columns = columns or []
+	rows = rows or []
+
+	if format == "pdf":
+		file_url = _export_pdf(title, columns, rows)
+	else:
+		file_url = _export_xlsx(title, columns, rows)
+
+	return {"file_url": file_url}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# EXCEL EXPORT  (openpyxl — navy header / light-blue total row)
+# ──────────────────────────────────────────────────────────────────────────
+
+def _export_xlsx(title, columns, rows):
+	try:
+		from openpyxl import Workbook
+		from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+		from openpyxl.utils import get_column_letter
+	except ImportError:
+		frappe.throw(
+			frappe._("openpyxl is required for Excel export. Install it with: pip install openpyxl")
+		)
+
+	wb = Workbook()
+	ws = wb.active
+	ws.title = (title or "Data")[:31]
+
+	NAVY      = "1E3A5F"
+	LIGHTBLUE = "BFDBFE"
+	BORDER_C  = "93C5FD"
+	GRID_C    = "E2E8F0"
+
+	thin_grid = Border(
+		left=Side(style="thin", color=GRID_C),
+		right=Side(style="thin", color=GRID_C),
+		top=Side(style="thin", color=GRID_C),
+		bottom=Side(style="thin", color=GRID_C),
+	)
+	thin_header_border = Border(
+		left=Side(style="thin", color=BORDER_C),
+		right=Side(style="thin", color=BORDER_C),
+		top=Side(style="thin", color=BORDER_C),
+		bottom=Side(style="thin", color=BORDER_C),
+	)
+
+	header_font = Font(bold=True, color="FFFFFF", size=10)
+	header_fill = PatternFill(start_color=NAVY, end_color=NAVY, fill_type="solid")
+	total_font  = Font(bold=True, color=NAVY, size=11)
+	total_fill  = PatternFill(start_color=LIGHTBLUE, end_color=LIGHTBLUE, fill_type="solid")
+
+	# header row
+	for ci, col in enumerate(columns, start=1):
+		c = ws.cell(row=1, column=ci, value=col.get("label", ""))
+		c.font = header_font
+		c.fill = header_fill
+		c.border = thin_header_border
+		c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+	# data rows — last row treated as Total if its first cell value == "Total"
+	is_total_row = lambda r: str(r.get(columns[0]["key"], "")).strip().lower() == "total"
+
+	r_idx = 2
+	for row in rows:
+		total_row = is_total_row(row)
+		for ci, col in enumerate(columns, start=1):
+			val = row.get(col.get("key"), "")
+			# try numeric coercion for right-aligned columns
+			align = col.get("align", "left")
+			cell = ws.cell(row=r_idx, column=ci)
+			if align == "right" and isinstance(val, (int, float)):
+				cell.value = val
+				cell.number_format = "#,##0.00"
+			else:
+				cell.value = val
+			cell.alignment = Alignment(horizontal=align)
+			if total_row:
+				cell.font = total_font
+				cell.fill = total_fill
+				cell.border = thin_header_border
+			else:
+				cell.border = thin_grid
+		r_idx += 1
+
+	# auto column width
+	for ci, col in enumerate(columns, start=1):
+		letter = get_column_letter(ci)
+		max_len = len(str(col.get("label", "")))
+		for row in rows:
+			v = row.get(col.get("key"), "")
+			max_len = max(max_len, len(str(v)))
+		ws.column_dimensions[letter].width = min(max_len + 4, 42)
+
+	ws.freeze_panes = "A2"
+
+	buf = io.BytesIO()
+	wb.save(buf)
+	buf.seek(0)
+
+	fname = f"{_safe_fname(title)}.xlsx"
+	return _save_file(fname, buf.getvalue())
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# PDF EXPORT  (HTML → wkhtmltopdf, A4 portrait, same navy/blue palette)
+# ──────────────────────────────────────────────────────────────────────────
+
+def _export_pdf(title, columns, rows):
+	is_total_row = lambda r: str(r.get(columns[0]["key"], "")).strip().lower() == "total"
+
+	thead = "".join(f"<th>{frappe.utils.escape_html(c.get('label',''))}</th>" for c in columns)
+
+	body_rows = []
+	for row in rows:
+		total_row = is_total_row(row)
+		tds = []
+		for c in columns:
+			val = row.get(c.get("key"), "")
+			align = c.get("align", "left")
+			tds.append(f'<td style="text-align:{align}">{frappe.utils.escape_html(str(val))}</td>')
+		cls = ' class="total-row"' if total_row else ""
+		body_rows.append(f"<tr{cls}>{''.join(tds)}</tr>")
+
+	html = f"""
+	<html><head><meta charset="utf-8">
+	<style>
+		@page {{ size: A4 portrait; margin: 14mm 10mm; }}
+		* {{ box-sizing:border-box; margin:0; padding:0; font-family:Arial,Helvetica,sans-serif; }}
+		body {{ color:#1f2937; }}
+		h1 {{ font-size:16px; font-weight:700; color:#1e3a5f; margin-bottom:4px; }}
+		.meta {{ font-size:9px; color:#94a3b8; margin-bottom:12px; }}
+		table {{ width:100%; border-collapse:collapse; font-size:10px; }}
+		th {{
+			background:#1e3a5f; color:#fff; font-weight:700; text-transform:uppercase;
+			font-size:8.5px; letter-spacing:.4px; padding:6px 8px; text-align:left;
+			border:1px solid #93c5fd;
+		}}
+		td {{ padding:5px 8px; border:1px solid #e2e8f0; }}
+		tr.total-row td {{
+			background:#bfdbfe; color:#1e3a5f; font-weight:700; border:1px solid #93c5fd;
+		}}
+		tr:nth-child(even):not(.total-row) td {{ background:#f8fafc; }}
+	</style></head>
+	<body>
+		<h1>{frappe.utils.escape_html(title or 'Report')}</h1>
+		<div class="meta">Exported {frappe.utils.now_datetime().strftime('%d %b %Y, %I:%M %p')} by {frappe.session.user}</div>
+		<table>
+			<thead><tr>{thead}</tr></thead>
+			<tbody>{''.join(body_rows)}</tbody>
+		</table>
+	</body></html>
+	"""
+
+	from frappe.utils.pdf import get_pdf
+	pdf_content = get_pdf(html, options={"page-size": "A4", "orientation": "Portrait"})
+
+	fname = f"{_safe_fname(title)}.pdf"
+	return _save_file(fname, pdf_content)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Helpers
+# ──────────────────────────────────────────────────────────────────────────
+
+def _safe_fname(title):
+	import re
+	base = re.sub(r"[^A-Za-z0-9_-]+", "_", title or "report").strip("_") or "report"
+	return base[:80]
+
+
+def _save_file(fname, content):
+	f = frappe.get_doc({
+		"doctype": "File",
+		"file_name": fname,
+		"is_private": 0,
+		"content": content,
+	})
+	f.save(ignore_permissions=True)
+	return f.file_url
+
+
+
+
+
+
+
+"""
+creche_reports/api/pending_utilisation.py
+
+Backend endpoints for the "Pending Utilization" dashboard card.
+
+Unlike the old client-side definition (partners whose utilised_pct < 100,
+which is really just "not fully spent yet"), this module answers the
+actual operational question: "which partners have NOT SUBMITTED their
+utilisation report for an expected month, and what's their email?"
+
+Endpoints
+---------
+get_pending_utilisation_summary(cutoff_date=None)
+    Returns the list of missing (budget, financial_year, month) submissions,
+    grouped by partner, with each partner's email resolved from
+    User Permission (allow='Creche Partners') -> User.email.
+
+send_utilisation_reminder(partner_ids, custom_message=None)
+    Sends a reminder email to each partner's resolved email address via
+    frappe.sendmail, and returns a per-partner success/failure report.
+
+Usage from the client
+----------------------
+    frappe.call({
+        method: 'creche_reports.api.pending_utilisation.get_pending_utilisation_summary',
+        callback: (r) => { ... r.message.partners ... }
+    });
+
+    frappe.call({
+        method: 'creche_reports.api.pending_utilisation.send_utilisation_reminder',
+        args: { partner_ids: JSON.stringify(['CP-0001','CP-0002']) },
+        callback: (r) => { ... r.message.sent / r.message.failed ... }
+    });
+"""
+
+import json
+from datetime import date
+
+import frappe
+from frappe.utils import getdate
+
+try:
+    from dateutil.relativedelta import relativedelta
+except ImportError:  # pragma: no cover - dateutil ships with Frappe by default
+    relativedelta = None
+
+MONTH_ORDER = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Permission helpers (mirrors budget_utilisation_summary.py conventions)
+# ──────────────────────────────────────────────────────────────────────────
+
+def _get_user_permitted_partners():
+    user = frappe.session.user
+    roles = frappe.get_roles(user)
+    if "System Manager" in roles or user == "Administrator":
+        return None
+    rows = frappe.db.sql(
+        """
+        SELECT for_value FROM `tabUser Permission`
+        WHERE user = %s AND allow = 'Creche Partners'
+        """,
+        (user,), as_dict=True,
+    )
+    if not rows:
+        return None
+    return [r.for_value for r in rows if r.for_value]
+
+
+def _get_partner_emails(partner_ids):
+    """
+    Returns {partner_id: email}.
+    Strategy 1: User Permission (allow='Creche Partners') -> User.email
+    Strategy 2: direct email field on the Creche Partners doctype (fallback)
+    """
+    email_map = {}
+    if not partner_ids:
+        return email_map
+
+    perm_rows = frappe.db.sql(
+        """
+        SELECT up.for_value AS partner_id, u.email
+        FROM `tabUser Permission` up
+        INNER JOIN `tabUser` u ON u.name = up.user AND u.enabled = 1
+        WHERE up.allow = 'Creche Partners'
+          AND up.for_value IN %(pids)s
+        ORDER BY u.name
+        """,
+        {"pids": partner_ids},
+        as_dict=True,
+    )
+    for row in perm_rows:
+        if row.partner_id not in email_map and row.email:
+            email_map[row.partner_id] = row.email
+
+    missing = [p for p in partner_ids if p not in email_map]
+    if missing:
+        for field in ("email", "email_id", "contact_email"):
+            try:
+                rows = frappe.get_all(
+                    "Creche Partners",
+                    filters={"name": ["in", missing]},
+                    fields=["name", field],
+                    ignore_permissions=True,
+                )
+                hit = False
+                for r in rows:
+                    v = r.get(field, "")
+                    if v and r.name not in email_map:
+                        email_map[r.name] = v
+                        hit = True
+                if hit:
+                    break
+            except Exception:
+                continue
+
+    return email_map
+
+
+def _fy_for_month(d):
+    return f"{d.year}-{str(d.year + 1)[2:]}" if d.month >= 4 else f"{d.year - 1}-{str(d.year)[2:]}"
+
+
+def _add_month(d):
+    if relativedelta:
+        return d + relativedelta(months=1)
+    y, m = d.year, d.month + 1
+    if m > 12:
+        y += 1
+        m = 1
+    return date(y, m, 1)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Pending utilisation summary
+# ──────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def get_pending_utilisation_summary(cutoff_date=None):
+    """
+    Finds every (budget, financial_year, month) combination that should
+    have a "Creche utilisation" submission by now, but doesn't, and groups
+    the result by partner with their resolved email address.
+
+    cutoff: defaults to "last fully-completed month" — if today is on/after
+    the 5th, last calendar month is due; otherwise the month before that.
+    """
+    today = getdate(frappe.utils.nowdate())
+
+    if cutoff_date:
+        cutoff = getdate(cutoff_date).replace(day=1)
+    else:
+        months_back = 1 if today.day >= 5 else 2
+        cur = today.replace(day=1)
+        for _ in range(months_back):
+            y, m = cur.year, cur.month - 1
+            if m < 1:
+                y -= 1
+                m = 12
+            cur = date(y, m, 1)
+        cutoff = cur
+
+    permitted = _get_user_permitted_partners()
+    budget_filters = [
+        ["start_date", "is", "set"],
+        ["end_date", "is", "set"],
+        ["start_date", "<=", cutoff],
+    ]
+    if permitted is not None:
+        if not permitted:
+            return {"partners": [], "cutoff": str(cutoff)}
+        budget_filters.append(["partner_id", "in", permitted])
+
+    budgets = frappe.get_all(
+        "Creche Budget",
+        fields=["name", "budget_reference_name", "partner_id", "partner_name",
+                 "grant_id", "state", "district", "block", "start_date", "end_date"],
+        filters=budget_filters,
+        ignore_permissions=True,
+        limit_page_length=0,
+    )
+    if not budgets:
+        return {"partners": [], "cutoff": str(cutoff)}
+
+    budget_names = [b["name"] for b in budgets]
+    existing = set(
+        (r["budget_reference_id"], r["financial_year"], r["month"])
+        for r in frappe.get_all(
+            "Creche utilisation",
+            filters={"budget_reference_id": ["in", budget_names]},
+            fields=["budget_reference_id", "financial_year", "month"],
+            ignore_permissions=True,
+            limit_page_length=0,
+        )
+    )
+
+    by_partner = {}
+    for b in budgets:
+        start = getdate(b["start_date"])
+        end = getdate(b["end_date"])
+        effective_end = min(end.replace(day=1), cutoff)
+        cursor = start.replace(day=1)
+
+        missing_for_budget = []
+        while cursor <= effective_end:
+            month_name = MONTH_ORDER[cursor.month - 1]
+            fy_label = _fy_for_month(cursor)
+            if (b["name"], fy_label, month_name) not in existing:
+                deadline = _add_month(cursor).replace(day=5)
+                days_overdue = (today - deadline).days
+                missing_for_budget.append({
+                    "financial_year": fy_label,
+                    "month": month_name,
+                    "deadline": deadline.isoformat(),
+                    "days_overdue": max(days_overdue, 0),
+                })
+            cursor = _add_month(cursor)
+
+        if not missing_for_budget:
+            continue
+
+        pid = b["partner_id"] or b["partner_name"] or "Unknown"
+        if pid not in by_partner:
+            by_partner[pid] = {
+                "partner_id": b["partner_id"],
+                "partner_name": b["partner_name"],
+                "missing_count": 0,
+                "max_days_overdue": 0,
+                "budgets": [],
+            }
+        entry = by_partner[pid]
+        entry["budgets"].append({
+            "budget_id": b["name"],
+            "budget_reference_name": b["budget_reference_name"],
+            "grant_id": b["grant_id"],
+            "state": b["state"],
+            "missing_months": missing_for_budget,
+        })
+        entry["missing_count"] += len(missing_for_budget)
+        entry["max_days_overdue"] = max(
+            entry["max_days_overdue"],
+            max((m["days_overdue"] for m in missing_for_budget), default=0),
+        )
+
+    partner_ids = [pid for pid in by_partner if pid]
+    email_map = _get_partner_emails(partner_ids)
+
+    result = []
+    for pid, entry in by_partner.items():
+        entry["email"] = email_map.get(pid, "")
+        result.append(entry)
+
+    result.sort(key=lambda r: (-r["max_days_overdue"], r["partner_name"] or ""))
+
+    return {"partners": result, "cutoff": str(cutoff)}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Send reminder emails
+# ──────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def send_utilisation_reminder(partner_ids=None, custom_message=None):
+    if isinstance(partner_ids, str):
+        try:
+            partner_ids = json.loads(partner_ids)
+        except Exception:
+            partner_ids = [p.strip() for p in partner_ids.split(",") if p.strip()]
+    partner_ids = partner_ids or []
+    if not partner_ids:
+        frappe.throw(frappe._("No partners selected"))
+
+    permitted = _get_user_permitted_partners()
+    if permitted is not None:
+        partner_ids = [p for p in partner_ids if p in permitted]
+        if not partner_ids:
+            frappe.throw(frappe._("You do not have permission to email these partners"))
+
+    email_map = _get_partner_emails(partner_ids)
+    partner_names = {
+        r.name: r.partner_name
+        for r in frappe.get_all(
+            "Creche Partners",
+            filters={"name": ["in", partner_ids]},
+            fields=["name", "partner_name"],
+            ignore_permissions=True,
+        )
+    }
+
+    default_message = (
+        "This is a reminder that your utilisation report submission is pending. "
+        "Kindly submit it at the earliest to keep your budget records up to date."
+    )
+    message_body = custom_message or default_message
+
+    sent, failed = [], []
+    for pid in partner_ids:
+        email = email_map.get(pid)
+        pname = partner_names.get(pid, pid)
+        if not email:
+            failed.append({"partner_id": pid, "partner_name": pname, "reason": "No email on file"})
+            continue
+        try:
+            frappe.sendmail(
+                recipients=[email],
+                subject="Utilisation Report Submission Reminder",
+                message=f"<p>Dear {frappe.utils.escape_html(pname)},</p><p>{frappe.utils.escape_html(message_body)}</p>",
+                now=True,
+            )
+            sent.append({"partner_id": pid, "partner_name": pname, "email": email})
+        except Exception as e:
+            failed.append({"partner_id": pid, "partner_name": pname, "reason": str(e)})
+
+    return {"sent": sent, "failed": failed}

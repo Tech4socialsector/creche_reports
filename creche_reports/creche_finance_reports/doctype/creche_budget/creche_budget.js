@@ -11,9 +11,8 @@
 
 frappe.ui.form.on('Creche Budget', {
 
-        refresh: function(frm) {
+    refresh: function(frm) {
 
-        // Set Current Financial Year Automatically
         if (!frm.doc.financial_year) {
 
             let today = new Date();
@@ -36,7 +35,11 @@ frappe.ui.form.on('Creche Budget', {
 
             frm.set_value('financial_year', financial_year);
         }
+        if(doc.total_budget==""||doc.total_budget==null){
+        calculate_parent_total(frm);
+    }
     },
+    
     // Start Date Change
     start_date: function(frm) {
         validate_dates(frm);
@@ -47,7 +50,7 @@ frappe.ui.form.on('Creche Budget', {
         validate_dates(frm);
     }
 
-
+    
 });
 
 

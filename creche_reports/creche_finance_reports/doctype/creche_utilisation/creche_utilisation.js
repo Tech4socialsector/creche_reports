@@ -68,7 +68,8 @@ frappe.ui.form.on('Creche utilisation', {
             // }, 2);
         }
         if(doc.total_utilisation==""||doc.total_utilisation==null){
-        calculate_total_utilisation(frm);}
+        calculate_total_utilisation(frm);
+    }
     },
     // Declaration Validation
     validate: function(frm) {

@@ -1787,6 +1787,305 @@ def download_budget_template(data=None):
 
 
 
+# @frappe.whitelist(allow_guest=True)
+# def download_utilisation_template(data=None):
+
+#     import json
+#     from io import BytesIO
+#     from openpyxl import Workbook
+#     from openpyxl.styles import Font, PatternFill
+
+#     # --------------------------------------------------
+#     # PARSE DATA
+#     # --------------------------------------------------
+
+#     if isinstance(data, str):
+#         data = json.loads(data)
+
+#     data = data or {}
+
+#     # --------------------------------------------------
+#     # GET LOGGED IN USER
+#     # --------------------------------------------------
+
+#     logged_in_user = frappe.session.user
+
+#     # --------------------------------------------------
+#     # FIND IMPORT TEMPLATE SETTINGS
+#     # --------------------------------------------------
+
+#     template_settings_name = frappe.db.get_value(
+#         "Import Template settings",
+#         {
+#             "user": logged_in_user
+#         }
+#     )
+
+#     # --------------------------------------------------
+#     # GET DOCUMENT
+#     # --------------------------------------------------
+
+#     if template_settings_name:
+
+#         template_settings = frappe.get_doc(
+#             "Import Template settings",
+#             template_settings_name
+#         )
+
+#         items = []
+
+#         for row in template_settings.table_jndv:
+
+#             items.append({
+
+#                 "name": row.type_of_expenses_id,
+
+#                 "budget_main_head": row.budget_main_head,
+
+#                 "budget_sub_head": row.budget_sub_head,
+
+#                 "type_of_expenses": row.type_of_expenses
+#             })
+
+#     else:
+
+#         items = frappe.get_all(
+#             "Budget and Expense items list",
+#             fields=[
+#                 "name",
+#                 "budget_main_head",
+#                 "budget_sub_head",
+#                 "type_of_expenses"
+#             ],
+#             order_by="name asc"
+#         )
+
+#     # --------------------------------------------------
+#     # VALIDATION
+#     # --------------------------------------------------
+
+#     if not items:
+
+#         frappe.throw(
+#             "No Import Template Items found for this user"
+#         )
+
+#     # --------------------------------------------------
+#     # CREATE WORKBOOK
+#     # --------------------------------------------------
+
+#     wb = Workbook()
+
+#     ws = wb.active
+
+#     ws.title = "Creche Utilisation"
+
+#     # --------------------------------------------------
+#     # HEADERS
+#     # --------------------------------------------------
+
+#     headers = [
+#         "Budget reference ID",                            # A
+#         "Budget reference Name",                          # B
+#         "Partner ID",                                     # C
+#         "Partner Name",                                   # D
+#         "Grant ID",                                       # E
+#         "Block",                                          # F
+#         "District",                                       # G
+#         "State",                                          # H
+#         "No of creches",                                  # I
+#         "Month",                                          # J
+#         "Financial year",                                 # K
+#         "Date",                                           # L
+
+#         "Type of expenses ID (Utilisation Items List)",   # M
+#         "Budget main head (Utilisation Items List)",      # N
+#         "Budget sub head (Utilisation Items List)",       # O
+#         "Type of expenses (Utilisation Items List)",      # P
+
+#         "Total Amount (Utilisation Items List)",          # Q
+#         "Notes (Utilisation Items List)",                 # R
+
+#         "Total Utilisation",                              # S
+#         "Bank + Cash Balance as at end of month reported",# T
+#         "Interest from Bank",                             # U
+#         "Declaration"                                     # V
+#     ]
+
+#     ws.append(headers)
+
+#     # --------------------------------------------------
+#     # HEADER STYLE
+#     # --------------------------------------------------
+
+#     header_fill = PatternFill(
+#         start_color="D9EAF7",
+#         end_color="D9EAF7",
+#         fill_type="solid"
+#     )
+
+#     for cell in ws[1]:
+#         cell.font = Font(bold=True)
+#         cell.fill = header_fill
+
+#     # --------------------------------------------------
+#     # PARENT DATA
+#     # --------------------------------------------------
+
+#     parent_data = [
+#         data.get("budget_reference_id"),    # A
+#         data.get("budget_reference_name"),  # B
+#         data.get("partner_id"),             # C
+#         data.get("partner_name"),           # D
+#         data.get("grant_id"),               # E
+#         data.get("block"),                  # F
+#         data.get("district"),               # G
+#         data.get("state"),                  # H
+#         data.get("no_of_creches"),          # I
+#         data.get("month"),                  # J
+#         data.get("financial_year"),         # K
+#         data.get("date")                    # L
+#     ]
+
+#     # --------------------------------------------------
+#     # ROW RANGE
+#     # --------------------------------------------------
+
+#     start_row = 2
+#     end_row = start_row + len(items) - 1
+
+#     # --------------------------------------------------
+#     # ADD DATA ROWS
+#     # --------------------------------------------------
+
+#     for idx, item in enumerate(items, start=start_row):
+
+#         row = []
+
+#         # Parent data only in first row
+#         row.extend(
+#             parent_data if idx == start_row else [""] * 12
+#         )
+
+#         # Child table values
+#         row.extend([
+#             item.get("name"),               # M
+#             item.get("budget_main_head"),   # N
+#             item.get("budget_sub_head"),    # O
+#             item.get("type_of_expenses"),   # P
+#         ])
+
+#         # Editable Total Amount
+#         row.append(0)                       # Q
+
+#         # Notes
+#         row.append("")                      # R
+
+#         # Final columns only in first row
+#         if idx == start_row:
+#             row.extend([
+#                 f"=SUM(Q{start_row}:Q{end_row})",  # S - Total Utilisation
+#                 0,                                  # T - Bank + Cash Balance
+#                 0,                                  # U - Interest from Bank
+#                 1                                   # V - Declaration
+#             ])
+#         else:
+#             row.extend(["", "", "", ""])
+
+#         ws.append(row)
+
+#     # --------------------------------------------------
+#     # STYLE - TOTAL AMOUNT COLUMN (Q) - green tint
+#     # --------------------------------------------------
+
+#     total_fill = PatternFill(
+#         start_color="E8F4EA",
+#         end_color="E8F4EA",
+#         fill_type="solid"
+#     )
+
+#     for row_no in range(2, end_row + 1):
+#         ws[f"Q{row_no}"].fill = total_fill
+
+#     # --------------------------------------------------
+#     # STYLE - TOTAL UTILISATION COLUMN (S) - yellow tint
+#     # --------------------------------------------------
+
+#     budget_fill = PatternFill(
+#         start_color="FFF2CC",
+#         end_color="FFF2CC",
+#         fill_type="solid"
+#     )
+
+#     for row_no in range(start_row, end_row + 1):
+#         ws[f"S{row_no}"].fill = budget_fill
+
+#     # --------------------------------------------------
+#     # FREEZE HEADER
+#     # --------------------------------------------------
+
+#     ws.freeze_panes = "A2"
+
+#     # --------------------------------------------------
+#     # ENABLE FILTERS
+#     # --------------------------------------------------
+
+#     ws.auto_filter.ref = ws.dimensions
+
+#     # --------------------------------------------------
+#     # AUTO COLUMN WIDTH
+#     # --------------------------------------------------
+
+#     for col in ws.columns:
+#         max_length = max(
+#             len(str(cell.value or ""))
+#             for cell in col
+#         )
+#         adjusted_width = min(max_length + 5, 50)
+#         ws.column_dimensions[col[0].column_letter].width = adjusted_width
+
+#     # --------------------------------------------------
+#     # HIDE COLUMNS
+#     # --------------------------------------------------
+
+#     hidden_columns = [
+#         "A",  # Budget reference ID
+#         "C",  # Partner ID
+#         "L",  # Date
+#         "M",  # Type of expenses ID
+#         "V",  # Declaration
+#     ]
+
+#     for col in hidden_columns:
+#         ws.column_dimensions[col].hidden = True
+
+#     # --------------------------------------------------
+#     # FILE NAME
+#     # --------------------------------------------------
+
+#     month = data.get("month") or "month"
+
+#     financial_year = (
+#         str(data.get("financial_year") or "fy")
+#         .split("-")[0]  # e.g. "2024-2025" → "2024"
+#     )
+
+#     filename = f"{month}_{financial_year}_creche_utilisation"
+
+#     # --------------------------------------------------
+#     # SAVE FILE
+#     # --------------------------------------------------
+
+#     output = BytesIO()
+
+#     wb.save(output)
+
+#     frappe.response["filename"] = f"{filename}.xlsx"
+#     frappe.response["filecontent"] = output.getvalue()
+#     frappe.response["type"] = "binary"
+
+
+
 @frappe.whitelist(allow_guest=True)
 def download_utilisation_template(data=None):
 
@@ -1894,22 +2193,23 @@ def download_utilisation_template(data=None):
         "District",                                       # G
         "State",                                          # H
         "No of creches",                                  # I
-        "Month",                                          # J
-        "Financial year",                                 # K
-        "Date",                                           # L
+        "No of running creches",                          # J
+        "Month",                                          # K
+        "Financial year",                                 # L
+        "Date",                                           # M
 
-        "Type of expenses ID (Utilisation Items List)",   # M
-        "Budget main head (Utilisation Items List)",      # N
-        "Budget sub head (Utilisation Items List)",       # O
-        "Type of expenses (Utilisation Items List)",      # P
+        "Type of expenses ID (Utilisation Items List)",   # N
+        "Budget main head (Utilisation Items List)",      # O
+        "Budget sub head (Utilisation Items List)",       # P
+        "Type of expenses (Utilisation Items List)",      # Q
 
-        "Total Amount (Utilisation Items List)",          # Q
-        "Notes (Utilisation Items List)",                 # R
+        "Total Amount (Utilisation Items List)",          # R
+        "Notes (Utilisation Items List)",                 # S
 
-        "Total Utilisation",                              # S
-        "Bank + Cash Balance as at end of month reported",# T
-        "Interest from Bank",                             # U
-        "Declaration"                                     # V
+        "Total Utilisation",                              # T
+        "Bank + Cash Balance as at end of month reported",# U
+        "Interest from Bank",                             # V
+        "Declaration"                                     # W
     ]
 
     ws.append(headers)
@@ -1933,19 +2233,22 @@ def download_utilisation_template(data=None):
     # --------------------------------------------------
 
     parent_data = [
-        data.get("budget_reference_id"),    # A
-        data.get("budget_reference_name"),  # B
-        data.get("partner_id"),             # C
-        data.get("partner_name"),           # D
-        data.get("grant_id"),               # E
-        data.get("block"),                  # F
-        data.get("district"),               # G
-        data.get("state"),                  # H
-        data.get("no_of_creches"),          # I
-        data.get("month"),                  # J
-        data.get("financial_year"),         # K
-        data.get("date")                    # L
+        data.get("budget_reference_id"),        # A
+        data.get("budget_reference_name"),      # B
+        data.get("partner_id"),                 # C
+        data.get("partner_name"),               # D
+        data.get("grant_id"),                   # E
+        data.get("block"),                      # F
+        data.get("district"),                   # G
+        data.get("state"),                      # H
+        data.get("no_of_creches"),              # I
+        data.get("no_of_running_creches") or 0, # J  <-- NEW (default 0)
+        data.get("month"),                      # K
+        data.get("financial_year"),             # L
+        data.get("date")                        # M
     ]
+
+    PARENT_COL_COUNT = len(parent_data)  # now 13
 
     # --------------------------------------------------
     # ROW RANGE
@@ -1964,30 +2267,30 @@ def download_utilisation_template(data=None):
 
         # Parent data only in first row
         row.extend(
-            parent_data if idx == start_row else [""] * 12
+            parent_data if idx == start_row else [""] * PARENT_COL_COUNT
         )
 
         # Child table values
         row.extend([
-            item.get("name"),               # M
-            item.get("budget_main_head"),   # N
-            item.get("budget_sub_head"),    # O
-            item.get("type_of_expenses"),   # P
+            item.get("name"),               # N
+            item.get("budget_main_head"),   # O
+            item.get("budget_sub_head"),    # P
+            item.get("type_of_expenses"),   # Q
         ])
 
         # Editable Total Amount
-        row.append(0)                       # Q
+        row.append(0)                       # R
 
         # Notes
-        row.append("")                      # R
+        row.append("")                      # S
 
         # Final columns only in first row
         if idx == start_row:
             row.extend([
-                f"=SUM(Q{start_row}:Q{end_row})",  # S - Total Utilisation
-                0,                                  # T - Bank + Cash Balance
-                0,                                  # U - Interest from Bank
-                1                                   # V - Declaration
+                f"=SUM(R{start_row}:R{end_row})",  # T - Total Utilisation
+                0,                                  # U - Bank + Cash Balance
+                0,                                  # V - Interest from Bank
+                1                                   # W - Declaration
             ])
         else:
             row.extend(["", "", "", ""])
@@ -1995,7 +2298,7 @@ def download_utilisation_template(data=None):
         ws.append(row)
 
     # --------------------------------------------------
-    # STYLE - TOTAL AMOUNT COLUMN (Q) - green tint
+    # STYLE - TOTAL AMOUNT COLUMN (R) - green tint
     # --------------------------------------------------
 
     total_fill = PatternFill(
@@ -2005,10 +2308,10 @@ def download_utilisation_template(data=None):
     )
 
     for row_no in range(2, end_row + 1):
-        ws[f"Q{row_no}"].fill = total_fill
+        ws[f"R{row_no}"].fill = total_fill
 
     # --------------------------------------------------
-    # STYLE - TOTAL UTILISATION COLUMN (S) - yellow tint
+    # STYLE - TOTAL UTILISATION COLUMN (T) - yellow tint
     # --------------------------------------------------
 
     budget_fill = PatternFill(
@@ -2018,7 +2321,7 @@ def download_utilisation_template(data=None):
     )
 
     for row_no in range(start_row, end_row + 1):
-        ws[f"S{row_no}"].fill = budget_fill
+        ws[f"T{row_no}"].fill = budget_fill
 
     # --------------------------------------------------
     # FREEZE HEADER
@@ -2051,9 +2354,9 @@ def download_utilisation_template(data=None):
     hidden_columns = [
         "A",  # Budget reference ID
         "C",  # Partner ID
-        "L",  # Date
-        "M",  # Type of expenses ID
-        "V",  # Declaration
+        "M",  # Date
+        "N",  # Type of expenses ID
+        "W",  # Declaration
     ]
 
     for col in hidden_columns:

@@ -27,6 +27,7 @@ class Crecheutilisation(Document):
 		interest_from_bank: DF.Currency
 		month: DF.Link
 		no_of_creches: DF.Int
+		no_of_running_creches: DF.Int
 		partner_id: DF.Link
 		partner_name: DF.Data | None
 		state: DF.Link

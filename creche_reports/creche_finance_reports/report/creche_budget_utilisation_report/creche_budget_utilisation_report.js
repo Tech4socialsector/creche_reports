@@ -857,8 +857,6 @@
 
 
 
-
-
 // Copyright (c) 2026, Azim Premji Foundation and contributors
 
 const EXCEL_METHOD =
@@ -921,6 +919,18 @@ const CBUR_CSS = `
 		border-left: 4px solid #1A252F !important;
 	}
 
+	/* ── Percent pill badges (class-based so media queries can resize them) ── */
+	.cbur-pct-pill {
+		background: var(--pct-bg);
+		color: var(--pct-fg);
+		padding: 2px 10px;
+		border-radius: 12px;
+		font-weight: 700;
+		display: inline-block;
+		min-width: 52px;
+		text-align: center;
+	}
+
 	/* ── Scroll architecture: ONE scrollbar per axis ── */
 	.report-results {
 		width: 100% !important;
@@ -961,6 +971,79 @@ const CBUR_CSS = `
 
 	/* ── Hidden filter column ── */
 	.cbur-col-hidden { display: none !important; }
+
+	/* ═══════════════════════════════════════════════════════════════════
+	   RESPONSIVE — tablet, mobile, and ultra-wide adjustments
+	   ═══════════════════════════════════════════════════════════════════ */
+
+	/* ── Large desktop / ultra-wide: don't let the report feel unbounded ── */
+	@media (min-width: 1600px) {
+		.report-results .dt-cell__content { font-size: 13.5px !important; }
+	}
+
+	/* ── Tablet ── */
+	@media (max-width: 1024px) {
+		.report-results .dt-cell__content { font-size: 12.5px !important; }
+		.cbur-btn-bar { padding: 6px 10px 8px; }
+	}
+
+	/* ── Mobile / narrow tablet ── */
+	@media (max-width: 768px) {
+		.report-results .dt-cell__content {
+			font-size: 12px !important;
+			padding: 0 6px !important;
+		}
+
+		/* Stack the standard Frappe filter controls full-width instead of
+		   letting fixed inline widths overflow the viewport */
+		.page-form { flex-wrap: wrap !important; }
+		.page-form .frappe-control,
+		.page-form .form-group {
+			width: 100% !important;
+			max-width: 100% !important;
+			margin-right: 0 !important;
+		}
+
+		.cbur-btn-bar {
+			justify-content: center;
+			padding: 8px 10px;
+		}
+		.cbur-btn-bar .btn {
+			flex: 1 1 auto;
+			min-height: 38px;
+		}
+
+		.cbur-pct-pill {
+			min-width: 40px;
+			padding: 2px 6px;
+			font-size: 11px;
+		}
+	}
+
+	/* ── Small phones ── */
+	@media (max-width: 480px) {
+		.report-results .dt-cell__content { font-size: 11px !important; }
+
+		.cbur-btn-bar .btn {
+			font-size: 12px;
+			padding: 6px 10px;
+			width: 100%;
+		}
+
+		.cbur-pct-pill {
+			min-width: 34px;
+			padding: 1px 5px;
+			font-size: 10px;
+		}
+	}
+
+	/* ── Touch devices: bigger, easier-to-hit tap targets ── */
+	@media (hover: none) and (pointer: coarse) {
+		.dt-row-toggle,
+		.cbur-btn-bar .btn {
+			min-height: 40px;
+		}
+	}
 `;
 
 frappe.query_reports["Creche Budget Utilisation Report"] = {
@@ -969,9 +1052,10 @@ frappe.query_reports["Creche Budget Utilisation Report"] = {
 	initial_depth: 0,
 
 	get_datatable_options(options) {
+		const isMobile = window.innerWidth <= 768;
 		return Object.assign(options, {
 			layout: "fixed",
-			cellHeight: 35,
+			cellHeight: isMobile ? 30 : 35,
 			headerDropdown: [],
 		});
 	},
@@ -1139,12 +1223,18 @@ frappe.query_reports["Creche Budget Utilisation Report"] = {
 		};
 
 		// ── 3. Vertical height pinning ────────────────────────────────────────
+		// Breakpoint-aware: narrow viewports have taller wrapped filter bars,
+		// so we give the table a smaller minimum height and a tighter bottom
+		// margin rather than the fixed desktop numbers.
 		let _heightObs = null;
 		const pinHeight = () => {
 			const scrollEl = document.querySelector(".report-results .dt-scrollable");
 			if (!scrollEl) return;
 			const top = scrollEl.getBoundingClientRect().top;
-			const h   = Math.max(200, window.innerHeight - top - 40) + "px";
+			const isNarrow    = window.innerWidth <= 768;
+			const bottomSpace = isNarrow ? 24 : 40;
+			const minHeight   = isNarrow ? 160 : 200;
+			const h = Math.max(minHeight, window.innerHeight - top - bottomSpace) + "px";
 			scrollEl.style.setProperty("height",     h, "important");
 			scrollEl.style.setProperty("max-height", h, "important");
 			scrollEl.style.setProperty("overflow-y", "auto",   "important");
@@ -1162,10 +1252,17 @@ frappe.query_reports["Creche Budget Utilisation Report"] = {
 			const dt = frappe.query_report.datatable;
 			if (!dt) return;
 
-			const CELL_PAD = 22;   // total L+R padding inside a cell
-			const SORT_W   = 22;   // sort-arrow icon width in header cells
-			const INDENT_W = 18;   // per-level indent added by DataTable tree view
-			const MIN_W    = 55;   // absolute minimum column width
+			// Breakpoint-aware sizing constants — recomputed on every call so
+			// resize / orientation-change / breakpoint crossings all pick up
+			// the right numbers without needing a page reload.
+			const vw        = window.innerWidth;
+			const isTiny     = vw <= 480;
+			const isNarrow   = vw <= 768;
+			const CELL_PAD   = isTiny ? 14 : isNarrow ? 16 : 22;   // total L+R padding inside a cell
+			const SORT_W     = isNarrow ? 16 : 22;                 // sort-arrow icon width in header cells
+			const INDENT_W   = isNarrow ? 14 : 18;                 // per-level indent added by DataTable tree view
+			const MIN_W      = isTiny ? 44 : isNarrow ? 48 : 55;   // absolute minimum column width
+			const MIN_W_COL0 = isNarrow ? 90 : 120;                // row-name column needs room for tree labels
 
 			let cols = [];
 			try { cols = dt.datamanager.getColumns(false); } catch (_) { return; }
@@ -1206,6 +1303,10 @@ frappe.query_reports["Creche Budget Utilisation Report"] = {
 				});
 			});
 
+			// Row-name column always keeps a usable minimum, even if every
+			// visible label happened to be short (e.g. after filtering).
+			if (nat.length) nat[0] = Math.max(nat[0], MIN_W_COL0);
+
 			// ── Step 3: find the true available content width ─────────────────
 			// Walk up from .report-results to find the nearest ancestor that has
 			// a real layout width (i.e. is not overflow:visible / auto with no
@@ -1227,11 +1328,27 @@ frappe.query_reports["Creche Budget Utilisation Report"] = {
 			if (totalNat > 0 && totalNat < availWidth) {
 				// Scale proportionally to fill
 				final = nat.map((w) => Math.floor((w / totalNat) * availWidth));
+
+				// Ultra-wide screens: don't let value columns stretch into
+				// uselessly wide currency cells — cap their growth and give
+				// the reclaimed space to the row-name column instead.
+				if (availWidth > 1600) {
+					let reclaimed = 0;
+					final = final.map((w, i) => {
+						if (i === 0) return w;
+						const cap = Math.floor(nat[i] * 1.6);
+						if (w > cap) { reclaimed += w - cap; return cap; }
+						return w;
+					});
+					final[0] += reclaimed;
+				}
+
 				// Give rounding remainder to col 0
 				const used = final.reduce((a, b) => a + b, 0);
 				if (availWidth > used) final[0] += availWidth - used;
 			} else {
 				// Natural widths — table will scroll horizontally
+				// (the expected, correct behaviour on phones/small tablets)
 				final = nat;
 			}
 
@@ -1277,6 +1394,17 @@ frappe.query_reports["Creche Budget Utilisation Report"] = {
 			window._cburResizeTimer = setTimeout(() => { autoFitColumns(); pinHeight(); watchHeight(); }, 160);
 		};
 		window.addEventListener("resize", window._cburResizeHandler);
+
+		// Orientation change (phones/tablets rotating) fires separately from
+		// resize on some browsers/OS combos, and needs a slightly longer
+		// delay since the viewport dimensions settle after the event fires.
+		if (window._cburOrientHandler) window.removeEventListener("orientationchange", window._cburOrientHandler);
+		window._cburOrientHandler = () => {
+			if (_heightObs) { _heightObs.disconnect(); _heightObs = null; }
+			clearTimeout(window._cburOrientTimer);
+			window._cburOrientTimer = setTimeout(() => { autoFitColumns(); pinHeight(); watchHeight(); }, 300);
+		};
+		window.addEventListener("orientationchange", window._cburOrientHandler);
 
 		setTimeout(fullRun, 500);
 
@@ -1495,9 +1623,10 @@ frappe.query_reports["Creche Budget Utilisation Report"] = {
 				pct >= 75 ? ["#D6EAF8", "#1A5276"] :   // blue-grey: good
 				pct >= 50 ? ["#FDEBD0", "#784212"] :   // warm amber: mid
 				            ["#FADBD8", "#922B21"];     // muted red: low
-			return `<span style="background:${bg};color:${fg};padding:2px 10px;` +
-				`border-radius:12px;font-weight:700;display:inline-block;` +
-				`min-width:52px;text-align:center;">${value}</span>`;
+			// Uses a class + CSS custom properties (rather than fixed inline
+			// padding/min-width) so the responsive media queries above can
+			// resize the pill on smaller screens.
+			return `<span class="cbur-pct-pill" style="--pct-bg:${bg};--pct-fg:${fg};">${value}</span>`;
 		}
 
 		return value;

@@ -30748,9 +30748,7 @@ console.log('[Creche Dashboard] JS loaded — build tag: main-head-diagnostic-v1
 // }
 
 
-
-
-console.log('[Creche Dashboard] JS loaded — build tag: main-head-diagnostic-v1');
+console.log('[Creche Dashboard] JS loaded — build tag: main-head-diagnostic-v1-fix1');
 
 frappe.pages['creche-dashboard'].on_page_load = function(wrapper) {
 	const page = frappe.ui.make_app_page({
@@ -31262,16 +31260,11 @@ class CrecheBudgetDashboard {
 		const bank_bal_gap        = bank_variance;
 		const unutilised_disb     = unspent_disb;
 
-		// Pending Util card only for finance roles
-		const _userRoles = (frappe.boot && frappe.boot.user && frappe.boot.user.roles) || [];
-		const _showPendingCard = ['Creche Finance Head','Creche Finance SPOCS','System Manager','Administrator']
-			.some(r => _userRoles.includes(r));
-
-		// Partners who have utilised ≥80% of what's been disbursed to them
+		// Partners who have utilised ≥85% of what's been disbursed to them
 		const partners_80pct_list = (partners || []).filter(p => {
 			const disb = parseFloat(p.total_disbursement) || 0;
 			const util = parseFloat(p.total_utilisation) || 0;
-			return disb > 0 && (util / disb) >= 0.8;
+			return disb > 0 && (util / disb) >= 0.85;
 		});
 
 		// ── 8-card layout — tells a complete financial story ─────────────────
@@ -31287,8 +31280,8 @@ class CrecheBudgetDashboard {
 				subLabel: `${parseFloat(s.disbursement_pct||0).toFixed(1)}% of approved budget transferred`,
 			},
 			{
-				panel:'utilisation', label:'Total Utilisation', raw: total_util, base: total_budget, accent:'#d97706',
-				subLabel: `${parseFloat(s.utilisation_pct||0).toFixed(1)}% of approved budget spent`,
+				panel:'utilisation', label:'Total Utilisation', raw: total_util, base: total_disb, accent:'#d97706',
+				subLabel: `${(total_disb > 0 ? (total_util / total_disb * 100) : 0).toFixed(1)}% of disbursed amount utilised`,
 			},
 			{
 				panel:'remaining_budget', label:'Balance Budget to be Disbursed', raw: remaining_budget, base: total_budget,
@@ -31314,15 +31307,15 @@ class CrecheBudgetDashboard {
 			},
 			// ── Compliance ────────────────────────────────────────────────────────
 			{
-				panel:'partners_80pct', label:'Partners with 80%+ Disbursement Utilization', count: partners_80pct_list.length,
+				panel:'partners_80pct', label:'Partners with 85%+ Disbursement Utilization', count: partners_80pct_list.length,
 				accent:'#15803d',
-				subLabel: 'Partners who have utilised ≥80% of funds disbursed to them',
+				subLabel: 'Partners who have utilised ≥85% of funds disbursed to them',
 			},
-			...(_showPendingCard ? [{
+			{
 				panel:'pending_util', label:'Pending Utilization Submission',
 				raw: null, count:'…', loading: true, accent:'#dc2626',
 				subLabel: 'Partners who haven\'t submitted utilization',
-			}] : []),
+			},
 		];
 
 		el.innerHTML = CARDS.map(c => {
@@ -31689,6 +31682,10 @@ class CrecheBudgetDashboard {
 						<span class="cbd-bc__item cbd-bc__item--active">Pending Utilization Submission</span>
 					</div>
 					<div class="cbd-dm__actions">
+						<div class="cbd-dm__search">
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+							<input type="text" class="cbd-dm__search-input" data-tbl="cbd_pu_table" placeholder="Search...">
+						</div>
 						<div class="cbd-exp-dd" id="cbd_pu_exp_dd">
 							<button class="cbd-exp-btn cbd-exp-btn--main" data-tbl="cbd_pu_table" data-fname="Pending_Utilization" data-title="Pending Utilization Submission">
 								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -31711,7 +31708,6 @@ class CrecheBudgetDashboard {
 					<div class="cbd-pu__filterbar-left">
 						<span class="cbd-pu__datelbl">Checking submissions through:</span>
 						<span id="cbd_pu_dateinfo" style="font-size:12px;font-weight:700;color:#1e3a5f"></span>
-						<span style="font-size:11px;color:#94a3b8">(the month before the dashboard's End Date, and any earlier month per budget)</span>
 					</div>
 				</div>
 
@@ -31754,6 +31750,10 @@ class CrecheBudgetDashboard {
 			if (!e.target.closest('.cbd-exp-dd')) {
 				box.querySelectorAll('.cbd-exp-dd--open').forEach(d => d.classList.remove('cbd-exp-dd--open'));
 			}
+		});
+		box.addEventListener('input', e => {
+			const inp = e.target.closest('.cbd-dm__search-input');
+			if (inp) this._filter_table_rows(inp.dataset.tbl, inp.value);
 		});
 
 		this._reload_pending_util_by_cutoff(cutoff);
@@ -31801,77 +31801,79 @@ class CrecheBudgetDashboard {
 		}
 
 		// ── FIX ──
-		// One row per BUDGET (not per partner). Previously every budget's
-		// missing months were merged into a single flat list per partner,
-		// which both made the "Missing Months" column absurdly wide for
-		// partners with several long-running budgets, and hid which
-		// specific budget each gap belonged to. Each budget's own missing
-		// months already respect that budget's own start/end date
-		// (handled server-side), so this view makes that visible instead
-		// of blending everything together.
-		const flatRows = [];
-		data.forEach(p => {
-			(p.budgets || []).forEach(b => {
-				if (b.missing_months && b.missing_months.length) {
-					flatRows.push({
-						partner_id: p.partner_id, partner_name: p.partner_name, email: p.email,
-						budget_reference_name: b.budget_reference_name || b.budget_id || '—',
-						missing_months: b.missing_months,
-						total_months: (b.total_months_checked !== undefined && b.total_months_checked !== null)
-							? b.total_months_checked : b.missing_months.length,
-					});
+		// Grouped by partner with real rowspan — Partner Name / Total
+		// Pending Months / Email / the action button each span every
+		// budget row for that partner (one merged cell), while Budget
+		// Reference / Months Pending / Months stay one row per budget.
+		// This mirrors the requested spreadsheet layout exactly, and the
+		// export path (_export_pending_util_table) walks these same
+		// rowspan attributes to produce real merged cells in Excel.
+		const partners = data
+			.map(p => ({
+				partner_id: p.partner_id, partner_name: p.partner_name, email: p.email,
+				budgets: (p.budgets || []).filter(b => b.missing_months && b.missing_months.length),
+			}))
+			.filter(p => p.budgets.length)
+			.sort((a, b) => (a.partner_name || '').localeCompare(b.partner_name || ''));
+
+		let rowsHtml = '';
+		partners.forEach((p, pIdx) => {
+			const n = p.budgets.length;
+			const totalPending = p.budgets.reduce((s, b) => s + b.missing_months.length, 0);
+			const pid = frappe.utils.escape_html(p.partner_id || '');
+			const pname = frappe.utils.escape_html(p.partner_name || p.partner_id || '—');
+			const emailHtml = p.email ? frappe.utils.escape_html(p.email) : '<span class="cbd-pu__no-email">No email</span>';
+
+			p.budgets.forEach((b, bIdx) => {
+				const bref = frappe.utils.escape_html(b.budget_reference_name || b.budget_id || '—');
+				const monthChips = b.missing_months.map(m =>
+					`<span class="cbd-pu__month-chip" style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca">${frappe.utils.escape_html(m.month)} (${frappe.utils.escape_html(m.financial_year)})</span>`
+				).join(' ');
+
+				rowsHtml += `<tr class="cbd-dt__row" data-partner-idx="${pIdx}">`;
+				if (bIdx === 0) {
+					rowsHtml += `
+						<td class="cbd-dt__num" rowspan="${n}" style="vertical-align:middle">${pIdx + 1}</td>
+						<td class="cbd-dt__name" rowspan="${n}" style="white-space:normal;min-width:140px;font-weight:700;vertical-align:middle">${pname}</td>`;
 				}
+				rowsHtml += `
+					<td style="white-space:normal;min-width:140px">${bref}</td>
+					<td style="text-align:center;font-weight:800;color:#dc2626">${b.missing_months.length}</td>
+					<td style="min-width:260px;max-width:420px">
+						<div class="cbd-pu__months-cell">${monthChips || '—'}</div>
+					</td>`;
+				if (bIdx === 0) {
+					rowsHtml += `
+						<td style="text-align:center;font-weight:800;color:#1e3a5f;vertical-align:middle" rowspan="${n}">${totalPending}</td>
+						<td style="font-size:12px;min-width:180px;white-space:normal;vertical-align:middle" rowspan="${n}">${emailHtml}</td>
+						<td class="cbd-dt__act" rowspan="${n}" style="vertical-align:middle">
+							<button class="cbd-dt__btn cbd-pu__send-one" data-pid="${pid}"
+								${p.email ? '' : 'disabled'}
+								title="${p.email ? 'Open email reminder for ' + p.partner_name : 'No email on file'}">Send Email</button>
+						</td>`;
+				}
+				rowsHtml += `</tr>`;
 			});
 		});
-		// Group consecutive rows by partner so repeated names/emails read
-		// as one visual block rather than a wall of duplicates.
-		flatRows.sort((a, b) => (a.partner_name || '').localeCompare(b.partner_name || ''));
-
-		const rows = flatRows.map((r, i) => {
-			const pid  = frappe.utils.escape_html(r.partner_id || '');
-			const pname = frappe.utils.escape_html(r.partner_name || r.partner_id || '—');
-			const bref = frappe.utils.escape_html(r.budget_reference_name);
-
-			const monthChips = r.missing_months.map(m =>
-				`<span class="cbd-pu__month-chip" style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca">${frappe.utils.escape_html(m.month)} (${frappe.utils.escape_html(m.financial_year)})</span>`
-			).join(' ');
-
-			const emailHtml = r.email ? frappe.utils.escape_html(r.email) : '<span class="cbd-pu__no-email">No email</span>';
-
-			return `<tr class="cbd-dt__row">
-				<td class="cbd-dt__num">${i + 1}</td>
-				<td class="cbd-dt__name" style="white-space:normal;min-width:140px;font-weight:700">${pname}</td>
-				<td style="white-space:normal;min-width:140px">${bref}</td>
-				<td style="text-align:center;font-weight:700;color:#1e3a5f">${r.total_months}</td>
-				<td style="text-align:center;font-weight:800;color:#dc2626">${r.missing_months.length}</td>
-				<td style="min-width:260px;max-width:420px">
-					<div class="cbd-pu__months-cell">${monthChips || '—'}</div>
-				</td>
-				<td style="font-size:12px;min-width:180px;white-space:normal">${emailHtml}</td>
-				<td class="cbd-dt__act">
-					<button class="cbd-dt__btn cbd-pu__send-one" data-pid="${pid}"
-						${r.email ? '' : 'disabled'}
-						title="${r.email ? 'Open email reminder for ' + r.partner_name : 'No email on file'}">Send Email</button>
-				</td>
-			</tr>`;
-		}).join('');
 
 		body.innerHTML = `
-			<table class="cbd-dt" id="cbd_pu_table">
+			<table class="cbd-dt cbd-pu__grouped" id="cbd_pu_table">
 				<thead><tr>
 					<th class="cbd-dt__th cbd-dt__th--num">#</th>
 					<th class="cbd-dt__th">Partner Name</th>
 					<th class="cbd-dt__th">Budget Reference</th>
-					<th class="cbd-dt__th" style="text-align:center;width:90px" title="Total months expected from this budget's start date through the checked cutoff">Total Months</th>
 					<th class="cbd-dt__th" style="text-align:center;width:90px">Months Pending</th>
-					<th class="cbd-dt__th">Missing Months</th>
+					<th class="cbd-dt__th">Months</th>
+					<th class="cbd-dt__th" style="text-align:center;width:120px">Total Pending Months</th>
 					<th class="cbd-dt__th">Email</th>
-					<th class="cbd-dt__th" style="width:80px"></th>
+					<th class="cbd-dt__th" style="width:100px"></th>
 				</tr></thead>
-				<tbody>${rows}</tbody>
+				<tbody>${rowsHtml}</tbody>
 			</table>`;
 
-		this._enhance_table('cbd_pu_table');
+		// Grouped/merged tables can't be safely re-sorted or paginated (that
+		// would reorder or hide rows independently of their rowspan), so
+		// this table skips both — it stays statically grouped by partner.
 	}
 
 	// ── FIX ──
@@ -31902,7 +31904,7 @@ class CrecheBudgetDashboard {
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════
-	// PARTNERS ≥80% UTILISED MODAL
+	// PARTNERS ≥85% UTILISED MODAL
 	// Only lists partners who actually meet the threshold (not every
 	// partner with their percentage) since that's what was asked for.
 	// ═══════════════════════════════════════════════════════════════════════
@@ -31914,7 +31916,7 @@ class CrecheBudgetDashboard {
 		const eligible = partners.filter(p => {
 			const disb = parseFloat(p.total_disbursement) || 0;
 			const util = parseFloat(p.total_utilisation) || 0;
-			return disb > 0 && (util / disb) >= 0.8;
+			return disb > 0 && (util / disb) >= 0.85;
 		}).map(p => {
 			const disb = parseFloat(p.total_disbursement) || 0;
 			const util = parseFloat(p.total_utilisation) || 0;
@@ -31971,7 +31973,7 @@ class CrecheBudgetDashboard {
 
 		const p1 = document.getElementById('cbd_dm_p1');
 		p1.innerHTML = `
-			${this._dm_topbar('Partners with 80%+ Disbursement Utilization', null, null, 1, 'cbd_dm_t80pct', 'Partners_80pct_Disbursement_Utilization')}
+			${this._dm_topbar('Partners with 85%+ Disbursement Utilization', null, null, 1, 'cbd_dm_t80pct', 'Partners_80pct_Disbursement_Utilization')}
 			<div class="cbd-dm__body">
 				<div class="cbd-dm__tbl-wrap">
 					<table class="cbd-dt" id="cbd_dm_t80pct">
@@ -31982,7 +31984,7 @@ class CrecheBudgetDashboard {
 							<th class="cbd-dt__th cbd-dt__th--r">Utilised</th>
 							<th class="cbd-dt__th cbd-dt__th--r">% of Disbursed</th>
 						</tr></thead>
-						<tbody>${rows || `<tr><td colspan="5" style="text-align:center;padding:28px;color:#94a3b8">No partners have reached 80% utilisation yet.</td></tr>`}</tbody>
+						<tbody>${rows || `<tr><td colspan="5" style="text-align:center;padding:28px;color:#94a3b8">No partners have reached 85% utilisation yet.</td></tr>`}</tbody>
 					</table>
 				</div>
 			</div>`;
@@ -32048,6 +32050,7 @@ class CrecheBudgetDashboard {
 		};
 		const cfg = CFG[panel];
 		if (!cfg) return;
+		this._dm_type = panel;
 
 		const old = document.getElementById('cbd_drill_wrap');
 		if (old) old.remove();
@@ -32305,11 +32308,16 @@ class CrecheBudgetDashboard {
 			} else {
 				const disb_pct = bud>0?(disb/bud*100):0;
 				const chip_d   = disb_pct>=75?'#16a34a':'#d97706';
+				// Utilisation % here is against the disbursed amount (not
+				// budget) — that's the meaningful comparison once the money
+				// has actually reached the partner.
+				const util_of_disb_pct = disb>0?(util/disb*100):0;
+				const chip_u = util_of_disb_pct>=75?'#16a34a':'#dc2626';
 				amtCells = `<td class="cbd-dt__r">${this._fmtTip(bud,'Budget')}</td>
 				            <td class="cbd-dt__r">${this._fmtTip(disb,'Disbursed')}</td>
 				            <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip_d}">${disb_pct.toFixed(1)}%</span></td>
 				            <td class="cbd-dt__r">${this._fmtTip(util,'Utilised')}</td>
-				            <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip}">${pct.toFixed(1)}%</span></td>`;
+				            <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip_u}">${util_of_disb_pct.toFixed(1)}%</span></td>`;
 			}
 
 			// Row is fully clickable → navigates to budget level
@@ -32332,13 +32340,14 @@ class CrecheBudgetDashboard {
 		const gt_appr = partners.reduce((s,p)=>s+(p.total_creches||0),0);
 		const gt_pct      = gt_bud>0?(gt_util/gt_bud*100):0;
 		const gt_disb_pct = gt_bud>0?(gt_disb/gt_bud*100):0;
+		const gt_util_of_disb_pct = gt_disb>0?(gt_util/gt_disb*100):0;
 		let foot_cells = '';
 		if (type==='budget')
 			foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_pct.toFixed(1)}%</td>`;
 		else if (type==='utilisation')
 			foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_pct.toFixed(1)}%</td>`;
 		else
-			foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_pct.toFixed(1)}%</td>`;
+			foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_util_of_disb_pct.toFixed(1)}%</td>`;
 
 		let amtHeaders = '';
 		if (type==='budget')
@@ -32427,11 +32436,13 @@ class CrecheBudgetDashboard {
 			} else {
 				const disb_pct = bud>0?(disb/bud*100):0;
 				const chip_d   = disb_pct>=75?'#16a34a':'#d97706';
+				const util_of_disb_pct = disb>0?(util/disb*100):0;
+				const chip_u = util_of_disb_pct>=75?'#16a34a':'#dc2626';
 				cells = `${dateCells}<td class="cbd-dt__r">${this._fmtTip(bud,'Budget')}</td>
 				         <td class="cbd-dt__r">${this._fmtTip(disb,'Disbursed')}</td>
 				         <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip_d}">${disb_pct.toFixed(1)}%</span></td>
 				         <td class="cbd-dt__r">${this._fmtTip(util,'Utilised')}</td>
-				         <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip}">${pct.toFixed(1)}%</span></td>`;
+				         <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip_u}">${util_of_disb_pct.toFixed(1)}%</span></td>`;
 			}
 			return `<tr class="cbd-dt__row" data-bidx="${i}" style="cursor:pointer" title="Click to view line items">
 				<td class="cbd-dt__num">${i+1}</td>
@@ -32450,10 +32461,11 @@ class CrecheBudgetDashboard {
 		const gt_disb = budgets.reduce((s,b)=>s+(parseFloat(b.disbursement)||0),0);
 		const gt_pct      = gt_bud>0?(gt_util/gt_bud*100):0;
 		const gt_disb_pct = gt_bud>0?(gt_disb/gt_bud*100):0;
+		const gt_util_of_disb_pct = gt_disb>0?(gt_util/gt_disb*100):0;
 		let foot_cells = '';
 		if (type==='budget')           foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_pct.toFixed(1)}%</td>`;
 		else if (type==='utilisation') foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_pct.toFixed(1)}%</td>`;
-		else foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_pct.toFixed(1)}%</td>`;
+		else foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_util_of_disb_pct.toFixed(1)}%</td>`;
 
 		const thead_html = COLS[type].map(h=>`<th class="cbd-dt__th">${h}</th>`).join('');
 		const table_id   = 'cbd_dm_t2';
@@ -32630,15 +32642,15 @@ class CrecheBudgetDashboard {
 		const grand = items.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
 		const monthTotals = months.map(m => items.reduce((s,r)=>s+(parseFloat((r.monthly||{})[m])||0),0));
 
-		const monthThs   = months.map(m => `<th class="cbd-dt__th cbd-dt__th--r">${frappe.utils.escape_html(m)}</th>`).join('');
-		const monthFoots = monthTotals.map(v => `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(v, 'Month Total')}</td>`).join('');
+		const monthThs   = months.map(m => `<th class="cbd-dt__th cbd-dt__th--r cbd-li__month-col">${frappe.utils.escape_html(m)}</th>`).join('');
+		const monthFoots = monthTotals.map(v => `<td class="cbd-dt__r cbd-dt__foot cbd-li__month-col">${this._fmtTip(v, 'Month Total')}</td>`).join('');
 
 		// colCount = # + ExpType + SubHead + one column per month + Total
 		const colCount = 3 + months.length + 1;
 		const rowHtmlFn = (r, i) => {
 			const monthTds = months.map(m => {
 				const v = (r.monthly||{})[m];
-				return `<td class="cbd-dt__r">${v ? this._fmtTip(v, m) : '—'}</td>`;
+				return `<td class="cbd-dt__r cbd-li__month-col">${v ? this._fmtTip(v, m) : '—'}</td>`;
 			}).join('');
 			return `
 			<tr class="cbd-dt__row cbd-grp__child-row">
@@ -32654,6 +32666,8 @@ class CrecheBudgetDashboard {
 		body.innerHTML = `
 			<div class="cbd-li__expand-bar">
 				<span class="cbd-li__expand-hint">${items.length} line item${items.length===1?'':'s'} · ${months.length} month${months.length===1?'':'s'} (${months[0]||''}${months.length>1?' – '+months[months.length-1]:''})</span>
+				<label class="cbd-li__toggle"><input type="checkbox" class="cbd-li__months-chk" checked> Show months</label>
+				<label class="cbd-li__toggle"><input type="checkbox" class="cbd-li__items-chk" checked> Show line items</label>
 			</div>
 			<div class="cbd-dm__tbl-wrap">
 				<table class="cbd-dt cbd-dt--grouped" id="cbd_dm_t3">
@@ -32675,6 +32689,7 @@ class CrecheBudgetDashboard {
 
 		this._make_table_sortable('cbd_dm_t3');
 		this._sync_li_header_offset('cbd_dm_t3');
+		this._wire_li_expand_checkboxes('cbd_dm_t3');
 	}
 
 	_render_main_head_groups(items, rowHtmlFn, amtGetter, colCount, amtLabel, showYears) {
@@ -32715,11 +32730,12 @@ class CrecheBudgetDashboard {
 			const groupRows = groups.get(mainHead);
 			const groupTotal = groupRows.reduce((s, r) => s + amtGetter(r), 0);
 			const gid = `cbd_grp_${groupIdx++}_${Math.random().toString(36).slice(2,7)}`;
-			// Section divider row — always visible, not collapsible.
+			// Section divider row — click to expand/collapse just this group.
 			html += `
-			<tr class="cbd-grp__header-row" data-grp-target="${gid}">
+			<tr class="cbd-grp__header-row" data-grp-target="${gid}" title="Click to expand/collapse">
 				<td colspan="${colCount}">
 					<div class="cbd-grp__header">
+						<svg class="cbd-grp__chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
 						<span class="cbd-grp__title">${frappe.utils.escape_html(mainHead)}</span>
 						<span class="cbd-grp__count">${groupRows.length} item${groupRows.length===1?'':'s'}</span>
 						<span class="cbd-grp__subtotal">${this._fmtTip(groupTotal, `${mainHead} — ${amtLabel}`)}</span>
@@ -32754,14 +32770,14 @@ class CrecheBudgetDashboard {
 		const grand = items.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
 		const monthTotals = months.map(m => items.reduce((s,r)=>s+(parseFloat((r.monthly||{})[m])||0),0));
 
-		const monthThs   = months.map(m => `<th class="cbd-dt__th cbd-dt__th--r">${frappe.utils.escape_html(m)}</th>`).join('');
-		const monthFoots = monthTotals.map(v => `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(v, 'Month Total')}</td>`).join('');
+		const monthThs   = months.map(m => `<th class="cbd-dt__th cbd-dt__th--r cbd-li__month-col">${frappe.utils.escape_html(m)}</th>`).join('');
+		const monthFoots = monthTotals.map(v => `<td class="cbd-dt__r cbd-dt__foot cbd-li__month-col">${this._fmtTip(v, 'Month Total')}</td>`).join('');
 
 		const colCount = 3 + months.length + 1;
 		const rowHtmlFn = (r, i) => {
 			const monthTds = months.map(m => {
 				const v = (r.monthly||{})[m];
-				return `<td class="cbd-dt__r">${v ? this._fmtTip(v, m) : '—'}</td>`;
+				return `<td class="cbd-dt__r cbd-li__month-col">${v ? this._fmtTip(v, m) : '—'}</td>`;
 			}).join('');
 			return `<tr class="cbd-dt__row cbd-grp__child-row">
 				<td class="cbd-dt__num cbd-dt__indent-num cbd-li__sticky-num">${i+1}</td>
@@ -32776,6 +32792,8 @@ class CrecheBudgetDashboard {
 		body.innerHTML = `
 			<div class="cbd-li__expand-bar">
 				<span class="cbd-li__expand-hint">${items.length} line item${items.length===1?'':'s'} · ${months.length} month${months.length===1?'':'s'} (${months[0]||''}${months.length>1?' – '+months[months.length-1]:''})</span>
+				<label class="cbd-li__toggle"><input type="checkbox" class="cbd-li__months-chk" checked> Show months</label>
+				<label class="cbd-li__toggle"><input type="checkbox" class="cbd-li__items-chk" checked> Show line items</label>
 			</div>
 			<div class="cbd-dm__tbl-wrap">
 				<table class="cbd-dt cbd-dt--grouped" id="cbd_dm_t3">
@@ -32797,6 +32815,7 @@ class CrecheBudgetDashboard {
 
 		this._make_table_sortable('cbd_dm_t3');
 		this._sync_li_header_offset('cbd_dm_t3');
+		this._wire_li_expand_checkboxes('cbd_dm_t3');
 	}
 
 	_render_dm_disb_items(records) {
@@ -32855,8 +32874,11 @@ class CrecheBudgetDashboard {
 			expected_bank_bal:   { p1:'Partner Level',         p2:'Budget Level',          p3:null                    },
 			unutilised_disb:     { p1:'Partner Level',         p2:'Budget Level',          p3:null                    },
 			bank_bal_gap:        { p1:'Partner Level',         p2:'Budget Level',          p3:null                    },
+			remaining_budget:    { p1:'Partner Level',         p2:'Budget Level',          p3:null                    },
+			unspent_disb:        { p1:'Partner Level',         p2:'Budget Level',          p3:null                    },
+			bank_variance:       { p1:'Partner Level',         p2:'Budget Level',          p3:null                    },
 			pending_util:        { p1:'Partner Level',         p2:'Budget Level',          p3:null                    },
-			partners_80pct:      { p1:'Partners with 80%+ Disbursement Utilization', p2:null,                   p3:null                    },
+			partners_80pct:      { p1:'Partners with 85%+ Disbursement Utilization', p2:null,                   p3:null                    },
 		};
 		return MAP[type] || { p1:'Partner Level', p2:'Budget Level', p3:'Expense Items Level' };
 	}
@@ -32926,6 +32948,89 @@ class CrecheBudgetDashboard {
 
 	// ─── Export ──────────────────────────────────────────────────────────
 	// CHANGE #9: export strips group-band rows and handles indent properly
+	// Walks the DOM's actual rowspan attributes to reconstruct a proper
+	// grid (with merge ranges) so the exported Excel file has the same
+	// merged Partner Name / Total Pending Months / Email cells as the
+	// on-screen table, instead of flattening/repeating those values.
+	_export_pending_util_table(format) {
+		const table = document.getElementById('cbd_pu_table');
+		if (!table) { frappe.show_alert({message:'Table not ready', indicator:'orange'}); return; }
+
+		const theadRow = table.querySelector('thead tr');
+		const ths = [...theadRow.querySelectorAll('th')];
+		// Drop the trailing action column (Send Email button) — not exportable data
+		const columns = ths.slice(0, -1).map(th => ({ label: (th.innerText || th.textContent || '').trim() }));
+		const numDataCols = columns.length;
+
+		const bodyRows = [...table.querySelectorAll('tbody tr')];
+		const grid = [];
+		const merges = [];
+		const carry = {}; // colIdx -> { remaining, value }
+
+		bodyRows.forEach((tr, rIdx) => {
+			const cells = [...tr.children];
+			let cellPtr = 0;
+			const rowVals = [];
+			let colIdx = 0;
+			while (colIdx < numDataCols) {
+				if (carry[colIdx] && carry[colIdx].remaining > 0) {
+					rowVals[colIdx] = '';
+					carry[colIdx].remaining--;
+					colIdx++;
+					continue;
+				}
+				const td = cells[cellPtr++];
+				if (!td) break;
+				const rowspan = parseInt(td.getAttribute('rowspan') || '1');
+				const val = (td.innerText || td.textContent || '').replace(/\s+/g, ' ').trim();
+				rowVals[colIdx] = val;
+				if (rowspan > 1) {
+					merges.push([rIdx, colIdx, rIdx + rowspan - 1, colIdx]);
+					carry[colIdx] = { remaining: rowspan - 1, value: val };
+				}
+				colIdx++;
+			}
+			grid.push(rowVals);
+		});
+
+		if (format === 'pdf') {
+			// PDF layout doesn't preserve cell merges the same way — fall back
+			// to the flattened (repeated-value) rows via the generic exporter
+			// so the data itself is still complete and correct.
+			const rows = grid.map(rowVals => {
+				const row = {};
+				columns.forEach((c, i) => { row['c'+i] = rowVals[i] ?? ''; });
+				return row;
+			});
+			const cols = columns.map((c, i) => ({ label: c.label, key: 'c'+i, align: 'left' }));
+			frappe.show_alert({message:'Generating PDF…', indicator:'blue'}, 2);
+			frappe.call({
+				method: 'creche_reports.api.creche_dashboard.export_table',
+				args: { title: 'Pending Utilization Submission', columns: JSON.stringify(cols), rows: JSON.stringify(rows), format: 'pdf' },
+				callback: (r) => {
+					if (r.message && r.message.file_url) { window.open(r.message.file_url, '_blank'); frappe.show_alert({message:'Download ready', indicator:'green'}, 3); }
+					else frappe.show_alert({message:'Export failed', indicator:'red'});
+				},
+			});
+			return;
+		}
+
+		frappe.show_alert({message:'Generating XLSX…', indicator:'blue'}, 2);
+		frappe.call({
+			method: 'creche_reports.api.creche_dashboard.export_pending_utilisation_grid',
+			args: {
+				title: 'Pending Utilization Submission',
+				columns: JSON.stringify(columns),
+				grid: JSON.stringify(grid),
+				merges: JSON.stringify(merges),
+			},
+			callback: (r) => {
+				if (r.message && r.message.file_url) { window.open(r.message.file_url, '_blank'); frappe.show_alert({message:'Download ready', indicator:'green'}, 3); }
+				else frappe.show_alert({message:'Export failed', indicator:'red'});
+			},
+		});
+	}
+
 	_table_to_columns_rows(tableId) {
 		const table = document.getElementById(tableId);
 		if (!table) return null;
@@ -33015,6 +33120,7 @@ class CrecheBudgetDashboard {
 	}
 
 	_export_table(tableId, fname, title, format) {
+		if (tableId === 'cbd_pu_table') { this._export_pending_util_table(format); return; }
 		const data = this._table_to_columns_rows(tableId);
 		if (!data || !data.rows.length) {
 			frappe.show_alert({message:'Table not ready', indicator:'orange'}); return;
@@ -33043,6 +33149,10 @@ class CrecheBudgetDashboard {
 	_filter_table_rows(tableId, query) {
 		const table = document.getElementById(tableId);
 		if (!table) return;
+		this._filter_one_table(table, query);
+	}
+
+	_filter_one_table(table, query) {
 		const q = (query || '').trim().toLowerCase();
 		table.querySelectorAll('tbody tr').forEach(tr => {
 			if (!q) {
@@ -33055,6 +33165,14 @@ class CrecheBudgetDashboard {
 			if (hidden) tr.setAttribute('data-search-hidden', '1');
 			else tr.removeAttribute('data-search-hidden');
 		});
+	}
+
+	// Some modals (e.g. the states map view, which pairs a map with its own
+	// data table) can contain more than one table — filter all of them from
+	// a single search box rather than requiring one box per table.
+	_filter_all_tables_in(containerEl, query) {
+		if (!containerEl) return;
+		containerEl.querySelectorAll('table').forEach(table => this._filter_one_table(table, query));
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -33383,6 +33501,12 @@ class CrecheBudgetDashboard {
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 					</button>
 				</div>
+				<div class="cbd-drill-modal__searchbar">
+					<div class="cbd-dm__search">
+						<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+						<input type="text" class="cbd-dm__search-input" id="cbd_drill_search" placeholder="Search...">
+					</div>
+				</div>
 				<div class="cbd-drill-modal__body">${this._build_ostat_content(stat)}</div>
 				<div class="cbd-drill-modal__footer">
 					<button class="btn btn-default btn-sm" id="cbd_drill_footer_close">Close</button>
@@ -33393,6 +33517,12 @@ class CrecheBudgetDashboard {
 		wrap.addEventListener('click', (e) => { if (e.target === wrap) this._close_drill_panel(); });
 		wrap.querySelector('#cbd_drill_close').addEventListener('click', () => this._close_drill_panel());
 		wrap.querySelector('#cbd_drill_footer_close').addEventListener('click', () => this._close_drill_panel());
+		const drillSearch = wrap.querySelector('#cbd_drill_search');
+		if (drillSearch) {
+			drillSearch.addEventListener('input', () => {
+				this._filter_all_tables_in(wrap.querySelector('.cbd-drill-modal__body'), drillSearch.value);
+			});
+		}
 		this._drill_key_handler = (e) => { if (e.key === 'Escape') this._close_drill_panel(); };
 		document.addEventListener('keydown', this._drill_key_handler);
 		requestAnimationFrame(() => wrap.classList.add('cbd-drill-modal-wrap--open'));
@@ -33767,6 +33897,7 @@ class CrecheBudgetDashboard {
 								<span style="opacity:.8">Approved</span><strong style="color:#93c5fd">${data.approved_creches.toLocaleString('en-IN')}</strong>
 							</div>`;
 						tipEl.classList.add('show');
+						tipEl.style.display = 'block';
 					}
 				});
 				path.addEventListener('mousemove', (e) => {
@@ -33778,7 +33909,7 @@ class CrecheBudgetDashboard {
 				path.addEventListener('mouseleave', () => {
 					path.setAttribute('fill', fill);
 					path.style.transform = '';
-					if (tipEl) tipEl.classList.remove('show');
+					if (tipEl) { tipEl.classList.remove('show'); tipEl.style.display = 'none'; }
 				});
 			}
 			gStates.appendChild(path);
@@ -34322,25 +34453,119 @@ class CrecheBudgetDashboard {
 		this._paginate_table(tableId);
 	}
 
-	// ── FIX ──
-	// The count bar above the line-items table and the table's own sticky
-	// <thead> both use position:sticky and must stack exactly back-to-back.
-	// A hardcoded pixel offset for the <thead> is fragile — any future
-	// change to the bar's padding/font-size silently breaks it again
-	// (which is exactly what happened here: removing the "Expand all"
-	// checkbox shrank the bar, so the old hardcoded offset pushed the
-	// sticky header down over the first section's row, hiding it).
-	// Measuring the bar's actual rendered height and applying it directly
-	// makes this correct regardless of any future style changes.
+	// ── FIX (revised again) ──
+	// Two sticky layers stack on top of each other here: the expand/count
+	// bar (top:0) and, right below it, the column header row. Every <th>
+	// in the header row MUST share the exact same top offset — if even
+	// one cell gets a different value (this previously happened to the
+	// "#" column, which ended up with an inline top:0 while its siblings
+	// had top:31.99px), that one cell stops lining up with the rest of
+	// the sticky header during horizontal scroll, since sticky-left and
+	// sticky-top are combined on the "#"/"Expense Type" columns. The fix
+	// is to compute the offset ONCE and assign it to every <th> in the
+	// same pass (no per-cell branching), which is what the loop below
+	// does.
+	//
+	// Main-head divider rows ("Annual Recurring operating cost" etc) are
+	// sticky again too, pinned directly below the column header — see
+	// CSS: .cbd-li-scrollbody .cbd-grp__header-row td. Their offset
+	// (barH + theadH) is computed here from the same measurements so it
+	// always matches the header's real height instead of a guessed
+	// constant, and every group row gets that identical offset (the
+	// standard "sticky section header" pattern: the active group's title
+	// stays pinned, the next group's title pushes it out as you scroll
+	// past — it does not overlap or hide other groups).
 	_sync_li_header_offset(tableId) {
-		requestAnimationFrame(() => {
+		const MIN_THEAD_H = 30; // sane floor — real header rows are always at least this tall
+		let attempts = 0;
+		const apply = () => {
 			const table = document.getElementById(tableId);
 			if (!table) return;
 			const scopeEl = table.closest('.cbd-li-scrollbody') || table.parentElement;
 			const bar = scopeEl ? scopeEl.querySelector('.cbd-li__expand-bar') : null;
 			const thead = table.querySelector('thead');
-			if (!bar || !thead) return;
-			thead.style.top = bar.offsetHeight + 'px';
+			const headerRow = thead ? thead.querySelector('tr') : null;
+			if (!bar || !thead || !headerRow) return;
+			let theadH = headerRow.getBoundingClientRect().height || thead.offsetHeight || 0;
+			// If the header row hasn't actually laid out yet (0 height),
+			// retry a few times before falling back to a safe floor rather
+			// than ever committing a broken value.
+			if (theadH === 0 && attempts < 6) { attempts++; setTimeout(apply, 60); return; }
+			if (theadH === 0) theadH = MIN_THEAD_H;
+
+			// Every header cell gets the SAME offset, in one pass — this
+			// is what keeps the sticky-left "#"/"Expense Type" columns
+			// aligned with the rest of the header during horizontal
+			// scroll (previously one cell could end up with a stale/
+			// different inline top than its siblings).
+			const headerTop = 0;
+			headerRow.querySelectorAll('th').forEach(th => { th.style.top = headerTop + 'px'; });
+
+			// Main-head divider ("main item") rows stick right below the
+			// column header — same offset for every group row.
+			const groupTop = Math.round(theadH);
+			table.querySelectorAll('.cbd-grp__header-row td').forEach(td => { td.style.top = groupTop + 'px'; });
+		};
+		// A single requestAnimationFrame isn't always enough right after a
+		// large innerHTML swap (many month columns can take more than one
+		// frame to finish layout).
+		requestAnimationFrame(() => requestAnimationFrame(apply));
+		setTimeout(apply, 150);
+	}
+
+	// Two independent checkboxes: one collapses all month columns down to
+	// just the Total column, the other collapses every group down to just
+	// its main-head divider (hiding individual line items). Checked =
+	// expanded (the default/current view), unchecked = collapsed.
+	_wire_li_expand_checkboxes(tableId) {
+		const table = document.getElementById(tableId);
+		if (!table) return;
+		const scopeEl = table.closest('.cbd-li-scrollbody') || table.parentElement;
+		if (!scopeEl) return;
+		const monthsChk = scopeEl.querySelector('.cbd-li__months-chk');
+		const itemsChk  = scopeEl.querySelector('.cbd-li__items-chk');
+		if (monthsChk) {
+			monthsChk.addEventListener('change', () => {
+				table.classList.toggle('cbd-li-months-collapsed', !monthsChk.checked);
+				this._sync_li_header_offset(tableId);
+			});
+		}
+		if (itemsChk) {
+			itemsChk.addEventListener('change', () => {
+				const expand = itemsChk.checked;
+				table.classList.toggle('cbd-li-items-collapsed', !expand);
+				// Force every row's display explicitly (not just clear to
+				// empty and defer to the CSS class) — a prior per-group
+				// click override otherwise could keep a specific group
+				// stuck the way it was, ignoring the checkbox.
+				table.querySelectorAll('.cbd-grp__child-row').forEach(r => {
+					r.style.display = expand ? 'table-row' : 'none';
+				});
+				table.querySelectorAll('.cbd-grp__header-row').forEach(h => h.classList.remove('cbd-grp__header-row--collapsed'));
+				this._sync_li_header_offset(tableId);
+			});
+		}
+		this._wire_li_group_toggles(tableId);
+	}
+
+	// Clicking a main-head divider expands/collapses just that group's
+	// line items — an accordion-style override on top of whatever the
+	// global "Show line items" checkbox currently has set.
+	_wire_li_group_toggles(tableId) {
+		const table = document.getElementById(tableId);
+		if (!table) return;
+		table.querySelectorAll('.cbd-grp__header-row').forEach(header => {
+			header.addEventListener('click', () => {
+				const gid = header.dataset.grpTarget;
+				if (!gid) return;
+				const rows = table.querySelectorAll(`.cbd-grp__child-row[data-grp-parent="${gid}"]`);
+				if (!rows.length) return;
+				const currentlyVisible = window.getComputedStyle(rows[0]).display !== 'none';
+				const nextDisplay = currentlyVisible ? 'none' : 'table-row';
+				rows.forEach(r => { r.style.display = nextDisplay; });
+				header.classList.toggle('cbd-grp__header-row--collapsed', currentlyVisible);
+				this._sync_li_header_offset(tableId);
+			});
 		});
 	}
 
@@ -34586,14 +34811,14 @@ class CrecheBudgetDashboard {
 		.cbd-overview-strip { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:12px; }
 
 		/* ── Summary cards — 4-col + 8 cards wrap ── */
-		.cbd-summary-cards { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:6px; }
+		.cbd-summary-cards { display:grid; grid-template-columns:repeat(5,1fr); gap:5px; margin-bottom:6px; }
 
 		/* ── Shared card base ── */
 		.cbd-ostat, .cbd-scard {
 			background:#fff; border:1px solid #e8edf3; border-left:4px solid #1e3a5f;
 			border-radius:10px; min-width:0; word-break:break-word; transition:box-shadow .2s;
 		}
-		.cbd-scard { padding:8px 10px 7px; min-height:80px; display:flex; flex-direction:column; cursor:pointer; }
+		.cbd-scard { padding:8px 8px 7px; min-height:88px; display:flex; flex-direction:column; cursor:pointer; }
 		.cbd-ostat { padding:11px 12px 10px; position:relative; display:flex; align-items:center; gap:10px; }
 		.cbd-ostat--clickable { cursor:pointer; }
 		.cbd-ostat:hover, .cbd-scard:hover { box-shadow:0 4px 18px rgba(0,0,0,.09); }
@@ -34605,12 +34830,12 @@ class CrecheBudgetDashboard {
 		.cbd-ostat__value { font-size:17px; font-weight:800; color:#1a202c; line-height:1.1; margin-bottom:1px; }
 		.cbd-ostat__label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.55px; color:#8492a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-		.cbd-scard__lbl { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.55px; color:#8492a6; margin-bottom:5px; }
-		.cbd-scard__num { font-size:16px; font-weight:800; color:#1a202c; line-height:1.1; margin-bottom:3px; letter-spacing:-.3px; }
+		.cbd-scard__lbl { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.55px; color:#8492a6; margin-bottom:5px; }
+		.cbd-scard__num { font-size:18px; font-weight:800; color:#1a202c; line-height:1.1; margin-bottom:3px; letter-spacing:-.3px; }
 		.cbd-scard__num-val { display:inline; }
-		.cbd-scard__sub { font-size:11px; font-weight:500; color:#64748b; line-height:1.3; margin-bottom:5px; }
-		.cbd-scard__pct-badge { display:inline-block; padding:1.5px 7px; border-radius:7px; font-size:11px; font-weight:800; margin-right:2px; }
-		.cbd-scard__cta { display:inline-flex; align-items:center; gap:4px; font-size:9.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--card-accent,#378ADD); margin-top:auto; }
+		.cbd-scard__sub { font-size:12px; font-weight:500; color:#64748b; line-height:1.3; margin-bottom:5px; }
+		.cbd-scard__pct-badge { display:inline-block; padding:2px 7px; border-radius:7px; font-size:12px; font-weight:800; margin-right:2px; }
+		.cbd-scard__cta { display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--card-accent,#378ADD); margin-top:auto; }
 
 		/* ── Alert component ── */
 		.cbd-alert { display:flex; align-items:flex-start; gap:12px; padding:12px 16px; margin-bottom:14px; border-radius:8px; border:1px solid transparent; animation:cbd-slide-in .3s ease; }
@@ -34680,6 +34905,8 @@ class CrecheBudgetDashboard {
 		.cbd-drill-modal--wide   { max-width:640px; }
 		@media (max-width:640px) { .cbd-drill-modal-wrap { align-items:flex-end; padding:0; } .cbd-drill-modal { border-radius:16px 16px 0 0; max-width:100vw; max-height:85vh; transform:translateY(20px); } .cbd-drill-modal-wrap--open .cbd-drill-modal { transform:translateY(0); } }
 		.cbd-drill-modal__header { display:flex; align-items:center; justify-content:space-between; padding:16px 18px 14px; border-bottom:1px solid var(--border-color,#d1d8dd); flex-shrink:0; }
+		.cbd-drill-modal__searchbar { padding:10px 18px; background:#f8fafc; border-bottom:1px solid var(--border-color,#d1d8dd); flex-shrink:0; }
+		.cbd-drill-modal__searchbar .cbd-dm__search-input { width:220px; }
 		.cbd-drill-modal__header-left { display:flex; align-items:center; gap:12px; min-width:0; }
 		.cbd-drill-modal__icon { width:38px; height:38px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border-radius:10px; background:#EEF5FC; color:#378ADD; }
 		.cbd-drill-modal__title { font-size:15px; font-weight:700; color:var(--text-color,#1c2126); }
@@ -34782,9 +35009,40 @@ class CrecheBudgetDashboard {
 		/* Line items page (p3): make body the scroll container for reliable sticky */
 		.cbd-li-scrollbody { overflow:auto !important; display:block !important; flex:1; min-height:0; }
 		.cbd-li-scrollbody .cbd-dm__tbl-wrap { overflow:visible; flex:none; padding:0; }
-		.cbd-li-scrollbody .cbd-li__expand-bar { position:sticky; top:0; z-index:10; height:32px; box-sizing:border-box; }
-		.cbd-li-scrollbody .cbd-dt thead { position:sticky; top:32px; z-index:9; }
+		/* Not sticky — the header row itself now sits at top:0, so the
+		   bar can't also stick there without the two overlapping. */
+		.cbd-li-scrollbody .cbd-li__expand-bar { position:static; height:32px; box-sizing:border-box; }
+		.cbd-li-scrollbody .cbd-dt thead th { position:sticky; top:0; z-index:9; background:#dbeafe; }
 		.cbd-li-scrollbody .cbd-dt tfoot { position:static; z-index:auto; }
+		/* ── FIX ──
+		   Grouped line-item tables previously had TWO independent sticky
+		   layers stacked on each other: the <thead> element itself
+		   (position:sticky; top:0; z-index:3 — from the base .cbd-dt rule
+		   further down) AND its <th> cells individually (top:32px;
+		   z-index:9 — above). Sticky positioning on a <thead> as a whole
+		   is not part of any table-layout spec and behaves inconsistently
+		   across browsers (each browser decides differently what box the
+		   sticky offset applies to), which caused two different bugs
+		   depending on the thead's z-index:
+		     - z-index:3 (original): the thead's own box painted OVER the
+		       first group-divider row sitting right beneath it, making
+		       that row appear to vanish.
+		     - z-index:-1 (an attempted fix): the thead's box — and
+		       everything rendered inside it, including the header text —
+		       got pushed BEHIND the table body instead, so the header
+		       row appeared blank/empty even though its <th> cells still
+		       contained "Expense Type", "Sub Head", etc.
+		   The correct, standards-safe pattern is to make ONLY the <th>
+		   cells sticky and leave the <thead> itself in normal flow —
+		   sticky positioning resolves against the nearest scrolling
+		   ancestor (.cbd-li-scrollbody here), not the nearest positioned
+		   ancestor, so the <thead> does not need to be sticky itself for
+		   its <th> children to stick correctly. Each <th> now also carries
+		   its own background so it still fully covers whatever scrolls
+		   beneath it. This is scoped to .cbd-li-scrollbody only, so the
+		   sticky header behavior of every other (non-grouped) .cbd-dt
+		   table elsewhere in the dashboard is unaffected. */
+		.cbd-li-scrollbody .cbd-dt thead { position:static; z-index:auto; background:none; }
 		/* Sticky '#' and 'Expense Type' columns for the month-wise line-item
 		   tables (they can have many month columns needing horizontal
 		   scroll, and many rows needing vertical scroll — this keeps you
@@ -34840,14 +35098,36 @@ class CrecheBudgetDashboard {
 		.cbd-dt__btn:disabled { opacity:.4; cursor:not-allowed; }
 		.cbd-dm__consolidated-btn { display:flex; width:fit-content; font-weight:700; }
 
-		/* ── Line item section dividers (static, no collapse) ── */
+		/* ── Line item section dividers ── */
 		.cbd-dt--grouped { table-layout:auto; }
-		.cbd-grp__header-row { background:#f1f5f9 !important; }
-		.cbd-grp__header-row td { background:#f1f5f9 !important; border:1px solid #dbe3ea !important; padding:8px 14px !important; }
+		.cbd-grp__header-row { background:#f1f5f9 !important; cursor:pointer; }
+		.cbd-grp__header-row:hover { background:#e2e8f0 !important; }
+		.cbd-grp__header-row:hover td { background:#e2e8f0 !important; }
+		.cbd-grp__header-row td { background:#f1f5f9 !important; border:1px solid #dbe3ea !important; padding:8px 14px !important; transition:background .12s; }
+		/* ── FIX ──
+		   Main-head divider rows ("Annual Recurring operating cost" etc)
+		   are sticky again — they were temporarily disabled while tracking
+		   down an overlap bug, but that bug's real cause was the <thead>
+		   ELEMENT ITSELF being sticky at the same time as its <th> cells
+		   (fixed above: the <thead> is now position:static). With that
+		   root cause gone, a shared sticky offset across every group row
+		   behaves like the standard "sticky section header" pattern: the
+		   current group's title stays pinned just below the column
+		   header, and the next group's title pushes it out as you scroll
+		   past — it does not hide/overlap other groups. The actual top
+		   offset (bar height + header height) is written in as an inline
+		   style by _sync_li_header_offset() so it always matches the
+		   real, current header height instead of a guessed constant. */
+		.cbd-li-scrollbody .cbd-grp__header-row td { position:sticky; z-index:6; }
 		.cbd-grp__header { display:flex; align-items:center; gap:10px; }
+		.cbd-grp__chevron { flex-shrink:0; color:#64748b; transition:transform .15s ease; }
+		.cbd-grp__header-row--collapsed .cbd-grp__chevron { transform:rotate(-90deg); }
 		.cbd-grp__title { font-weight:700; color:#1e293b; font-size:12.5px; }
 		.cbd-grp__count { font-size:10.5px; font-weight:600; color:#94a3b8; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:1px 8px; }
 		.cbd-grp__subtotal { margin-left:auto; font-weight:800; color:#0f172a; font-size:12.5px; }
+		/* Collapse toggles: hide month columns and/or individual line items */
+		.cbd-dt--grouped.cbd-li-months-collapsed .cbd-li__month-col { display:none; }
+		.cbd-dt--grouped.cbd-li-items-collapsed .cbd-grp__child-row { display:none; }
 
 		/* ── Pending utilization date bar ── */
 		.cbd-pu__datebar { padding:12px 18px 8px; border-bottom:1px solid #eef2f7; background:#f8fafc; }
@@ -34905,11 +35185,13 @@ class CrecheBudgetDashboard {
 
 				/* ── Line item count bar ── */
 		.cbd-li__expand-bar {
-			display:flex; align-items:center; justify-content:flex-end;
+			display:flex; align-items:center; justify-content:space-between;
 			padding:8px 16px; background:#f0f9ff; border-bottom:1px solid #bae6fd;
-			gap:12px; flex-shrink:0;
+			gap:12px; flex-shrink:0; flex-wrap:wrap;
 		}
-		.cbd-li__expand-hint { font-size:11px; color:#94a3b8; }
+		.cbd-li__expand-hint { font-size:11px; color:#94a3b8; margin-right:auto; }
+		.cbd-li__toggle { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:#1e3a5f; cursor:pointer; user-select:none; white-space:nowrap; }
+		.cbd-li__toggle input { width:14px; height:14px; accent-color:#0369a1; cursor:pointer; }
 
 		/* ── Pagination ── */
 		.cbd-pager { display:flex; align-items:center; justify-content:space-between; padding:8px 14px; background:#f8fafc; border-top:1px solid #e2e8f0; flex-shrink:0; gap:10px; }
@@ -34942,9 +35224,27 @@ class CrecheBudgetDashboard {
 		/* ── Action column buttons: side by side ── */
 		.cbd-dt__act-stack { display:flex; flex-direction:column; gap:3px; min-width:90px; max-width:130px; }
 
+		@media (max-width:1200px) { .cbd-summary-cards { grid-template-columns:repeat(4,1fr); } }
 		@media (max-width:1024px) { .cbd-summary-cards { grid-template-columns:repeat(4,1fr); } .cbd-overview-strip { grid-template-columns:repeat(4,1fr); } }
-		@media (max-width:768px) { .cbd-root { padding:8px 10px 30px; } .cbd-filter-col { flex:1 1 50%; min-width:130px; } .cbd-summary-cards { grid-template-columns:repeat(2,1fr); } .cbd-overview-strip { grid-template-columns:repeat(2,1fr); } }
-		@media (max-width:480px) { .cbd-summary-cards { grid-template-columns:repeat(2,1fr); } .cbd-overview-strip { grid-template-columns:1fr 1fr; } .cbd-scard { padding:10px 10px; } .cbd-scard__num { font-size:16px; } }
+		@media (max-width:768px) { .cbd-root { padding:8px 10px 30px; } .cbd-filter-col { flex:1 1 50%; min-width:130px; } .cbd-summary-cards { grid-template-columns:repeat(2,1fr); } .cbd-overview-strip { grid-template-columns:repeat(2,1fr); }
+			.cbd-dm__topbar { flex-wrap:wrap; row-gap:8px; }
+			.cbd-dm__topbar-left { flex-basis:100%; }
+			.cbd-dm__actions { flex-basis:100%; justify-content:flex-end; flex-wrap:wrap; }
+			.cbd-dm__search-input { width:110px; }
+			.cbd-drill-modal__searchbar .cbd-dm__search-input { width:100%; }
+			.cbd-pu__filterbar { flex-wrap:wrap; }
+			.cbd-pu__filterbar-left { flex-basis:100%; }
+		}
+		@media (max-width:640px) {
+			.cbd-dm { width:100vw; margin:0; border-radius:0; max-height:100vh; }
+			.cbd-dw { padding:0; }
+		}
+		@media (max-width:480px) {
+			.cbd-summary-cards { grid-template-columns:repeat(2,1fr); } .cbd-overview-strip { grid-template-columns:1fr 1fr; } .cbd-scard { padding:10px 10px; } .cbd-scard__num { font-size:16px; }
+			.cbd-filter-col { flex:1 1 100%; min-width:0; }
+			.cbd-dm__search-input { width:90px; }
+			.cbd-drill-modal__header { flex-wrap:wrap; row-gap:6px; }
+		}
 		`;
 		document.head.appendChild(style);
 

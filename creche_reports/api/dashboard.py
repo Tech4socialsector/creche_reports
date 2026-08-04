@@ -93,7 +93,7 @@ def get_expense_summary(items: list) -> list:
 # FILTER OPTIONS
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_dashboard_filters(
     financial_year: str = None,
     partner_id: str = None,
@@ -164,7 +164,7 @@ def get_dashboard_filters(
 # SUMMARY CARDS
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_dashboard_summary(
     partner_id: str = None,
     grant_id: str = None,
@@ -219,7 +219,7 @@ def get_dashboard_summary(
 # DRILL-DOWN: PARTNER LEVEL
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_partner_breakdown(
     partner_id: str = None,
     grant_id: str = None,
@@ -304,7 +304,7 @@ def get_partner_breakdown(
 # DRILL-DOWN: BUDGET LEVEL (for a single partner)
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_budget_breakdown(
     partner_id: str,
     grant_id: str = None,
@@ -398,7 +398,7 @@ def get_budget_breakdown(
 # DRILL-DOWN: MONTH LEVEL (for a single budget)
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_month_breakdown(
     budget_reference_id: str,
     month: str = None,
@@ -426,7 +426,7 @@ def get_month_breakdown(
 # DRILL-DOWN: EXPENSE LINE-ITEM BREAKDOWN (budget vs utilisation for a budget)
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_budget_expense_breakdown(
     budget_reference_id: str,
     month: str = None,
@@ -628,7 +628,7 @@ def get_budget_expense_breakdown(
 # LEGACY — kept for backward compatibility with other pages
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_creche_utilisation(
     budget_reference_id: str = None,
     partner_id: str = None,

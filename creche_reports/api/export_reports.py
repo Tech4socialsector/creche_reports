@@ -7,7 +7,7 @@ from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def export_creche_utilisation_excel_object(names: Any = None):
 
     # -----------------------

@@ -20,7 +20,7 @@ from io import BytesIO
 #     )
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_all_budget_items():
 
     # --------------------------------------------------
@@ -797,7 +797,7 @@ def get_all_budget_items():
 
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def download_budget_template(data=None):
 
     import json
@@ -2086,7 +2086,7 @@ def download_budget_template(data=None):
 
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def download_utilisation_template(data=None):
 
     import json

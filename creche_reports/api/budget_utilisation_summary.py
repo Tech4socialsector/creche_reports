@@ -1989,6 +1989,13 @@ def _save_file(fname, content):
 
 
 
+
+
+
+
+
+
+
 """
 creche_reports/api/pending_utilisation.py
 
@@ -2006,6 +2013,12 @@ get_pending_utilisation_summary(cutoff_date=None)
     grouped by partner, with each partner's email resolved from
     User Permission (allow='Creche Partners') -> User.email.
 
+    `cutoff_date` is the explicit "as of" date used by the dashboard's
+    Pending Utilization drill-down modal (defaults to the 5th of the
+    current month if not supplied) — any (budget, FY, month) combination
+    whose expected submission deadline falls on/before this date and has
+    no matching "Creche utilisation" doc is reported as pending.
+
 send_utilisation_reminder(partner_ids, custom_message=None)
     Sends a reminder email to each partner's resolved email address via
     frappe.sendmail, and returns a per-partner success/failure report.
@@ -2014,6 +2027,7 @@ Usage from the client
 ----------------------
     frappe.call({
         method: 'creche_reports.api.pending_utilisation.get_pending_utilisation_summary',
+        args: { cutoff_date: '2026-06-05' },
         callback: (r) => { ... r.message.partners ... }
     });
 
@@ -2134,26 +2148,36 @@ def _add_month(d):
 def get_pending_utilisation_summary(cutoff_date=None):
     """
     Finds every (budget, financial_year, month) combination that should
-    have a "Creche utilisation" submission by now, but doesn't, and groups
-    the result by partner with their resolved email address.
+    have a "Creche utilisation" submission by the given cutoff, but
+    doesn't, and groups the result by partner with their resolved email
+    address.
 
-    cutoff: defaults to "last fully-completed month" — if today is on/after
-    the 5th, last calendar month is due; otherwise the month before that.
+    cutoff_date: explicit "as of" date (string, e.g. "2026-06-05"). If not
+    supplied, defaults to the 5th of the current month if today is on/after
+    the 5th, otherwise the 5th of the previous month — matching the
+    dashboard's default "as of" control.
     """
     today = getdate(frappe.utils.nowdate())
 
     if cutoff_date:
-        cutoff = getdate(cutoff_date).replace(day=1)
+        cutoff = getdate(cutoff_date)
     else:
-        months_back = 1 if today.day >= 5 else 2
-        cur = today.replace(day=1)
-        for _ in range(months_back):
-            y, m = cur.year, cur.month - 1
+        if today.day >= 5:
+            cutoff = today.replace(day=5)
+        else:
+            prev = _add_month(today.replace(day=1).replace(year=today.year, month=today.month))
+            # step back one month from today's 1st
+            y, m = today.year, today.month - 1
             if m < 1:
                 y -= 1
                 m = 12
-            cur = date(y, m, 1)
-        cutoff = cur
+            cutoff = date(y, m, 5)
+
+    # The cutoff itself defines the boundary month: any (budget, FY, month)
+    # whose month-start is on/before the cutoff's month-start is considered
+    # "due" — this is what makes the date control meaningfully change the
+    # drill-down rather than always falling back to the old hardcoded rule.
+    boundary_month_start = cutoff.replace(day=1)
 
     permitted = _get_user_permitted_partners()
     budget_filters = [
@@ -2193,7 +2217,9 @@ def get_pending_utilisation_summary(cutoff_date=None):
     for b in budgets:
         start = getdate(b["start_date"])
         end = getdate(b["end_date"])
-        effective_end = min(end.replace(day=1), cutoff)
+        # A month is "due" once its month-start is on/before the boundary
+        # derived from the chosen cutoff date.
+        effective_end = min(end.replace(day=1), boundary_month_start)
         cursor = start.replace(day=1)
 
         missing_for_budget = []
@@ -2202,7 +2228,7 @@ def get_pending_utilisation_summary(cutoff_date=None):
             fy_label = _fy_for_month(cursor)
             if (b["name"], fy_label, month_name) not in existing:
                 deadline = _add_month(cursor).replace(day=5)
-                days_overdue = (today - deadline).days
+                days_overdue = (cutoff - deadline).days
                 missing_for_budget.append({
                     "financial_year": fy_label,
                     "month": month_name,
@@ -2307,3 +2333,323 @@ def send_utilisation_reminder(partner_ids=None, custom_message=None):
             failed.append({"partner_id": pid, "partner_name": pname, "reason": str(e)})
 
     return {"sent": sent, "failed": failed}
+
+
+# """
+# creche_reports/api/pending_utilisation.py
+
+# Backend endpoints for the "Pending Utilization" dashboard card.
+
+# Unlike the old client-side definition (partners whose utilised_pct < 100,
+# which is really just "not fully spent yet"), this module answers the
+# actual operational question: "which partners have NOT SUBMITTED their
+# utilisation report for an expected month, and what's their email?"
+
+# Endpoints
+# ---------
+# get_pending_utilisation_summary(cutoff_date=None)
+#     Returns the list of missing (budget, financial_year, month) submissions,
+#     grouped by partner, with each partner's email resolved from
+#     User Permission (allow='Creche Partners') -> User.email.
+
+# send_utilisation_reminder(partner_ids, custom_message=None)
+#     Sends a reminder email to each partner's resolved email address via
+#     frappe.sendmail, and returns a per-partner success/failure report.
+
+# Usage from the client
+# ----------------------
+#     frappe.call({
+#         method: 'creche_reports.api.pending_utilisation.get_pending_utilisation_summary',
+#         callback: (r) => { ... r.message.partners ... }
+#     });
+
+#     frappe.call({
+#         method: 'creche_reports.api.pending_utilisation.send_utilisation_reminder',
+#         args: { partner_ids: JSON.stringify(['CP-0001','CP-0002']) },
+#         callback: (r) => { ... r.message.sent / r.message.failed ... }
+#     });
+# """
+
+# import json
+# from datetime import date
+
+# import frappe
+# from frappe.utils import getdate
+
+# try:
+#     from dateutil.relativedelta import relativedelta
+# except ImportError:  # pragma: no cover - dateutil ships with Frappe by default
+#     relativedelta = None
+
+# MONTH_ORDER = [
+#     "January", "February", "March", "April", "May", "June",
+#     "July", "August", "September", "October", "November", "December",
+# ]
+
+
+# # ──────────────────────────────────────────────────────────────────────────
+# # Permission helpers (mirrors budget_utilisation_summary.py conventions)
+# # ──────────────────────────────────────────────────────────────────────────
+
+# def _get_user_permitted_partners():
+#     user = frappe.session.user
+#     roles = frappe.get_roles(user)
+#     if "System Manager" in roles or user == "Administrator":
+#         return None
+#     rows = frappe.db.sql(
+#         """
+#         SELECT for_value FROM `tabUser Permission`
+#         WHERE user = %s AND allow = 'Creche Partners'
+#         """,
+#         (user,), as_dict=True,
+#     )
+#     if not rows:
+#         return None
+#     return [r.for_value for r in rows if r.for_value]
+
+
+# def _get_partner_emails(partner_ids):
+#     """
+#     Returns {partner_id: email}.
+#     Strategy 1: User Permission (allow='Creche Partners') -> User.email
+#     Strategy 2: direct email field on the Creche Partners doctype (fallback)
+#     """
+#     email_map = {}
+#     if not partner_ids:
+#         return email_map
+
+#     perm_rows = frappe.db.sql(
+#         """
+#         SELECT up.for_value AS partner_id, u.email
+#         FROM `tabUser Permission` up
+#         INNER JOIN `tabUser` u ON u.name = up.user AND u.enabled = 1
+#         WHERE up.allow = 'Creche Partners'
+#           AND up.for_value IN %(pids)s
+#         ORDER BY u.name
+#         """,
+#         {"pids": partner_ids},
+#         as_dict=True,
+#     )
+#     for row in perm_rows:
+#         if row.partner_id not in email_map and row.email:
+#             email_map[row.partner_id] = row.email
+
+#     missing = [p for p in partner_ids if p not in email_map]
+#     if missing:
+#         for field in ("email", "email_id", "contact_email"):
+#             try:
+#                 rows = frappe.get_all(
+#                     "Creche Partners",
+#                     filters={"name": ["in", missing]},
+#                     fields=["name", field],
+#                     ignore_permissions=True,
+#                 )
+#                 hit = False
+#                 for r in rows:
+#                     v = r.get(field, "")
+#                     if v and r.name not in email_map:
+#                         email_map[r.name] = v
+#                         hit = True
+#                 if hit:
+#                     break
+#             except Exception:
+#                 continue
+
+#     return email_map
+
+
+# def _fy_for_month(d):
+#     return f"{d.year}-{str(d.year + 1)[2:]}" if d.month >= 4 else f"{d.year - 1}-{str(d.year)[2:]}"
+
+
+# def _add_month(d):
+#     if relativedelta:
+#         return d + relativedelta(months=1)
+#     y, m = d.year, d.month + 1
+#     if m > 12:
+#         y += 1
+#         m = 1
+#     return date(y, m, 1)
+
+
+# # ──────────────────────────────────────────────────────────────────────────
+# # Pending utilisation summary
+# # ──────────────────────────────────────────────────────────────────────────
+
+# @frappe.whitelist()
+# def get_pending_utilisation_summary(cutoff_date=None):
+#     """
+#     Finds every (budget, financial_year, month) combination that should
+#     have a "Creche utilisation" submission by now, but doesn't, and groups
+#     the result by partner with their resolved email address.
+
+#     cutoff: defaults to "last fully-completed month" — if today is on/after
+#     the 5th, last calendar month is due; otherwise the month before that.
+#     """
+#     today = getdate(frappe.utils.nowdate())
+
+#     if cutoff_date:
+#         cutoff = getdate(cutoff_date).replace(day=1)
+#     else:
+#         months_back = 1 if today.day >= 5 else 2
+#         cur = today.replace(day=1)
+#         for _ in range(months_back):
+#             y, m = cur.year, cur.month - 1
+#             if m < 1:
+#                 y -= 1
+#                 m = 12
+#             cur = date(y, m, 1)
+#         cutoff = cur
+
+#     permitted = _get_user_permitted_partners()
+#     budget_filters = [
+#         ["start_date", "is", "set"],
+#         ["end_date", "is", "set"],
+#         ["start_date", "<=", cutoff],
+#     ]
+#     if permitted is not None:
+#         if not permitted:
+#             return {"partners": [], "cutoff": str(cutoff)}
+#         budget_filters.append(["partner_id", "in", permitted])
+
+#     budgets = frappe.get_all(
+#         "Creche Budget",
+#         fields=["name", "budget_reference_name", "partner_id", "partner_name",
+#                  "grant_id", "state", "district", "block", "start_date", "end_date"],
+#         filters=budget_filters,
+#         ignore_permissions=True,
+#         limit_page_length=0,
+#     )
+#     if not budgets:
+#         return {"partners": [], "cutoff": str(cutoff)}
+
+#     budget_names = [b["name"] for b in budgets]
+#     existing = set(
+#         (r["budget_reference_id"], r["financial_year"], r["month"])
+#         for r in frappe.get_all(
+#             "Creche utilisation",
+#             filters={"budget_reference_id": ["in", budget_names]},
+#             fields=["budget_reference_id", "financial_year", "month"],
+#             ignore_permissions=True,
+#             limit_page_length=0,
+#         )
+#     )
+
+#     by_partner = {}
+#     for b in budgets:
+#         start = getdate(b["start_date"])
+#         end = getdate(b["end_date"])
+#         effective_end = min(end.replace(day=1), cutoff)
+#         cursor = start.replace(day=1)
+
+#         missing_for_budget = []
+#         while cursor <= effective_end:
+#             month_name = MONTH_ORDER[cursor.month - 1]
+#             fy_label = _fy_for_month(cursor)
+#             if (b["name"], fy_label, month_name) not in existing:
+#                 deadline = _add_month(cursor).replace(day=5)
+#                 days_overdue = (today - deadline).days
+#                 missing_for_budget.append({
+#                     "financial_year": fy_label,
+#                     "month": month_name,
+#                     "deadline": deadline.isoformat(),
+#                     "days_overdue": max(days_overdue, 0),
+#                 })
+#             cursor = _add_month(cursor)
+
+#         if not missing_for_budget:
+#             continue
+
+#         pid = b["partner_id"] or b["partner_name"] or "Unknown"
+#         if pid not in by_partner:
+#             by_partner[pid] = {
+#                 "partner_id": b["partner_id"],
+#                 "partner_name": b["partner_name"],
+#                 "missing_count": 0,
+#                 "max_days_overdue": 0,
+#                 "budgets": [],
+#             }
+#         entry = by_partner[pid]
+#         entry["budgets"].append({
+#             "budget_id": b["name"],
+#             "budget_reference_name": b["budget_reference_name"],
+#             "grant_id": b["grant_id"],
+#             "state": b["state"],
+#             "missing_months": missing_for_budget,
+#         })
+#         entry["missing_count"] += len(missing_for_budget)
+#         entry["max_days_overdue"] = max(
+#             entry["max_days_overdue"],
+#             max((m["days_overdue"] for m in missing_for_budget), default=0),
+#         )
+
+#     partner_ids = [pid for pid in by_partner if pid]
+#     email_map = _get_partner_emails(partner_ids)
+
+#     result = []
+#     for pid, entry in by_partner.items():
+#         entry["email"] = email_map.get(pid, "")
+#         result.append(entry)
+
+#     result.sort(key=lambda r: (-r["max_days_overdue"], r["partner_name"] or ""))
+
+#     return {"partners": result, "cutoff": str(cutoff)}
+
+
+# # ──────────────────────────────────────────────────────────────────────────
+# # Send reminder emails
+# # ──────────────────────────────────────────────────────────────────────────
+
+# @frappe.whitelist()
+# def send_utilisation_reminder(partner_ids=None, custom_message=None):
+#     if isinstance(partner_ids, str):
+#         try:
+#             partner_ids = json.loads(partner_ids)
+#         except Exception:
+#             partner_ids = [p.strip() for p in partner_ids.split(",") if p.strip()]
+#     partner_ids = partner_ids or []
+#     if not partner_ids:
+#         frappe.throw(frappe._("No partners selected"))
+
+#     permitted = _get_user_permitted_partners()
+#     if permitted is not None:
+#         partner_ids = [p for p in partner_ids if p in permitted]
+#         if not partner_ids:
+#             frappe.throw(frappe._("You do not have permission to email these partners"))
+
+#     email_map = _get_partner_emails(partner_ids)
+#     partner_names = {
+#         r.name: r.partner_name
+#         for r in frappe.get_all(
+#             "Creche Partners",
+#             filters={"name": ["in", partner_ids]},
+#             fields=["name", "partner_name"],
+#             ignore_permissions=True,
+#         )
+#     }
+
+#     default_message = (
+#         "This is a reminder that your utilisation report submission is pending. "
+#         "Kindly submit it at the earliest to keep your budget records up to date."
+#     )
+#     message_body = custom_message or default_message
+
+#     sent, failed = [], []
+#     for pid in partner_ids:
+#         email = email_map.get(pid)
+#         pname = partner_names.get(pid, pid)
+#         if not email:
+#             failed.append({"partner_id": pid, "partner_name": pname, "reason": "No email on file"})
+#             continue
+#         try:
+#             frappe.sendmail(
+#                 recipients=[email],
+#                 subject="Utilisation Report Submission Reminder",
+#                 message=f"<p>Dear {frappe.utils.escape_html(pname)},</p><p>{frappe.utils.escape_html(message_body)}</p>",
+#                 now=True,
+#             )
+#             sent.append({"partner_id": pid, "partner_name": pname, "email": email})
+#         except Exception as e:
+#             failed.append({"partner_id": pid, "partner_name": pname, "reason": str(e)})
+
+#     return {"sent": sent, "failed": failed}

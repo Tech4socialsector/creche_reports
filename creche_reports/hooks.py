@@ -15,7 +15,20 @@ doc_events = {
     # "Creche utilisation": {
     #     "after_insert":
     #         "creche_reports.events.send_utilisation_import_email"
-    # }
+    # }scheduler_events = {
+
+}
+# scheduler_events = {
+#     "daily": [
+#         "creche_reports.api.scheduler.send_utilisation_reminders"
+#     ]
+# }
+scheduler_events = {
+    "cron": {
+        "*/5 * * * *": [
+            "creche_reports.api.scheduler.send_utilisation_reminders"
+        ]
+    }
 }
 # required_apps = []
 
@@ -35,7 +48,10 @@ doc_events = {
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/creche_reports/css/creche_reports.css"
-# app_include_js = "/assets/creche_reports/js/creche_reports.js"
+# Cache-busting query param: bump this value whenever response_crypto.js changes,
+# since plain (non ".bundle.js") assets aren't hashed by Frappe's asset pipeline
+# and browsers will otherwise keep serving a stale cached copy indefinitely.
+app_include_js = "/assets/creche_reports/js/response_crypto.js?v=2"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/creche_reports/css/creche_reports.css"
@@ -209,7 +225,7 @@ doc_events = {
 # Request Events
 # ----------------
 # before_request = ["creche_reports.utils.before_request"]
-# after_request = ["creche_reports.utils.after_request"]
+after_request = ["creche_reports.utils.response_crypto.encrypt_response"]
 
 # Job Events
 # ----------

@@ -95,6 +95,15 @@
 	}
 
 	// Wrap frappe.call — covers the vast majority of call sites.
+	//
+	// frappe.call is used two different ways in this codebase:
+	//   1. frappe.call({..., callback: (data) => ...})   — data comes through opts.callback
+	//   2. frappe.call({...}).then(r => ...)              — data comes through the RETURNED
+	//      jQuery promise directly, entirely independent of opts.callback
+	// Both paths carry the raw (possibly still-encrypted) response, so both
+	// must be decrypted — decrypting only the callback left path (2) reading
+	// {enc: "..."} as if it were real data (e.g. r.message resolving to
+	// undefined instead of the actual list).
 	const originalCall = frappe.call;
 	frappe.call = function (opts) {
 		if (typeof arguments[0] === "string") {
@@ -106,7 +115,11 @@
 				if (originalCallback) originalCallback(decrypted, responseText);
 			});
 		};
-		return originalCall(opts);
+		const promise = originalCall(opts);
+		if (promise && typeof promise.then === "function") {
+			return promise.then((data) => maybeDecrypt(data));
+		}
+		return promise;
 	};
 
 	// Wrap frappe.xcall — used for promise-style calls.
@@ -121,6 +134,26 @@
 				error: (r) => reject(r?.message),
 				...opts,
 			});
+		});
+	};
+
+	// Wrap window.fetch — several pages call creche_reports.api.* endpoints
+	// directly via fetch() instead of frappe.call, bypassing the wrapper
+	// above. Only rewrites the response's .json() so callers using res.json()
+	// transparently get decrypted data; everything else (status, headers,
+	// blob() for file downloads, etc.) passes through untouched.
+	const originalFetch = window.fetch;
+	window.fetch = function (...args) {
+		return originalFetch.apply(this, args).then((response) => {
+			const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
+			if (!url.includes("/api/method/creche_reports.")) return response;
+			if (url.includes("get_response_crypto_key")) return response;
+
+			const originalJson = response.json.bind(response);
+			response.json = function () {
+				return originalJson().then((data) => maybeDecrypt(data));
+			};
+			return response;
 		});
 	};
 })();

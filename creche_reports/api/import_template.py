@@ -821,8 +821,14 @@ def download_budget_template(data=None):
     logged_in_user = frappe.session.user
 
     # --------------------------------------------------
-    # FIND IMPORT TEMPLATE SETTINGS
+    # GET BUDGET ITEMS
+    # Prefer the user's own "Import Template settings" (per-user override)
+    # if one exists with items configured; otherwise fall back to the
+    # shared master list so every user can generate a template, matching
+    # the same fallback used by get_all_budget_items().
     # --------------------------------------------------
+
+    budget_items = []
 
     template_settings_name = frappe.db.get_value(
         "Import Template settings",
@@ -831,44 +837,52 @@ def download_budget_template(data=None):
         }
     )
 
-    # --------------------------------------------------
-    # VALIDATION
-    # --------------------------------------------------
+    if template_settings_name:
 
-    if not template_settings_name:
-
-        frappe.throw(
-            f"No Import Template settings found for user: {logged_in_user}"
+        template_settings = frappe.get_doc(
+            "Import Template settings",
+            template_settings_name
         )
 
-    # --------------------------------------------------
-    # GET DOCUMENT
-    # --------------------------------------------------
+        for row in template_settings.table_jndv:
 
-    template_settings = frappe.get_doc(
-        "Import Template settings",
-        template_settings_name
-    )
+            budget_items.append({
 
-    # --------------------------------------------------
-    # GET CHILD TABLE ITEMS
-    # ORDER WILL BE SAME AS CHILD TABLE
-    # --------------------------------------------------
+                "name": row.type_of_expenses_id,
 
-    budget_items = []
+                "budget_main_head": row.budget_main_head,
 
-    for row in template_settings.table_jndv:
+                "budget_sub_head": row.budget_sub_head,
 
-        budget_items.append({
+                "type_of_expenses": row.type_of_expenses
+            })
 
-            "name": row.type_of_expenses_id,
+    if not budget_items:
 
-            "budget_main_head": row.budget_main_head,
+        main_head_sequence = {
+            d.name: (d.sequence_id or 0)
+            for d in frappe.get_all(
+                "Budget main head",
+                fields=["name", "sequence_id"]
+            )
+        }
 
-            "budget_sub_head": row.budget_sub_head,
-
-            "type_of_expenses": row.type_of_expenses
-        })
+        budget_items = sorted(
+            frappe.get_all(
+                "Budget and Expense items list",
+                fields=[
+                    "name",
+                    "budget_main_head",
+                    "budget_sub_head",
+                    "type_of_expenses"
+                ]
+            ),
+            key=lambda d: (
+                main_head_sequence.get(d.get("budget_main_head"), 0),
+                d.get("budget_sub_head") or "",
+                d.get("name") or ""
+            )
+        )
 
     # --------------------------------------------------
     # VALIDATION
@@ -877,7 +891,8 @@ def download_budget_template(data=None):
     if not budget_items:
 
         frappe.throw(
-            "No Import Template Items found for this user"
+            "No Budget and Expense items are configured. Please add items to "
+            "'Budget and Expense items list' before generating a template."
         )
 
     # --------------------------------------------------

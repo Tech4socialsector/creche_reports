@@ -28,6 +28,8 @@ def get_all_budgets():
             "partner_name",
             "grant_id",
             "state",
+            "district",
+            "block",
             "no_of_creches",
         ],
         order_by="name asc"

@@ -7391,6 +7391,17 @@ class CrecheBudgetDashboard {
 				</div>` : ''}
 				<div class="cbd-drill-modal__body">${this._build_ostat_content(stat)}</div>
 				<div class="cbd-drill-modal__footer">
+					<div class="cbd-exp-dd">
+						<button class="cbd-exp-btn cbd-exp-btn--main" id="cbd_ostat_exp_btn" data-fname="${frappe.utils.escape_html(stat.drillType || 'export')}" data-title="${frappe.utils.escape_html(stat.label || '')}">
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+							Export
+							<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+						</button>
+						<div class="cbd-exp-dd__menu">
+							<button class="cbd-exp-dd__item" data-fmt="xlsx">Excel (.xlsx)</button>
+							<button class="cbd-exp-dd__item" data-fmt="pdf">PDF (A4)</button>
+						</div>
+					</div>
 					<button class="btn btn-default btn-sm" id="cbd_drill_footer_close">Close</button>
 				</div>
 			</div>`;
@@ -7405,6 +7416,32 @@ class CrecheBudgetDashboard {
 				this._filter_all_tables_in(wrap.querySelector('.cbd-drill-modal__body'), drillSearch.value);
 			});
 		}
+
+		// Export button: the drill body's table id isn't known until it renders
+		// (geo/map drill-downs assign a random id), so resolve it lazily here
+		// instead of threading a fixed id through every _build_ostat_content branch.
+		const footer = wrap.querySelector('.cbd-drill-modal__footer');
+		footer.addEventListener('click', (e) => {
+			const expMain = e.target.closest('.cbd-exp-btn--main');
+			if (expMain) { e.stopPropagation(); expMain.closest('.cbd-exp-dd').classList.toggle('cbd-exp-dd--open'); return; }
+			const ddItem = e.target.closest('.cbd-exp-dd__item');
+			if (ddItem) {
+				e.stopPropagation();
+				const dd = ddItem.closest('.cbd-exp-dd');
+				const mainBtn = dd.querySelector('.cbd-exp-btn--main');
+				dd.classList.remove('cbd-exp-dd--open');
+				const tbl = wrap.querySelector('.cbd-drill-modal__body table');
+				if (!tbl) { frappe.show_alert({message:'Table not ready', indicator:'orange'}); return; }
+				if (!tbl.id) tbl.id = 'cbd_ostat_tbl_' + Math.random().toString(36).slice(2, 8);
+				this._export_table(tbl.id, mainBtn.dataset.fname, mainBtn.dataset.title, ddItem.dataset.fmt);
+			}
+		});
+		document.addEventListener('click', (e) => {
+			if (!e.target.closest('.cbd-exp-dd')) {
+				footer.querySelectorAll('.cbd-exp-dd--open').forEach(d => d.classList.remove('cbd-exp-dd--open'));
+			}
+		});
+
 		this._drill_key_handler = (e) => { if (e.key === 'Escape') this._close_drill_panel(); };
 		document.addEventListener('keydown', this._drill_key_handler);
 		requestAnimationFrame(() => wrap.classList.add('cbd-drill-modal-wrap--open'));

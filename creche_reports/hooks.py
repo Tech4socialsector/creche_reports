@@ -51,7 +51,7 @@ scheduler_events = {
 # Cache-busting query param: bump this value whenever response_crypto.js changes,
 # since plain (non ".bundle.js") assets aren't hashed by Frappe's asset pipeline
 # and browsers will otherwise keep serving a stale cached copy indefinitely.
-app_include_js = "/assets/creche_reports/js/response_crypto.js?v=2"
+app_include_js = "/assets/creche_reports/js/response_crypto.js?v=4"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/creche_reports/css/creche_reports.css"

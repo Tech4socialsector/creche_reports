@@ -3,6 +3,8 @@ import frappe
 from collections import defaultdict
 from typing import Optional
 
+from creche_reports.api import permissions as perm
+
 MONTH_ORDER = [
     "April", "May", "June", "July", "August", "September",
     "October", "November", "December", "January", "February", "March",
@@ -14,6 +16,62 @@ QUARTER_MONTHS: dict[str, list[str]] = {
     "Q3": ["October", "November", "December"],
     "Q4": ["January", "February", "March"],
 }
+
+
+# ---------------------------------------------------------------------------
+# USER PERMISSION SCOPING
+#
+# Partner / Budget / State / District / Block are scoped together via
+# creche_reports.api.permissions — a permission on any ONE of those five
+# dimensions grants visibility into everything reachable through it (e.g. a
+# State permission implicitly grants the partners and budgets within that
+# state). The ONLY sound representation of that union is a permitted-budget
+# *name* list (see permissions.get_effective_budget_ids) — independently
+# restricting partner_id/state/district/block value sets and AND-ing them
+# together is unsound: a permitted partner can have OTHER budgets outside
+# any permitted state/district/block, and those would incorrectly leak
+# through a column-value-set intersection. So every Creche Budget query here
+# adds a single `name IN [permitted budget ids]` constraint, and Creche
+# Disbursement / Creche utilisation are scoped from the resulting budget
+# names via budget_reference_id, never independently.
+#
+# Grant ID and Financial year are handled separately: grant_id is a plain
+# Data field with no doctype to restrict against (left unscoped), and
+# financial_year narrows independently since it isn't part of the granted
+# partner/budget/state/district/block union.
+# ---------------------------------------------------------------------------
+
+def _apply_budget_permission_scope(filters: dict) -> dict:
+    """Add the permitted-budget-name constraint to a Creche Budget filters dict."""
+    return perm.apply_budget_id_scope(filters, column="name")
+
+
+def _permitted_budget_names(filters: dict) -> Optional[list[str]]:
+    """Resolve the Creche Budget docnames matching `filters` (already
+    permission-scoped) — used to then scope Creche Disbursement / Creche
+    utilisation queries via budget_reference_id."""
+    return frappe.get_all("Creche Budget", filters=filters, pluck="name")
+
+
+def _assert_permitted(field: str, value: Optional[str]) -> None:
+    """Raise PermissionError if `value` is outside the current user's permitted
+    financial_year (the one scoped field not covered by the shared partner/
+    budget/state/district/block union in creche_reports.api.permissions)."""
+    if not value:
+        return
+    permitted = perm.get_permitted_values("Financial year")
+    if permitted is not None and value not in permitted:
+        frappe.throw(
+            frappe._("You do not have permission to access this record."),
+            frappe.PermissionError,
+        )
+
+
+def _assert_budget_permitted(budget_reference_id: str) -> None:
+    """Raise PermissionError if the caller has no access to this budget."""
+    perm.assert_budget_permitted(budget_reference_id)
+    financial_year = frappe.db.get_value("Creche Budget", budget_reference_id, "financial_year")
+    _assert_permitted("financial_year", financial_year)
 
 
 def _parse_list(value: Optional[str]) -> list[str]:
@@ -32,6 +90,10 @@ def _build_base_filters(
     block: Optional[str] = None,
     financial_year: Optional[str] = None,
 ) -> dict:
+    """Build the plain user-requested Creche Budget filters (no permission
+    scoping — callers must run the result through _apply_budget_permission_scope
+    before querying, so the Partner/Budget/State/District/Block permission
+    union is applied as a single sound `name IN [...]` constraint)."""
     f: dict = {}
     p = _parse_list(partner_id)
     if p:
@@ -48,7 +110,7 @@ def _build_base_filters(
     b = _parse_list(block)
     if b:
         f["block"] = ["in", b]
-    fy = _parse_list(financial_year)
+    fy = perm.intersect(_parse_list(financial_year), perm.get_permitted_values("Financial year"))
     if fy:
         f["financial_year"] = ["in", fy]
     return f
@@ -102,11 +164,16 @@ def get_dashboard_filters(
     district: str = None,
     block: str = None,
 ) -> dict:
-    """Return distinct filter options, cascaded by all OTHER currently-selected filters.
+    """Return distinct filter options, cascaded by all OTHER currently-selected filters
+    and narrowed to what the current user is permitted to see via User Permissions.
 
     Each field shows only the values that are valid given everything *except* its own
-    current selection, so the user can always change any filter freely.
+    current selection, so the user can always change any filter freely. Fields the user
+    is restricted on (via a "User Permission" record) only ever show permitted values,
+    and are reported as locked in `permission_scope` so the frontend can render them
+    read-only / pre-selected instead of as free-choice dropdowns.
     """
+    field_scope = perm.get_permission_scope()
 
     def _make_filters(exclude_key: str) -> dict:
         f: dict = {}
@@ -124,7 +191,7 @@ def get_dashboard_filters(
             lst = _parse_list(val)
             if lst:
                 f[key] = ["in", lst]
-        return f
+        return _apply_budget_permission_scope(f)
 
     def distinct(field: str) -> list[str]:
         rows = frappe.get_all(
@@ -144,9 +211,15 @@ def get_dashboard_filters(
     seen: set[str] = set()
     partners: list[dict] = []
     for r in partner_rows:
-        if r.partner_id and r.partner_id not in seen:
-            seen.add(r.partner_id)
-            partners.append({"id": r.partner_id, "name": r.partner_name or r.partner_id})
+        if not r.partner_id or r.partner_id in seen:
+            continue
+        seen.add(r.partner_id)
+        partners.append({"id": r.partner_id, "name": r.partner_name or r.partner_id})
+
+    financial_years = frappe.get_all("Financial year", fields=["name"], pluck="name")
+    permitted_fys = perm.get_permitted_values("Financial year")
+    if permitted_fys is not None:
+        financial_years = [fy for fy in financial_years if fy in set(permitted_fys)]
 
     return {
         "partners":        sorted(partners, key=lambda x: x["name"]),
@@ -154,9 +227,13 @@ def get_dashboard_filters(
         "states":          distinct("state"),
         "districts":       distinct("district"),
         "blocks":          distinct("block"),
-        "financial_years": frappe.get_all("Financial year", fields=["name"], pluck="name"),
+        "financial_years": financial_years,
         "months":          MONTH_ORDER,
         "quarters":        ["Q1 (Apr–Jun)", "Q2 (Jul–Sep)", "Q3 (Oct–Dec)", "Q4 (Jan–Mar)"],
+        "permission_scope": {
+            **{field: (permitted is not None) for field, permitted in field_scope.items()},
+            "financial_year": permitted_fys is not None,
+        },
     }
 
 
@@ -176,24 +253,35 @@ def get_dashboard_summary(
     financial_year: str = None,
 ) -> dict:
     """Return aggregated numbers for the six summary cards."""
-    base = _build_base_filters(partner_id, grant_id, state, district, block, financial_year)
+    base = _apply_budget_permission_scope(
+        _build_base_filters(partner_id, grant_id, state, district, block, financial_year)
+    )
 
     budgets = frappe.get_all(
         "Creche Budget",
         filters=base,
-        fields=["total_budget", "partner_id"],
+        fields=["name", "total_budget", "partner_id"],
     )
     total_budget = sum(b.total_budget or 0 for b in budgets)
     all_budget_partners = {b.partner_id for b in budgets}
+    budget_ids = [b.name for b in budgets]
 
+    if not budget_ids:
+        return {
+            "total_budget": 0, "total_utilisation": 0, "total_disbursed": 0,
+            "balance_available": 0, "delinquent_partners": 0,
+            "total_balance_bank": 0, "total_partners": 0,
+        }
+
+    disb_filters = {"budget_reference_id": ["in", budget_ids]}
     disbursements = frappe.get_all(
         "Creche Disbursement",
-        filters=base,
+        filters=disb_filters,
         fields=["total_disbursement"],
     )
     total_disbursed = sum(d.total_disbursement or 0 for d in disbursements)
 
-    util_filters = _add_month_filter(base, month, quarter)
+    util_filters = _add_month_filter({"budget_reference_id": ["in", budget_ids]}, month, quarter)
     utilisations = frappe.get_all(
         "Creche utilisation",
         filters=util_filters,
@@ -231,14 +319,17 @@ def get_partner_breakdown(
     financial_year: str = None,
 ) -> list:
     """Return one row per partner with aggregated budget / disbursed / utilised figures."""
-    base = _build_base_filters(partner_id, grant_id, state, district, block, financial_year)
+    base = _apply_budget_permission_scope(
+        _build_base_filters(partner_id, grant_id, state, district, block, financial_year)
+    )
 
     budgets = frappe.get_all(
         "Creche Budget",
         filters=base,
-        fields=["partner_id", "partner_name", "grant_id", "state", "district", "block",
+        fields=["name", "partner_id", "partner_name", "grant_id", "state", "district", "block",
                 "total_budget", "no_of_creches"],
     )
+    budget_ids = [b.name for b in budgets]
 
     pmap: dict[str, dict] = {}
     for b in budgets:
@@ -271,13 +362,17 @@ def get_partner_breakdown(
         if b.block:
             p["blocks"].add(b.block)
 
+    if not budget_ids:
+        return []
+
     for d in frappe.get_all(
-        "Creche Disbursement", filters=base, fields=["partner_id", "total_disbursement"]
+        "Creche Disbursement", filters={"budget_reference_id": ["in", budget_ids]},
+        fields=["partner_id", "total_disbursement"],
     ):
         if d.partner_id in pmap:
             pmap[d.partner_id]["total_disbursed"] += d.total_disbursement or 0
 
-    util_filters = _add_month_filter(base, month, quarter)
+    util_filters = _add_month_filter({"budget_reference_id": ["in", budget_ids]}, month, quarter)
     for u in frappe.get_all(
         "Creche utilisation",
         filters=util_filters,
@@ -316,6 +411,10 @@ def get_budget_breakdown(
     financial_year: str = None,
 ) -> list:
     """Return one row per budget/grant for the given partner."""
+    permitted_partner_ids = perm.get_effective_partner_ids()
+    if permitted_partner_ids is not None and partner_id not in permitted_partner_ids:
+        frappe.throw(frappe._("You do not have permission to access this record."), frappe.PermissionError)
+
     filters: dict = {"partner_id": partner_id}
     gl = _parse_list(grant_id)
     if gl:
@@ -329,9 +428,11 @@ def get_budget_breakdown(
     bl = _parse_list(block)
     if bl:
         filters["block"] = ["in", bl]
-    fl = _parse_list(financial_year)
+    fl = perm.intersect(_parse_list(financial_year), perm.get_permitted_values("Financial year"))
     if fl:
         filters["financial_year"] = ["in", fl]
+
+    filters = _apply_budget_permission_scope(filters)
 
     budgets = frappe.get_all(
         "Creche Budget",
@@ -405,6 +506,8 @@ def get_month_breakdown(
     quarter: str = None,
 ) -> list:
     """Return one row per month submitted for the given budget."""
+    _assert_budget_permitted(budget_reference_id)
+
     filters: dict = {"budget_reference_id": budget_reference_id}
     filters = _add_month_filter(filters, month, quarter)
 
@@ -442,6 +545,8 @@ def get_budget_expense_breakdown(
                            each with an `items` list of expense-level detail for that month
     """
     from frappe.utils import getdate, today as frappe_today, date_diff
+
+    _assert_budget_permitted(budget_reference_id)
 
     # ── Budget meta ───────────────────────────────────────────────────────
     budget = frappe.get_doc("Creche Budget", budget_reference_id)

@@ -225,6 +225,7 @@ def export_creche_utilisation_excel_object(names: Any = None):
 
 
 
+
     import frappe
 import io
 import json
@@ -575,3 +576,184 @@ def generate_creche_utilisation_file(export_id, filter_snapshot):
         tracker.completed_on = frappe.utils.now()
         tracker.save(ignore_permissions=True)
         frappe.db.commit()
+
+
+# =========================================================
+# CRECHE BUDGET EXPORT
+# =========================================================
+
+@frappe.whitelist()
+def export_creche_budget_excel(names: Any = None):
+
+    # -----------------------
+    # HANDLE INPUT (OBJECT / STRING)
+    # -----------------------
+    if not names:
+        frappe.throw("Please select at least one record")
+
+    if isinstance(names, str):
+        try:
+            names = json.loads(names)
+        except Exception:
+            names = [n.strip() for n in names.split(",") if n.strip()]
+
+    if not isinstance(names, list):
+        frappe.throw("Invalid names format")
+
+    if not names:
+        frappe.throw("No valid records found")
+
+    # -----------------------
+    # WORKBOOK
+    # -----------------------
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    # -----------------------
+    # STYLES
+    # -----------------------
+    center = Alignment(horizontal="center", vertical="center")
+    left = Alignment(horizontal="left", vertical="center")
+    bold = Font(bold=True)
+    header_fill = PatternFill("solid", fgColor="D6DBDF")
+
+    thin = Side(style="thin")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    def style(cell, bold_font=False, fill=None, align=None):
+        cell.border = border
+        if bold_font:
+            cell.font = bold
+        if fill:
+            cell.fill = fill
+        if align:
+            cell.alignment = align
+
+    # -----------------------
+    # LOOP DOCUMENTS
+    # -----------------------
+    for name in names:
+
+        doc = frappe.get_doc("Creche Budget", name)
+
+        # -----------------------
+        # SHEET NAME
+        # -----------------------
+        sheet_name = doc.name
+
+        for ch in ['\\', '/', '*', '?', ':', '[', ']']:
+            sheet_name = sheet_name.replace(ch, '')
+
+        sheet_name = sheet_name[:31]
+
+        ws = wb.create_sheet(title=sheet_name)
+
+        row = 1
+        col_offset = 1
+
+        # -----------------------
+        # PARENT FIELDS
+        # -----------------------
+        parent_fields = [
+            ("ID", doc.name),
+            ("Budget reference name", doc.budget_reference_name),
+            ("Grant ID", doc.grant_id),
+            ("Financial year", doc.financial_year),
+            ("No of creches", doc.no_of_creches),
+            ("Start Date", doc.start_date),
+            ("End Date", doc.end_date),
+            ("Date of approval", doc.date_of_approval),
+        ]
+
+        for label, value in parent_fields:
+            ws.cell(row=row, column=col_offset, value=label)
+            ws.cell(row=row, column=col_offset + 1, value=value)
+
+            style(ws.cell(row=row, column=col_offset), bold_font=True, align=left)
+            style(ws.cell(row=row, column=col_offset + 1), align=left)
+
+            row += 1
+
+        row += 1
+
+        # -----------------------
+        # HEADER
+        # -----------------------
+        headers = [
+            "Type of expenses ID", "Budget main head", "Budget sub head",
+            "Type of expenses", "Year 1", "Year 2", "Year 3", "Total Amount",
+        ]
+
+        for col, h in enumerate(headers):
+            cell = ws.cell(row=row, column=col_offset + col, value=h)
+            style(cell, bold_font=True, fill=header_fill, align=center)
+
+        row += 1
+
+        # -----------------------
+        # DATA
+        # -----------------------
+        data_start_row = row
+
+        for item in (doc.get("budget_items_list") or []):
+
+            ws.cell(row=row, column=col_offset,     value=item.type_of_expenses_id)
+            ws.cell(row=row, column=col_offset + 1, value=item.budget_main_head)
+            ws.cell(row=row, column=col_offset + 2, value=item.budget_sub_head)
+            ws.cell(row=row, column=col_offset + 3, value=item.type_of_expenses)
+            ws.cell(row=row, column=col_offset + 4, value=item.year_1)
+            ws.cell(row=row, column=col_offset + 5, value=item.year_2)
+            ws.cell(row=row, column=col_offset + 6, value=item.year_3)
+            ws.cell(row=row, column=col_offset + 7, value=item.total_amount)
+
+            for col in range(8):
+                style(ws.cell(row=row, column=col_offset + col))
+
+            row += 1
+
+        data_end_row = row - 1
+        row += 1
+
+        # -----------------------
+        # TOTAL
+        # -----------------------
+        if data_end_row >= data_start_row:
+            y1_col = get_column_letter(col_offset + 4)
+            y2_col = get_column_letter(col_offset + 5)
+            y3_col = get_column_letter(col_offset + 6)
+            amt_col = get_column_letter(col_offset + 7)
+
+            ws.cell(row=row, column=col_offset, value="Total")
+            ws.cell(row=row, column=col_offset + 4, value=f"=SUM({y1_col}{data_start_row}:{y1_col}{data_end_row})")
+            ws.cell(row=row, column=col_offset + 5, value=f"=SUM({y2_col}{data_start_row}:{y2_col}{data_end_row})")
+            ws.cell(row=row, column=col_offset + 6, value=f"=SUM({y3_col}{data_start_row}:{y3_col}{data_end_row})")
+            ws.cell(row=row, column=col_offset + 7, value=f"=SUM({amt_col}{data_start_row}:{amt_col}{data_end_row})")
+
+            for col in (0, 4, 5, 6, 7):
+                style(ws.cell(row=row, column=col_offset + col), bold_font=True)
+
+        # -----------------------
+        # AUTO WIDTH
+        # -----------------------
+        for col in ws.columns:
+            max_len = 0
+            col_letter = col[0].column_letter
+
+            for cell in col:
+                if cell.value:
+                    max_len = max(max_len, len(str(cell.value)))
+
+            ws.column_dimensions[col_letter].width = max_len + 3
+
+    # -----------------------
+    # OUTPUT
+    # -----------------------
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+
+    filename = "Creche_Budget.xlsx" if len(names) > 1 else f"{names[0]}_Creche_Budget.xlsx"
+
+    frappe.response["filename"] = filename
+    frappe.response["filecontent"] = stream.getvalue()
+    frappe.response["type"] = "binary"

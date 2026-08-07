@@ -7965,26 +7965,24 @@ def _build_filter_segments(filters):
 
 # ══════════════════════════════════════════════════════════════════════════
 # PERMISSION HELPERS
+#
+# Partner / Budget / State / District / Block scoping is delegated to the
+# shared creche_reports.api.permissions module (used by both dashboards and
+# the Creche Budget Utilisation report), which unions every granted
+# dimension rather than AND-ing independent column-value sets — a partner
+# permitted via one budget can have OTHER budgets outside a permitted
+# state/district/block, so an AND-based approach would incorrectly leak
+# those. See that module's docstring for the full rationale.
 # ══════════════════════════════════════════════════════════════════════════
 
+from creche_reports.api import permissions as _perm
+
 def _get_user_permitted_partners():
-    user  = frappe.session.user
-    roles = frappe.get_roles(user)
-    if "System Manager" in roles or user == "Administrator":
-        return None
-    rows = frappe.db.sql(
-        "SELECT for_value FROM `tabUser Permission` WHERE user = %s AND allow = 'Creche Partners'",
-        (user,), as_dict=True,
-    )
-    if not rows: return None
-    return [r.for_value for r in rows if r.for_value]
+    return _perm.get_effective_partner_ids()
 
 def _intersect(filter_list, permitted):
-    if permitted is None: return filter_list
-    if not permitted: return []
-    if not filter_list: return permitted
-    pset = set(permitted)
-    return [p for p in filter_list if p in pset]
+    result = _perm.intersect(filter_list, permitted)
+    return [] if result == ["__none__"] else (result or [])
 
 def _empty_summary():
     return {
@@ -7994,11 +7992,9 @@ def _empty_summary():
         "utilisation_pct":0,"disbursement_pct":0,
     }
 
-def _assert_partner_access(partner_id: str):
-    permitted = _get_user_permitted_partners()
-    if permitted is None: return
-    if partner_id not in permitted:
-        frappe.throw(frappe._("You do not have permission to access this partner"), frappe.PermissionError)
+def _apply_budget_permission_scope(filters: dict) -> dict:
+    """Add the permitted-budget-name constraint to a Creche Budget filters dict."""
+    return _perm.apply_budget_id_scope(dict(filters), column="name")
 
 # ══════════════════════════════════════════════════════════════════════════
 # PARTNER OPTIONS
@@ -8037,7 +8033,7 @@ def get_partner_budget_summary(filters=None):
     filter_partners    = filters.get("partner_id") or None
     effective_partners = _intersect(filter_partners, permitted)
 
-    if effective_partners is not None and len(effective_partners) == 0:
+    if permitted is not None and filter_partners and not effective_partners:
         return {"summary": _empty_summary(), "partners": []}
 
     start_date = filters.get("start_date") or None
@@ -8063,6 +8059,10 @@ def get_partner_budget_summary(filters=None):
         budget_filters["end_date"]   = [">=", start_date]
     if end_date:
         budget_filters["start_date"] = ["<=", end_date]
+
+    budget_filters = _apply_budget_permission_scope(budget_filters)
+    if budget_filters.get("name") == ["in", ["__none__"]]:
+        return {"summary": _empty_summary(), "partners": []}
 
     budgets = frappe.get_all(
         "Creche Budget", filters=budget_filters,
@@ -8401,7 +8401,6 @@ def get_partner_budget_summary(filters=None):
 @frappe.whitelist()
 def get_disbursement_panel_data(budget_ids=None, partner_ids=None, start_date=None, end_date=None,
                                 financial_year=None, month=None):
-    permitted = _get_user_permitted_partners()
     def _to_list(v):
         if not v: return []
         if isinstance(v, str):
@@ -8417,24 +8416,27 @@ def get_disbursement_panel_data(budget_ids=None, partner_ids=None, start_date=No
     filter_fys       = _to_list(financial_year)
     month_filters    = [m.strip() for m in _to_list(month) if str(m).strip()]
 
+    effective_budget_ids = _perm.get_effective_budget_ids()
+
     disb_filters = {}
     if budget_ids_list:
-        if permitted is not None:
-            br = frappe.get_all("Creche Budget",
-                filters={"name":["in",budget_ids_list]},
-                fields=["name","partner_id"], ignore_permissions=True)
-            budget_ids_list = [r.name for r in br if r.partner_id in permitted]
+        if effective_budget_ids is not None:
+            budget_ids_list = [b for b in budget_ids_list if b in set(effective_budget_ids)]
             if not budget_ids_list: return []
         disb_filters["budget_reference_id"] = ["in", budget_ids_list]
     elif partner_ids_list:
-        eff = _intersect(partner_ids_list, permitted)
-        if eff is not None and not eff: return []
-        if eff: disb_filters["partner_id"] = ["in", eff]
-        elif permitted is not None: return []
+        if effective_budget_ids is not None:
+            partner_budget_ids = frappe.get_all("Creche Budget",
+                filters={"partner_id": ["in", partner_ids_list], "name": ["in", effective_budget_ids or ["__none__"]]},
+                pluck="name")
+            if not partner_budget_ids: return []
+            disb_filters["budget_reference_id"] = ["in", partner_budget_ids]
+        else:
+            disb_filters["partner_id"] = ["in", partner_ids_list]
     else:
-        if permitted is not None:
-            if not permitted: return []
-            disb_filters["partner_id"] = ["in", permitted]
+        if effective_budget_ids is not None:
+            if not effective_budget_ids: return []
+            disb_filters["budget_reference_id"] = ["in", effective_budget_ids]
 
     disb_docs = frappe.get_all("Creche Disbursement", filters=disb_filters,
         fields=["name","budget_reference_id","budget_reference_name","partner_id","partner_name",
@@ -8578,8 +8580,7 @@ def get_budget_line_items(budget_id: str, start_date=None, end_date=None,
     # further, never extend past it.
     empty = {"months": [], "rows": []}
     if not budget_id: return empty
-    partner_id = frappe.db.get_value("Creche Budget", budget_id, "partner_id")
-    _assert_partner_access(partner_id)
+    _perm.assert_budget_permitted(budget_id)
 
     bud_start, bud_end = frappe.db.get_value("Creche Budget", budget_id, ["start_date", "end_date"])
     bud_start = getdate(bud_start) if bud_start else None
@@ -8636,8 +8637,7 @@ def get_utilisation_line_items(budget_id: str, start_date=None, end_date=None,
     # date the same way as the budget-items endpoint above.
     empty = {"months": [], "rows": []}
     if not budget_id: return empty
-    partner_id = frappe.db.get_value("Creche Budget", budget_id, "partner_id")
-    _assert_partner_access(partner_id)
+    _perm.assert_budget_permitted(budget_id)
 
     bud_start, bud_end = frappe.db.get_value("Creche Budget", budget_id, ["start_date", "end_date"])
     bud_start = getdate(bud_start) if bud_start else None
@@ -8884,6 +8884,10 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
         budget_filters.append(["district", "in", filters["district"]])
     if filters.get("block"):
         budget_filters.append(["block", "in", filters["block"]])
+
+    effective_budget_ids = _perm.get_effective_budget_ids()
+    if effective_budget_ids is not None:
+        budget_filters.append(["name", "in", effective_budget_ids or ["__none__"]])
 
     budgets = frappe.get_all(
         "Creche Budget",

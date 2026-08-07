@@ -2283,6 +2283,8 @@ from collections import OrderedDict
 import calendar
 from datetime import date, timedelta
 
+from creche_reports.api import permissions as _perm
+
 # Labels shown in the Excel filter summary header
 _FILTER_LABELS = {
 	"level":            "Level",
@@ -2307,37 +2309,13 @@ _FY_MONTH_POS = {m: i for i, m in enumerate(_FY_MONTH_NAMES)}  # April→0, Marc
 
 # ─── User-permission enforcement ───────────────────────────────────────────────
 #
-# Map each restrictable filter field on this report to the doctype whose
-# "User Permission" records should govern who can see which values.
-# Confirmed from the Creche Budget / Creche Partners doctype JSON:
-#   - partner_id → Link to "Creche Partners" (autonamed CRP-#####)
-#   - state      → Link to "State"
-#   - district   → Link to "District"
-#   - block      → Link to "Block"
-_PERMISSION_DOCTYPE_MAP = {
-	"partner_id": "Creche Partners",
-	"state":      "State",
-	"district":   "District",
-	"block":      "Block",
-}
-
-
-def _get_permitted_values(doctype, user=None):
-	"""
-	Return the set of document names the given user is restricted to for
-	`doctype` via User Permission, or None if the user has no such
-	restriction configured (i.e. they see everything for that doctype).
-	"""
-	user = user or frappe.session.user
-	if user == "Administrator" or "System Manager" in frappe.get_roles(user):
-		return None
-
-	perms = frappe.permissions.get_user_permissions(user)
-	entries = perms.get(doctype)
-	if not entries:
-		return None  # no restriction configured for this doctype/user
-
-	return {e.get("doc") for e in entries if e.get("doc")}
+# Partner / Budget / State / District / Block scoping is delegated to the
+# shared creche_reports.api.permissions module (also used by both
+# dashboards), which unions every granted dimension into a single permitted
+# Creche Budget *name* list rather than independently AND-ing column value
+# sets — a partner permitted via one budget can have OTHER budgets outside
+# any permitted state/district/block, and an AND-based approach would
+# incorrectly leak those. See that module's docstring for the full rationale.
 
 
 def _partner_docnames_to_display_names(docnames):
@@ -2362,56 +2340,23 @@ def _partner_docnames_to_display_names(docnames):
 
 def apply_user_permission_filters(filters):
 	"""
-	Narrow `filters` so every restrictable field only ever contains values
-	the current user is permitted to see.
-
-	- If the user has a restriction for a field and passed no value for it,
-	  the restriction itself becomes the filter (so they transparently only
-	  ever see their permitted records).
-	- If the user explicitly filtered on values outside their permission,
-	  those values are dropped rather than silently honoured.
-	- If, after narrowing, a permitted field ends up with zero allowed
-	  values, we flag the query to return no rows (rather than mistakenly
-	  falling through to "no filter applied" = everything).
+	Narrow `filters` so the query only ever returns budgets the current user
+	is permitted to see, via a single `__permitted_budget_names__` key
+	consumed by build_conditions() as `CB.name IN (...)`. Requested
+	partner_id/state/district/block values pass through unchanged as normal
+	report filters — the permission boundary is enforced independently as
+	the budget-name constraint, not by narrowing those value sets (which
+	would be unsound — see module docstring).
 	"""
 	filters = dict(filters or {})
-	user = frappe.session.user
 
-	deny_all = False
+	effective_budget_ids = _perm.get_effective_budget_ids()
+	if effective_budget_ids is not None:
+		filters["__permitted_budget_names__"] = effective_budget_ids
+		filters["__deny_all__"] = not effective_budget_ids
+	else:
+		filters["__deny_all__"] = False
 
-	for field, doctype in _PERMISSION_DOCTYPE_MAP.items():
-		permitted = _get_permitted_values(doctype, user)
-		if permitted is None:
-			continue  # unrestricted for this doctype
-
-		# Translate docname → display value only for the partner field;
-		# state/district/block are simple masters where the Link value
-		# stored on Creche Budget IS the docname, so no translation needed.
-		permitted_display = (
-			set(_partner_docnames_to_display_names(permitted))
-			if field == "partner_id" else permitted
-		)
-
-		requested = filters.get(field)
-		if isinstance(requested, str):
-			requested = [requested] if requested else []
-		requested = [v for v in (requested or []) if v]
-
-		if requested:
-			allowed = [v for v in requested if v in permitted_display]
-			if not allowed:
-				deny_all = True
-		else:
-			allowed = sorted(permitted_display)
-			if not allowed:
-				# User has a User Permission record but it translates to
-				# nothing visible (e.g. dangling/renamed doc) — deny rather
-				# than silently falling through to "unfiltered".
-				deny_all = True
-
-		filters[field] = allowed
-
-	filters["__deny_all__"] = deny_all
 	return filters
 
 
@@ -2420,7 +2365,10 @@ def get_permitted_filter_values(doctype):
 	"""
 	Called from the report's client script (report .js) to populate the
 	Partner / State / District / Block filter dropdowns with only the
-	values the current user is permitted to see.
+	values the current user is permitted to see (derived from the union of
+	every budget reachable through ANY granted permission dimension, not
+	just a direct permission on `doctype` itself — e.g. a State permission
+	should also narrow the Partner dropdown to that state's partners).
 
 	Usage from the report's .js, e.g. for a Link/Select filter:
 
@@ -2441,19 +2389,23 @@ def get_permitted_filter_values(doctype):
 
 	Note: for `doctype="Creche Partners"` this returns partner_name display
 	values (matching what the report's filters actually compare against),
-	not docnames — consistent with `apply_user_permission_filters` above.
+	not docnames.
 	"""
-	permitted = _get_permitted_values(doctype)
+	budgets = _perm.get_permitted_budgets()
 
 	if doctype == "Creche Partners":
-		if permitted is None:
+		if budgets is None:
 			return frappe.get_all("Creche Partners", pluck="partner_name", order_by="partner_name asc")
-		return sorted(_partner_docnames_to_display_names(permitted))
+		partner_ids = {b["partner_id"] for b in budgets if b.get("partner_id")}
+		return sorted(_partner_docnames_to_display_names(partner_ids))
 
-	if permitted is None:
-		# No restriction configured — behave like a normal unrestricted dropdown.
+	column = {"State": "state", "District": "district", "Block": "block"}.get(doctype)
+	if column is None:
 		return frappe.get_all(doctype, pluck="name", order_by="name asc")
-	return sorted(permitted)
+
+	if budgets is None:
+		return frappe.get_all(doctype, pluck="name", order_by="name asc")
+	return sorted({b[column] for b in budgets if b.get(column)})
 
 
 # ─── Financial-year helpers ────────────────────────────────────────────────────
@@ -2596,6 +2548,15 @@ def build_conditions(filters):
 	_add("CB.state",                  "state")
 	_add("CB.district",               "district")
 	_add("CB.block",                  "block")
+
+	permitted_budget_names = filters.get("__permitted_budget_names__")
+	if permitted_budget_names is not None:
+		if not permitted_budget_names:
+			return "WHERE 1 = 0", {}
+		for i, name in enumerate(permitted_budget_names):
+			params[f"p_permitted_{i}"] = name
+		placeholders = ", ".join(f"%(p_permitted_{i})s" for i in range(len(permitted_budget_names)))
+		conditions.append(f"CB.name IN ({placeholders})")
 
 	if filters.get("start_date"):
 		params["start_date"] = filters["start_date"]

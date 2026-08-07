@@ -2142,33 +2142,40 @@ class FinanceDashboard {
 	// ─── Filter bar ────────────────────────────────────────────────────────────
 	_render_filter_bar() {
 		const fo = this.filter_options;
+		const scope = fo.permission_scope || {};
 		this.$bar.empty();
 		const defs = [
-			{ key:'year',     label:'Year',     opts:fo.financial_years||[] },
-			{ key:'partner',  label:'Partner',  opts:(fo.partners||[]).map(p=>p.name) },
+			{ key:'year',     label:'Year',     opts:fo.financial_years||[],            scopeKey:'financial_year' },
+			{ key:'partner',  label:'Partner',  opts:(fo.partners||[]).map(p=>p.name),  scopeKey:'partner_id' },
 			{ key:'grant',    label:'Grant',    opts:fo.grants||[] },
-			{ key:'state',    label:'State',    opts:fo.states||[] },
-			{ key:'district', label:'District', opts:fo.districts||[] },
-			{ key:'block',    label:'Block',    opts:fo.blocks||[] },
+			{ key:'state',    label:'State',    opts:fo.states||[],                     scopeKey:'state' },
+			{ key:'district', label:'District', opts:fo.districts||[],                  scopeKey:'district' },
+			{ key:'block',    label:'Block',    opts:fo.blocks||[],                     scopeKey:'block' },
 			{ key:'month',    label:'Month',    opts:fo.months||[] },
 			{ key:'quarter',  label:'Quarter',  opts:fo.quarters||[] },
 		];
 		const $grid = $('<div class="fd-filter-grid"></div>');
 		this.$bar.append($grid);
 		defs.forEach(fd => {
+			const locked = !!(fd.scopeKey && scope[fd.scopeKey]);
+			// Restricted fields are auto-scoped to everything the user is permitted to
+			// see, unless the user has already narrowed the selection themselves.
+			if (locked && !(this.filter_values[fd.key]||[]).length) {
+				this.filter_values[fd.key] = [...fd.opts];
+			}
 			const $f = $(`<div class="fd-filter-field">
-				<label class="fd-filter-label">${fd.label}</label>
+				<label class="fd-filter-label">${fd.label}${locked?' <span class="fd-filter-lock" title="Restricted by your user permissions">&#128274;</span>':''}</label>
 				<div class="fd-ms-wrap" data-key="${fd.key}">
 					<div class="fd-ms-box">
 						<div class="fd-ms-tags" data-key="${fd.key}"></div>
 						<input class="fd-ms-input" type="text" placeholder="${fd.opts.length?'Select...':'No options'}"
-							autocomplete="off" data-key="${fd.key}" ${!fd.opts.length?'disabled':''}>
+							autocomplete="off" data-key="${fd.key}" ${(!fd.opts.length||locked)?'disabled':''}>
 					</div>
 					<div class="fd-ms-dropdown" data-key="${fd.key}" style="display:none"></div>
 				</div>
 			</div>`);
 			$grid.append($f);
-			this._init_ms($f, fd.key, fd.opts, this.filter_values[fd.key]||[]);
+			this._init_ms($f, fd.key, fd.opts, this.filter_values[fd.key]||[], locked);
 		});
 		const $btns = $(`<div class="fd-bar-btns">
 			<button class="btn btn-primary btn-sm">&#10003; Apply Filters</button>
@@ -2190,13 +2197,14 @@ class FinanceDashboard {
 		});
 	}
 
-	_init_ms($field, key, opts, selected) {
+	_init_ms($field, key, opts, selected, locked=false) {
 		const $wrap=$field.find(`.fd-ms-wrap[data-key="${key}"]`);
 		const $box=$wrap.find('.fd-ms-box'), $tags=$wrap.find(`.fd-ms-tags[data-key="${key}"]`);
 		const $inp=$wrap.find(`.fd-ms-input[data-key="${key}"]`), $dd=$wrap.find(`.fd-ms-dropdown[data-key="${key}"]`);
 		let sel=new Set(selected);
-		const rtags=()=>{ $tags.empty(); sel.forEach(v=>{ const $t=$(`<span class="fd-ms-tag">${this._esc(v)}<span class="fd-ms-tag-x">×</span></span>`); $t.find('.fd-ms-tag-x').on('click',(e)=>{ e.stopPropagation(); sel.delete(v); this.filter_values[key]=[...sel]; rtags(); rdd(); this._schedule_cascade(); }); $tags.append($t); }); };
+		const rtags=()=>{ $tags.empty(); sel.forEach(v=>{ const $t=$(`<span class="fd-ms-tag">${this._esc(v)}${locked?'':'<span class="fd-ms-tag-x">×</span>'}</span>`); $t.find('.fd-ms-tag-x').on('click',(e)=>{ e.stopPropagation(); sel.delete(v); this.filter_values[key]=[...sel]; rtags(); rdd(); this._schedule_cascade(); }); $tags.append($t); }); };
 		const rdd=(q='')=>{ $dd.empty(); const items=opts.filter(o=>o.toLowerCase().includes(q.toLowerCase())&&!sel.has(o)); if(!items.length){$dd.html('<div class="fd-ms-empty">No options</div>');return;} items.forEach(opt=>{ const $i=$(`<div class="fd-ms-item">${this._esc(opt)}</div>`); $i.on('mousedown',(e)=>{ e.preventDefault(); sel.add(opt); this.filter_values[key]=[...sel]; $inp.val(''); rtags(); rdd(''); this._schedule_cascade(); }); $dd.append($i); }); };
+		if (locked) { rtags(); return; }
 		$box.on('click',(e)=>{ if($(e.target).hasClass('fd-ms-tag-x'))return; this.$bar.find('.fd-ms-dropdown').not($dd).hide(); this.$bar.find('.fd-ms-box').not($box).removeClass('fd-ms-open'); $box.addClass('fd-ms-open'); rdd($inp.val()); $dd.show(); $inp.focus(); });
 		$inp.on('input',()=>rdd($inp.val()));
 		$inp.on('keydown',(e)=>{ if(e.key==='Backspace'&&!$inp.val()&&sel.size){ const last=[...sel].pop(); sel.delete(last); this.filter_values[key]=[...sel]; rtags(); rdd(); this._schedule_cascade(); } if(e.key==='Escape'){$dd.hide();$box.removeClass('fd-ms-open');} });
@@ -2753,9 +2761,11 @@ class FinanceDashboard {
 @media(max-width:1100px){.fd-filter-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:760px){.fd-filter-grid{grid-template-columns:repeat(2,1fr)}}
 .fd-filter-label{display:block;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.fd-filter-lock{font-size:10px;opacity:.7}
 .fd-bar-btns{display:flex;gap:8px}
 .fd-ms-wrap{position:relative}
 .fd-ms-box{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:32px;padding:3px 8px;background:var(--control-bg,#fff);border:1px solid var(--border-color);border-radius:var(--border-radius);cursor:text;transition:border-color .15s,box-shadow .15s}
+.fd-ms-box:has(input:disabled){background:var(--disabled-bg,#f5f5f5);cursor:not-allowed}
 .fd-ms-box.fd-ms-open,.fd-ms-box:focus-within{border-color:var(--primary-color,#2490EF);box-shadow:0 0 0 2px rgba(36,144,239,.14)}
 .fd-ms-tags{display:contents}
 .fd-ms-tag{display:inline-flex;align-items:center;gap:4px;background:var(--primary-color,#2490EF);color:#fff;font-size:11px;font-weight:600;padding:2px 6px 2px 8px;border-radius:3px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis}

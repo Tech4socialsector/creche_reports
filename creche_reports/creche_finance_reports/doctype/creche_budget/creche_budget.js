@@ -13,6 +13,12 @@ frappe.ui.form.on('Creche Budget', {
 
     refresh: function(frm) {
 
+        if (!frm.is_new()) {
+            frm.add_custom_button('Export Excel', function() {
+                export_creche_budget_excel([frm.doc.name]);
+            });
+        }
+
         if (!frm.doc.financial_year) {
 
             let today = new Date();
@@ -148,4 +154,45 @@ function calculate_parent_total(frm) {
     });
     frm.set_value('total_budget', grand_total);
 
+}
+
+// Shared by the form view's "Export Excel" button and the list view's
+// "Export Excel" bulk action (creche_budget_list.js) — downloads one
+// workbook with one sheet per selected Creche Budget record.
+function export_creche_budget_excel(names) {
+    if (!names || !names.length) return;
+
+    frappe.show_alert({ message: __('Generating Excel…'), indicator: 'blue' }, 2);
+
+    fetch('/api/method/creche_reports.api.export_reports.export_creche_budget_excel', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Frappe-CSRF-Token': frappe.csrf_token
+        },
+        body: JSON.stringify({ names: names })
+    })
+    .then(function(res) {
+        if (!res.ok) {
+            return res.json().then(function(err) {
+                var msg = (err && err.exception) ? err.exception : 'Server error while generating Excel.';
+                frappe.show_alert({ message: msg, indicator: 'red' }, 5);
+            });
+        }
+        return res.blob().then(function(blob) {
+            var disposition = res.headers.get('content-disposition') || '';
+            var match = disposition.match(/filename[^;=\n]*=(["']?)([^"'\n;]+)\1/);
+            var filename = match ? match[2] : 'Creche_Budget.xlsx';
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click();
+            setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 1000);
+            frappe.show_alert({ message: __('Excel downloaded successfully.'), indicator: 'green' }, 3);
+        });
+    })
+    .catch(function(err) {
+        console.error(err);
+        frappe.show_alert({ message: __('Failed to generate Excel. Check console for details.'), indicator: 'red' }, 5);
+    });
 }

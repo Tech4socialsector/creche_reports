@@ -157,9 +157,16 @@ def apply_budget_id_scope(filters: dict, column: str = "name", user: Optional[st
         return f
 
     existing = f.get(column)
-    requested = existing[1] if isinstance(existing, list) and existing and existing[0] == "in" else (
-        [existing] if existing else []
-    )
+    if isinstance(existing, list) and existing and existing[0] == "in":
+        requested = existing[1]
+    elif isinstance(existing, list) and existing and existing[0] != "in":
+        # A non-"in" operator (e.g. ["!=", ...], ["like", ...]) on the scoped
+        # column can't be safely narrowed by value-intersection here — deny
+        # rather than silently misinterpreting it as an empty/absent filter.
+        f[column] = ["in", ["__none__"]]
+        return f
+    else:
+        requested = [existing] if existing else []
     f[column] = ["in", intersect(requested, effective_budget_ids) or ["__none__"]]
     return f
 

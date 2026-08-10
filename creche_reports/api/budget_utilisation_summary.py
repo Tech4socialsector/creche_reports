@@ -1097,8 +1097,22 @@ def _get_user_permitted_partners():
 	return _perm.get_effective_partner_ids()
 
 def _intersect(filter_list, permitted):
-	result = _perm.intersect(filter_list, permitted)
-	return [] if result == ["__none__"] else (result or [])
+	"""Preserves this module's original three-way contract: None means
+	"unrestricted, no filter needed" (callers treat `is not None` as "apply
+	this filter"); an empty list means "restricted to nothing" or "requested
+	values don't overlap permitted ones". filter_list is None exactly when
+	the caller passed no value at all (distinct from an empty list, meaning
+	the user actively selected nothing) — that distinction must be
+	preserved, so this reimplements the logic directly rather than
+	delegating to permissions.intersect(), whose contract collapses it."""
+	if permitted is None:
+		return filter_list
+	if not permitted:
+		return []
+	if not filter_list:
+		return list(permitted)
+	pset = set(permitted)
+	return [p for p in filter_list if p in pset]
 
 def _empty_summary():
 	return {

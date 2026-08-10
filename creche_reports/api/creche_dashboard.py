@@ -7981,8 +7981,22 @@ def _get_user_permitted_partners():
     return _perm.get_effective_partner_ids()
 
 def _intersect(filter_list, permitted):
-    result = _perm.intersect(filter_list, permitted)
-    return [] if result == ["__none__"] else (result or [])
+    """Preserves this module's original three-way contract: None means
+    "unrestricted, no filter needed" (callers treat `is not None` as "apply
+    this filter"); an empty list means "restricted to nothing" or "requested
+    values don't overlap permitted ones". filter_list is None exactly when
+    the caller passed no value at all (distinct from an empty list, meaning
+    the user actively selected nothing) — that distinction must be
+    preserved, so this reimplements the logic directly rather than
+    delegating to permissions.intersect(), whose contract collapses it."""
+    if permitted is None:
+        return filter_list
+    if not permitted:
+        return []
+    if not filter_list:
+        return list(permitted)
+    pset = set(permitted)
+    return [p for p in filter_list if p in pset]
 
 def _empty_summary():
     return {
@@ -8286,7 +8300,8 @@ def get_partner_budget_summary(filters=None):
     # ── Assemble results ──────────────────────────────────────────────────
 
     partners = {}
-    grand = dict(budget=0.0, disbursement=0.0, utilisation=0.0, bank_balance=0.0, interest=0.0, creches=0)
+    grand = dict(budget=0.0, disbursement=0.0, utilisation=0.0, bank_balance=0.0,
+                 expected_bank_balance=0.0, interest=0.0, creches=0)
 
     for budget in budgets:
         bid = budget.name
@@ -8324,6 +8339,9 @@ def get_partner_budget_summary(filters=None):
         balance_budget            = budget_amount - utilisation
         utilised_pct              = round((utilisation / budget_amount * 100) if budget_amount else 0, 2)
         utilised_disbursement_pct = round((utilisation / disbursement * 100)  if disbursement  else 0, 2)
+        # Expected Bank Balance: what should still be sitting in the bank if
+        # every disbursed rupee that hasn't been utilised yet is still there.
+        expected_bank_balance = disbursement - utilisation
 
         partner_key = budget.partner_id or budget.partner_name or "Unknown"
         if partner_key not in partners:
@@ -8331,6 +8349,7 @@ def get_partner_budget_summary(filters=None):
                 "partner_id": budget.partner_id, "partner_name": budget.partner_name,
                 "total_budget":0.0,"total_disbursement":0.0,"total_utilisation":0.0,
                 "total_balance_budget":0.0,"total_bank_balance":0.0,
+                "total_expected_bank_balance":0.0,
                 "total_interest":0.0,"total_creches":0,"total_running_creches":0,"budgets":[],
             }
         p = partners[partner_key]
@@ -8340,6 +8359,7 @@ def get_partner_budget_summary(filters=None):
         p["total_balance_budget"] += balance_budget
         # SUM bank balances per partner (consistent with grand total which also sums)
         p["total_bank_balance"] += bank_balance
+        p["total_expected_bank_balance"] += expected_bank_balance
         budget_running = running_creches_map.get(bid, 0)
         p["total_interest"]       += interest
         p["total_creches"]        += creches
@@ -8355,7 +8375,8 @@ def get_partner_budget_summary(filters=None):
             "utilisation": utilisation, "utilised_pct": utilised_pct,
             "utilised_disbursement_pct": utilised_disbursement_pct,
             "balance_budget_amount": balance_budget,
-            "bank_balance": bank_balance, "interest_from_bank": interest,
+            "bank_balance": bank_balance, "expected_bank_balance": expected_bank_balance,
+            "interest_from_bank": interest,
             "running_creches": budget_running,
         })
 
@@ -8363,6 +8384,7 @@ def get_partner_budget_summary(filters=None):
         grand["disbursement"] += disbursement
         grand["utilisation"]  += utilisation
         grand["bank_balance"] += bank_balance
+        grand["expected_bank_balance"] += expected_bank_balance
         grand["interest"]     += interest
         grand["creches"]      += creches
 
@@ -8385,6 +8407,7 @@ def get_partner_budget_summary(filters=None):
             "total_disbursement": grand["disbursement"],
             "total_utilisation":  grand["utilisation"],
             "total_bank_balance": grand["bank_balance"],
+            "total_expected_bank_balance": grand["expected_bank_balance"],
             "total_interest":     grand["interest"],
             "total_creches":      grand["creches"],
             "running_creches":    running_creches,
@@ -8907,12 +8930,39 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
             ignore_permissions=True, limit_page_length=0)
     )
 
+    # ── Last disbursement date per budget ──────────────────────────────────
+    # Utilisation is only "pending" from the point money was actually
+    # disbursed — a budget with no disbursement yet has nothing to utilise
+    # against, so it's excluded rather than counted pending from its
+    # start_date.
+    disb_docs = frappe.get_all("Creche Disbursement",
+        filters={"budget_reference_id": ["in", budget_names]},
+        fields=["name", "budget_reference_id"], ignore_permissions=True, limit_page_length=0)
+    disb_to_budget = {d["name"]: d["budget_reference_id"] for d in disb_docs}
+    last_disbursement_by_budget = {}
+    if disb_to_budget:
+        for t in frappe.get_all("Disbursement Tracker",
+                filters={"parent": ["in", list(disb_to_budget.keys())], "parenttype": "Creche Disbursement"},
+                fields=["parent", "date_of_disbursement"], ignore_permissions=True, limit_page_length=0):
+            if not t["date_of_disbursement"]:
+                continue
+            bid = disb_to_budget.get(t["parent"])
+            if not bid:
+                continue
+            d = getdate(t["date_of_disbursement"])
+            if bid not in last_disbursement_by_budget or d > last_disbursement_by_budget[bid]:
+                last_disbursement_by_budget[bid] = d
+
     # When target_fy and target_month are given, only check that specific month
     check_specific = bool(target_fy and target_month)
 
     by_partner = {}
     for b in budgets:
-        bud_start = getdate(b["start_date"])
+        last_disbursement = last_disbursement_by_budget.get(b["name"])
+        if not last_disbursement:
+            continue  # nothing disbursed yet — nothing to utilise/report pending
+
+        bud_start = last_disbursement
         bud_end   = getdate(b["end_date"])
 
         missing_for_budget = []
@@ -8928,7 +8978,7 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
             year = fy_start_year if month_num >= 4 else fy_start_year + 1
             month_start = _date(year, month_num, 1)
 
-            # Skip if this month is outside the budget period
+            # Skip if this month is outside the disbursed-to-end period
             if month_start < bud_start.replace(day=1) or month_start > bud_end.replace(day=1):
                 continue
             total_months_checked = 1
@@ -8944,7 +8994,7 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
                 "days_overdue": max(days_overdue, 0),
             })
         else:
-            # Original logic: check all months from budget start to boundary
+            # Check all months from the last disbursement date to boundary
             start = bud_start
             end   = bud_end
             effective_end = min(end.replace(day=1), boundary_month_start)

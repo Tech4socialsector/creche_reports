@@ -4737,7 +4737,11 @@ class CrecheBudgetDashboard {
 					return frappe.db.get_list('Creche Budget', { filters, fields: ['budget_reference_name'], limit: 50 })
 						.then(rows => [...new Set(rows.map(r => r.budget_reference_name).filter(Boolean))].map(v => ({ value: v, description: '' })));
 				},
-				change: () => { this._sel.budget_ref = budget_ref_ctrl.get_value() || []; this._debounce_load(); },
+				change: () => {
+					this._sel.budget_ref = budget_ref_ctrl.get_value() || [];
+					this._debounce_load();
+					this._apply_budget_ref_dates(this._sel.budget_ref);
+				},
 			},
 			render_input: true,
 		});
@@ -4882,6 +4886,33 @@ class CrecheBudgetDashboard {
 				this._setup_filter_visibility();
 			}
 		}, 200);
+	}
+
+	_apply_budget_ref_dates(refs) {
+		// When a Budget Reference is selected, Start/End Date should reflect
+		// that budget's own start_date/end_date rather than staying on
+		// whatever the user had picked before (or today's default). If
+		// multiple budgets match (multiple refs selected, or the same
+		// reference name used by more than one budget), span the full range.
+		if (!refs || !refs.length) return;
+		const raw = (this._fields.partner_id?.get_value() || []);
+		const partners = raw.map(l => (this._partner_label_to_id && this._partner_label_to_id[l]) || l);
+		const filters = { budget_reference_name: ['in', refs] };
+		if (partners.length) filters.partner_id = ['in', partners];
+		frappe.db.get_list('Creche Budget', { filters, fields: ['start_date', 'end_date'], limit: 50 })
+			.then(rows => {
+				const starts = rows.map(r => r.start_date).filter(Boolean);
+				const ends   = rows.map(r => r.end_date).filter(Boolean);
+				if (!starts.length || !ends.length) return;
+				const minStart = starts.reduce((a, b) => (a < b ? a : b));
+				const maxEnd   = ends.reduce((a, b) => (a > b ? a : b));
+				this._fields.start_date?.set_value(minStart);
+				this._fields.end_date?.set_value(maxEnd);
+				this._sel.start_date = minStart;
+				this._sel.end_date   = maxEnd;
+				this._on_filter_change('start_date');
+				this._debounce_load();
+			});
 	}
 
 	_validate_dates(changed_field) {
@@ -6136,6 +6167,28 @@ class CrecheBudgetDashboard {
 		this._dm_page = page;
 		const track = document.getElementById('cbd_dm_track');
 		if (track) track.style.transform = `translateX(-${(page-1)*100/3}%)`;
+		// Navigating back to a page that's still in the DOM from an earlier
+		// render (Back button) doesn't re-run _render_dm_page*, so re-size
+		// here too — otherwise the box stays at whatever width the deeper
+		// page needed instead of shrinking back for a narrower table.
+		const table_id = page === 1 ? 'cbd_dm_t1' : page === 2 ? 'cbd_dm_t2' : 'cbd_dm_t3';
+		requestAnimationFrame(() => this._resize_dm_box(table_id));
+	}
+
+	// Sizes the drill-down modal box to the natural width of the table that
+	// was just rendered on the active page, instead of always using a fixed
+	// 1380px box regardless of how many/few columns the table actually has.
+	// Bounded between a sensible minimum (so a 2-3 column table doesn't look
+	// cramped) and the original max width (so a wide table still scrolls
+	// inside the viewport rather than overflowing it).
+	_resize_dm_box(table_id) {
+		if (window.innerWidth <= 640) return; // let the mobile fullscreen CSS rule stand
+		const box = document.getElementById('cbd_dm_box');
+		const table = document.getElementById(table_id);
+		if (!box || !table) return;
+		const natural = table.scrollWidth + 40; // + tbl-wrap horizontal padding
+		const MIN = 560, MAX = Math.min(window.innerWidth * 0.98, 1380);
+		box.style.width = `${Math.max(MIN, Math.min(natural, MAX))}px`;
 	}
 
 	// ─── Page 1: Partners ────────────────────────────────────────────────
@@ -6174,9 +6227,13 @@ class CrecheBudgetDashboard {
 				const chip_d   = disb_pct>=75?'#16a34a':'#d97706';
 				const util_of_disb_pct = disb>0?(util/disb*100):0;
 				const chip_u = util_of_disb_pct>=75?'#16a34a':'#dc2626';
+				const expBank = parseFloat(p.total_expected_bank_balance) || 0;
+				const repBank = parseFloat(p.total_bank_balance)          || 0;
 				amtCells = `<td class="cbd-dt__r">${this._fmtTip(bud,'Budget')}</td>
 				            <td class="cbd-dt__r">${this._fmtTip(disb,'Disbursed')}</td>
 				            <td class="cbd-dt__r">${this._fmtTip(util,'Utilisation')}</td>
+				            <td class="cbd-dt__r">${this._fmtTip(expBank,'Expected Bank Balance')}</td>
+				            <td class="cbd-dt__r">${this._fmtTip(repBank,'Reported Bank Balance')}</td>
 				            <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip_d}">${disb_pct.toFixed(1)}%</span></td>
 				            <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip_u}">${util_of_disb_pct.toFixed(1)}%</span></td>`;
 			} else {
@@ -6211,6 +6268,8 @@ class CrecheBudgetDashboard {
 		const gt_bud  = partners.reduce((s,p)=>s+(parseFloat(p.total_budget)||0),0);
 		const gt_util = partners.reduce((s,p)=>s+(parseFloat(p.total_utilisation)||0),0);
 		const gt_disb = partners.reduce((s,p)=>s+(parseFloat(p.total_disbursement)||0),0);
+		const gt_exp_bank = partners.reduce((s,p)=>s+(parseFloat(p.total_expected_bank_balance)||0),0);
+		const gt_rep_bank = partners.reduce((s,p)=>s+(parseFloat(p.total_bank_balance)||0),0);
 		const gt_appr = partners.reduce((s,p)=>s+(p.total_creches||0),0);
 		const gt_pct      = gt_bud>0?(gt_util/gt_bud*100):0;
 		const gt_disb_pct = gt_bud>0?(gt_disb/gt_bud*100):0;
@@ -6219,7 +6278,7 @@ class CrecheBudgetDashboard {
 		if (type==='budget')
 			foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_pct.toFixed(1)}%</td>`;
 		else if (type==='utilisation')
-			foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${gt_util_of_disb_pct.toFixed(1)}%</td>`;
+			foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_exp_bank)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_rep_bank)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${gt_util_of_disb_pct.toFixed(1)}%</td>`;
 		else
 			foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_util_of_disb_pct.toFixed(1)}%</td>`;
 
@@ -6227,7 +6286,7 @@ class CrecheBudgetDashboard {
 		if (type==='budget')
 			amtHeaders = '<th class="cbd-dt__th cbd-dt__th--r">Budget</th><th class="cbd-dt__th cbd-dt__th--r">Util %</th>';
 		else if (type==='utilisation')
-			amtHeaders = '<th class="cbd-dt__th cbd-dt__th--r">Budget</th><th class="cbd-dt__th cbd-dt__th--r">Disbursed</th><th class="cbd-dt__th cbd-dt__th--r">Utilisation</th><th class="cbd-dt__th cbd-dt__th--r">Disb %</th><th class="cbd-dt__th cbd-dt__th--r">Util %</th>';
+			amtHeaders = `<th class="cbd-dt__th cbd-dt__th--r">Budget</th><th class="cbd-dt__th cbd-dt__th--r">Disbursed</th><th class="cbd-dt__th cbd-dt__th--r">Utilisation up to ${this._util_month_label()}</th><th class="cbd-dt__th cbd-dt__th--r">Expected Bank Balance</th><th class="cbd-dt__th cbd-dt__th--r">Reported Bank Balance</th><th class="cbd-dt__th cbd-dt__th--r">Disb %</th><th class="cbd-dt__th cbd-dt__th--r">Util %</th>`;
 		else
 			amtHeaders = '<th class="cbd-dt__th cbd-dt__th--r">Budget</th><th class="cbd-dt__th cbd-dt__th--r">Disbursed</th><th class="cbd-dt__th cbd-dt__th--r">Disb %</th><th class="cbd-dt__th cbd-dt__th--r">Utilised</th><th class="cbd-dt__th cbd-dt__th--r">Util %</th>';
 
@@ -6261,7 +6320,7 @@ class CrecheBudgetDashboard {
 				</div>
 			</div>`;
 
-		setTimeout(() => this._enhance_table(table_id), 50);
+		setTimeout(() => { this._enhance_table(table_id); this._resize_dm_box(table_id); }, 50);
 
 		// ROW CLICK: clicking any row navigates to budget level (page 2)
 		p1.addEventListener('click', e => {
@@ -6287,7 +6346,7 @@ class CrecheBudgetDashboard {
 		const TITLE   = { budget:'Total Budget', utilisation:'Total Utilisation', disbursement:'Total Disbursement' };
 		const COLS    = {
 			budget:       ['Budget Reference', 'Grant ID', 'Start Date', 'End Date', 'Budget', 'Util %'],
-			utilisation:  ['Budget Reference', 'Grant ID', 'Start Date', 'End Date', 'Budget', 'Disbursed', 'Utilisation', 'Disb %', 'Util %'],
+			utilisation:  ['Budget Reference', 'Grant ID', 'Start Date', 'End Date', 'Budget', 'Disbursed', `Utilisation up to ${this._util_month_label()}`, 'Expected Bank Balance', 'Reported Bank Balance', 'Disb %', 'Util %'],
 			disbursement: ['Budget Reference', 'Grant ID', 'Start Date', 'End Date', 'Budget', 'Disbursed', 'Disb %', 'Utilised', 'Util %'],
 		};
 
@@ -6308,9 +6367,13 @@ class CrecheBudgetDashboard {
 				const chip_d   = disb_pct>=75?'#16a34a':'#d97706';
 				const util_of_disb_pct = disb>0?(util/disb*100):0;
 				const chip_u = util_of_disb_pct>=75?'#16a34a':'#dc2626';
+				const expBank = parseFloat(b.expected_bank_balance) || 0;
+				const repBank = parseFloat(b.bank_balance)          || 0;
 				cells = `${dateCells}<td class="cbd-dt__r">${this._fmtTip(bud,'Budget')}</td>
 				         <td class="cbd-dt__r">${this._fmtTip(disb,'Disbursed')}</td>
 				         <td class="cbd-dt__r">${this._fmtTip(util,'Utilisation')}</td>
+				         <td class="cbd-dt__r">${this._fmtTip(expBank,'Expected Bank Balance')}</td>
+				         <td class="cbd-dt__r">${this._fmtTip(repBank,'Reported Bank Balance')}</td>
 				         <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip_d}">${disb_pct.toFixed(1)}%</span></td>
 				         <td class="cbd-dt__r"><span class="cbd-dt__pct" style="color:${chip_u}">${util_of_disb_pct.toFixed(1)}%</span></td>`;
 			} else {
@@ -6339,12 +6402,14 @@ class CrecheBudgetDashboard {
 		const gt_bud  = budgets.reduce((s,b)=>s+(parseFloat(b.budget)||0),0);
 		const gt_util = budgets.reduce((s,b)=>s+(parseFloat(b.utilisation)||0),0);
 		const gt_disb = budgets.reduce((s,b)=>s+(parseFloat(b.disbursement)||0),0);
+		const gt_exp_bank = budgets.reduce((s,b)=>s+(parseFloat(b.expected_bank_balance)||0),0);
+		const gt_rep_bank = budgets.reduce((s,b)=>s+(parseFloat(b.bank_balance)||0),0);
 		const gt_pct      = gt_bud>0?(gt_util/gt_bud*100):0;
 		const gt_disb_pct = gt_bud>0?(gt_disb/gt_bud*100):0;
 		const gt_util_of_disb_pct = gt_disb>0?(gt_util/gt_disb*100):0;
 		let foot_cells = '';
 		if (type==='budget')           foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_pct.toFixed(1)}%</td>`;
-		else if (type==='utilisation') foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${gt_util_of_disb_pct.toFixed(1)}%</td>`;
+		else if (type==='utilisation') foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_exp_bank)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_rep_bank)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${gt_util_of_disb_pct.toFixed(1)}%</td>`;
 		else foot_cells = `<td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_bud)}</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_disb)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_disb_pct.toFixed(1)}%</td><td class="cbd-dt__r cbd-dt__foot">${this._fmtTip(gt_util)}</td><td class="cbd-dt__r cbd-dt__foot">${gt_util_of_disb_pct.toFixed(1)}%</td>`;
 
 		const thead_html = COLS[type].map(h=>`<th class="cbd-dt__th">${h}</th>`).join('');
@@ -6379,7 +6444,7 @@ class CrecheBudgetDashboard {
 				</div>
 			</div>`;
 
-		setTimeout(() => this._enhance_table(table_id), 50);
+		setTimeout(() => { this._enhance_table(table_id); this._resize_dm_box(table_id); }, 50);
 
 		p2.addEventListener('click', e => {
 			// Consolidated button
@@ -6570,6 +6635,7 @@ class CrecheBudgetDashboard {
 		this._make_table_sortable('cbd_dm_t3');
 		this._sync_li_header_offset('cbd_dm_t3');
 		this._wire_li_expand_checkboxes('cbd_dm_t3');
+		requestAnimationFrame(() => this._resize_dm_box('cbd_dm_t3'));
 	}
 
 	_render_main_head_groups(items, rowHtmlFn, amtGetter, colCount, amtLabel, showYears) {
@@ -6696,6 +6762,7 @@ class CrecheBudgetDashboard {
 		this._make_table_sortable('cbd_dm_t3');
 		this._sync_li_header_offset('cbd_dm_t3');
 		this._wire_li_expand_checkboxes('cbd_dm_t3');
+		requestAnimationFrame(() => this._resize_dm_box('cbd_dm_t3'));
 	}
 
 	_render_dm_disb_items(records) {
@@ -6740,7 +6807,7 @@ class CrecheBudgetDashboard {
 				</table>
 			</div>`;
 
-		setTimeout(() => this._enhance_table('cbd_dm_t3'), 50);
+		setTimeout(() => { this._enhance_table('cbd_dm_t3'); this._resize_dm_box('cbd_dm_t3'); }, 50);
 	}
 
 	// ─── Topbar ──────────────────────────────────────────────────────────
@@ -8708,6 +8775,16 @@ class CrecheBudgetDashboard {
 
 	_date(d){ if(!d)return'—'; return frappe.datetime.str_to_user(d)||d; }
 
+	_util_month_label() {
+		// "<Month>" for the "Utilisation up to <Month>" column header —
+		// driven by the dashboard's own End Date filter (defaults to today).
+		const endDate = (this._active_filters && this._active_filters.end_date) || frappe.datetime.get_today();
+		const parts = String(endDate).split('-').map(Number);
+		if (parts.length !== 3 || parts.some(isNaN)) return '';
+		const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+		return `${MONTHS[parts[1]-1]} ${parts[0]}`;
+	}
+
 	_metric(label,value,rawNum=null){
 		const display = rawNum!==null ? this._fmtTip(rawNum, label) : value;
 		return `<div class="cbd-metric"><span class="cbd-metric__label">${label}</span><span class="cbd-metric__value">${display}</span></div>`;
@@ -9152,8 +9229,12 @@ class CrecheBudgetDashboard {
 		.cbd-li__toggle { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:#1e3a5f; cursor:pointer; user-select:none; white-space:nowrap; }
 		.cbd-li__toggle input { width:14px; height:14px; accent-color:#0369a1; cursor:pointer; }
 
-		/* ── Pagination ── */
-		.cbd-pager { display:flex; align-items:center; justify-content:space-between; padding:8px 14px; background:#f8fafc; border-top:1px solid #e2e8f0; flex-shrink:0; gap:10px; }
+		/* ── Pagination ──
+		   Sticky to the bottom of its scroll container (.cbd-dm__tbl-wrap,
+		   or .cbd-li-scrollbody on the line-items page) so it stays visible
+		   while scrolling through a long table instead of scrolling away
+		   with the rows. */
+		.cbd-pager { position:sticky; bottom:0; z-index:10; display:flex; align-items:center; justify-content:space-between; padding:8px 14px; background:#f8fafc; border-top:1px solid #e2e8f0; flex-shrink:0; gap:10px; }
 		.cbd-pager__left { display:flex; align-items:center; gap:8px; }
 		.cbd-pager__btn { display:inline-flex; align-items:center; padding:4px 12px; font-size:12px; font-weight:600; color:#1d4ed8; background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; cursor:pointer; transition:background .12s; }
 		.cbd-pager__btn:hover:not(:disabled) { background:#dbeafe; }

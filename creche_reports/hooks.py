@@ -18,17 +18,10 @@ doc_events = {
     # }scheduler_events = {
 
 }
-# scheduler_events = {
-#     "daily": [
-#         "creche_reports.api.scheduler.send_utilisation_reminders"
-#     ]
-# }
 scheduler_events = {
-    "cron": {
-        "*/5 * * * *": [
-            "creche_reports.api.scheduler.send_utilisation_reminders"
-        ]
-    }
+    "daily": [
+        "creche_reports.api.scheduler.send_utilisation_reminders"
+    ]
 }
 # required_apps = []
 

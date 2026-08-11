@@ -6,6 +6,27 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
+from creche_reports.api import permissions as _perm
+
+# Excel/Sheets treats a cell starting with =, +, -, or @ as a formula. A
+# value containing one of these (e.g. from a Notes free-text field) would
+# execute as a formula for whoever opens the exported file — prefix with a
+# leading apostrophe (Excel's own "treat as text" escape) so it's never
+# interpreted as one.
+_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def _safe_cell_value(value):
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
+# Hard ceiling on how many records a single export request may process
+# synchronously (or per background job run) — prevents an unbounded
+# `names`/row list from tying up a worker or the request thread indefinitely.
+MAX_EXPORT_RECORDS = 500
+
 
 @frappe.whitelist()
 def export_creche_utilisation_excel_object(names: Any = None):
@@ -27,6 +48,22 @@ def export_creche_utilisation_excel_object(names: Any = None):
 
     if not names:
         frappe.throw("No valid records found")
+
+    if len(names) > MAX_EXPORT_RECORDS:
+        frappe.throw(frappe._("Cannot export more than {0} records at once.").format(MAX_EXPORT_RECORDS))
+
+    # Every requested record must resolve to a budget the caller is
+    # permitted to see — a name the caller merely guessed/enumerated (rather
+    # than picked from their own scoped UI) is rejected outright.
+    budget_by_name = {
+        r.name: r.budget_reference_id
+        for r in frappe.get_all(
+            "Creche utilisation", filters={"name": ["in", names]},
+            fields=["name", "budget_reference_id"], ignore_permissions=True,
+        )
+    }
+    for n in names:
+        _perm.assert_budget_permitted(budget_by_name.get(n))
 
     # -----------------------
     # WORKBOOK
@@ -97,7 +134,7 @@ def export_creche_utilisation_excel_object(names: Any = None):
 
         for label, value in parent_fields:
             ws.cell(row=row, column=col_offset, value=label)
-            ws.cell(row=row, column=col_offset + 1, value=value)
+            ws.cell(row=row, column=col_offset + 1, value=_safe_cell_value(value))
 
             style(ws.cell(row=row, column=col_offset), bold_font=True, align=left)
             style(ws.cell(row=row, column=col_offset + 1), align=left)
@@ -125,9 +162,9 @@ def export_creche_utilisation_excel_object(names: Any = None):
         for idx, item in enumerate((doc.get("budgets") or []), start=1):
 
             ws.cell(row=row, column=col_offset, value=idx)
-            ws.cell(row=row, column=col_offset + 1, value=item.budget_head)
-            ws.cell(row=row, column=col_offset + 2, value=item.budget_main_head)
-            ws.cell(row=row, column=col_offset + 3, value=item.cost_category)
+            ws.cell(row=row, column=col_offset + 1, value=_safe_cell_value(item.budget_head))
+            ws.cell(row=row, column=col_offset + 2, value=_safe_cell_value(item.budget_main_head))
+            ws.cell(row=row, column=col_offset + 3, value=_safe_cell_value(item.cost_category))
             ws.cell(row=row, column=col_offset + 4, value=item.amount)
 
             for col in range(5):
@@ -251,6 +288,8 @@ DOCTYPE_UTILISATION = "Creche utilisation"
 @frappe.whitelist()
 def get_export_status(export_id):
     doc = frappe.get_doc(DOCTYPE_TRACKER, export_id)
+    if doc.owner != frappe.session.user and not _perm.is_unrestricted_user():
+        frappe.throw(frappe._("You do not have permission to access this record."), frappe.PermissionError)
     return {
         "status":       doc.status,
         "export_file":  doc.export_file  or None,
@@ -264,6 +303,9 @@ def get_recent_exports(export_type=None, limit=20):
     filters = {}
     if export_type:
         filters["export_type"] = export_type
+    if not _perm.is_unrestricted_user():
+        filters["owner"] = frappe.session.user
+    limit = min(int(limit), 100)
     return frappe.get_all(
         DOCTYPE_TRACKER,
         filters=filters,
@@ -330,6 +372,18 @@ def create_creche_utilisation_export(
         frappe.throw("Financial Year is required")
     if not month:
         frappe.throw("Month is required")
+
+    # budget_name is the budget's display name (budget_reference_name), not
+    # its docname — resolve it to the underlying Creche Budget doc(s) and
+    # reject the request up front if the caller isn't permitted to see any
+    # of them (the background job re-checks this again per-record).
+    matching_budget_ids = frappe.get_all(
+        "Creche Budget", filters={"budget_reference_name": budget_name}, pluck="name",
+    )
+    if not matching_budget_ids:
+        frappe.throw(frappe._("No matching budget found."))
+    for bid in matching_budget_ids:
+        _perm.assert_budget_permitted(bid)
 
     # Budget details come directly from the frontend — no extra DB fetch needed
     filter_snapshot = {
@@ -422,11 +476,20 @@ def generate_creche_utilisation_file(export_id, filter_snapshot):
             "Export Debug"
         )
 
+        # Defense in depth: even though create_creche_utilisation_export
+        # already checked this before enqueueing, re-apply the enqueuing
+        # user's permission scope here too, since this job is the actual
+        # point where records are read and written into the exported file.
+        effective_budget_ids = _perm.get_effective_budget_ids()
+        if effective_budget_ids is not None:
+            filters["budget_reference_id"] = ["in", effective_budget_ids or ["__none__"]]
+
         records = frappe.get_all(
             DOCTYPE_UTILISATION,
             filters=filters,
             fields=["name"],
             order_by="creation asc",
+            limit_page_length=MAX_EXPORT_RECORDS,
         )
 
         if not records:
@@ -491,7 +554,7 @@ def generate_creche_utilisation_file(export_id, filter_snapshot):
                 ("Date",             doc.date),
             ]:
                 ws.cell(row=row, column=1, value=label)
-                ws.cell(row=row, column=2, value=value)
+                ws.cell(row=row, column=2, value=_safe_cell_value(value))
                 style(ws.cell(row=row, column=1), bold_font=True, align=left)
                 style(ws.cell(row=row, column=2), align=left)
                 row += 1
@@ -513,7 +576,7 @@ def generate_creche_utilisation_file(export_id, filter_snapshot):
                     idx, item.type_of_expenses, item.budget_main_head,
                     item.budget_sub_head, item.total_amount, item.notes
                 ]):
-                    style(ws.cell(row=row, column=col + 1, value=val))
+                    style(ws.cell(row=row, column=col + 1, value=_safe_cell_value(val)))
                 style(ws.cell(row=row, column=1), align=center)
                 row += 1
 
@@ -603,6 +666,12 @@ def export_creche_budget_excel(names: Any = None):
     if not names:
         frappe.throw("No valid records found")
 
+    if len(names) > MAX_EXPORT_RECORDS:
+        frappe.throw(frappe._("Cannot export more than {0} records at once.").format(MAX_EXPORT_RECORDS))
+
+    for n in names:
+        _perm.assert_budget_permitted(n)
+
     # -----------------------
     # WORKBOOK
     # -----------------------
@@ -667,7 +736,7 @@ def export_creche_budget_excel(names: Any = None):
 
         for label, value in parent_fields:
             ws.cell(row=row, column=col_offset, value=label)
-            ws.cell(row=row, column=col_offset + 1, value=value)
+            ws.cell(row=row, column=col_offset + 1, value=_safe_cell_value(value))
 
             style(ws.cell(row=row, column=col_offset), bold_font=True, align=left)
             style(ws.cell(row=row, column=col_offset + 1), align=left)
@@ -697,10 +766,10 @@ def export_creche_budget_excel(names: Any = None):
 
         for item in (doc.get("budget_items_list") or []):
 
-            ws.cell(row=row, column=col_offset,     value=item.type_of_expenses_id)
-            ws.cell(row=row, column=col_offset + 1, value=item.budget_main_head)
-            ws.cell(row=row, column=col_offset + 2, value=item.budget_sub_head)
-            ws.cell(row=row, column=col_offset + 3, value=item.type_of_expenses)
+            ws.cell(row=row, column=col_offset,     value=_safe_cell_value(item.type_of_expenses_id))
+            ws.cell(row=row, column=col_offset + 1, value=_safe_cell_value(item.budget_main_head))
+            ws.cell(row=row, column=col_offset + 2, value=_safe_cell_value(item.budget_sub_head))
+            ws.cell(row=row, column=col_offset + 3, value=_safe_cell_value(item.type_of_expenses))
             ws.cell(row=row, column=col_offset + 4, value=item.year_1)
             ws.cell(row=row, column=col_offset + 5, value=item.year_2)
             ws.cell(row=row, column=col_offset + 6, value=item.year_3)

@@ -1795,6 +1795,22 @@ from frappe.utils import get_url
 import io
 import json
 
+# Excel/Sheets treats a cell starting with =, +, -, or @ as a formula. Since
+# `rows` here is arbitrary client-supplied JSON (never touches the DB before
+# being written to a cell), an unprefixed value would execute as a formula
+# for whoever opens the exported file — escape it with a leading apostrophe
+# (Excel's own "treat as text" convention) so it can't be interpreted as one.
+_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def _safe_cell_value(value):
+	if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+		return "'" + value
+	return value
+
+
+MAX_EXPORT_ROWS = 5000
+
 
 @frappe.whitelist()
 def export_table(title="Report", columns=None, rows=None, format="xlsx"):
@@ -1813,6 +1829,9 @@ def export_table(title="Report", columns=None, rows=None, format="xlsx"):
 
 	columns = columns or []
 	rows = rows or []
+
+	if len(rows) > MAX_EXPORT_ROWS:
+		frappe.throw(frappe._("Cannot export more than {0} rows at once.").format(MAX_EXPORT_ROWS))
 
 	if format == "pdf":
 		file_url = _export_pdf(title, columns, rows)
@@ -1886,7 +1905,7 @@ def _export_xlsx(title, columns, rows):
 				cell.value = val
 				cell.number_format = "#,##0.00"
 			else:
-				cell.value = val
+				cell.value = _safe_cell_value(val)
 			cell.alignment = Alignment(horizontal=align)
 			if total_row:
 				cell.font = total_font

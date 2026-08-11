@@ -7817,6 +7817,22 @@ MONTH_ORDER = [
     "July","August","September","October","November","December",
 ]
 
+# Excel/Sheets treats a cell starting with =, +, -, or @ as a formula. Since
+# export_table/export_pending_utilisation_grid write arbitrary client-supplied
+# JSON straight into cells, an unprefixed value would execute as a formula
+# for whoever opens the file — escape it with a leading apostrophe (Excel's
+# own "treat as text" convention) so it can't be interpreted as one.
+_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def _safe_cell_value(value):
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
+MAX_EXPORT_ROWS = 5000
+
 # ══════════════════════════════════════════════════════════════════════════
 # DATE / PRORATA HELPERS
 # ══════════════════════════════════════════════════════════════════════════
@@ -9100,6 +9116,9 @@ def export_table(title="Report", columns=None, rows=None, format="xlsx"):
     if isinstance(rows, str):    rows    = json.loads(rows)
     columns = columns or []; rows = rows or []
 
+    if len(rows) > MAX_EXPORT_ROWS:
+        frappe.throw(frappe._("Cannot export more than {0} rows at once.").format(MAX_EXPORT_ROWS))
+
     if format == "pdf":
         file_url = _export_pdf(title, columns, rows)
     else:
@@ -9125,6 +9144,9 @@ def export_pending_utilisation_grid(title="Pending Utilization Submission", colu
     if isinstance(merges, str):  merges  = json.loads(merges) if merges else []
     columns = columns or []; grid = grid or []; merges = merges or []
 
+    if len(grid) > MAX_EXPORT_ROWS:
+        frappe.throw(frappe._("Cannot export more than {0} rows at once.").format(MAX_EXPORT_ROWS))
+
     wb = Workbook(); ws = wb.active; ws.title = (title or "Data")[:31]
     NAVY = "1E3A5F"; GRID_C = "94A3B8"; BORDER_C = "1E3A5F"
     thin_grid = Border(left=Side(style="thin",color=GRID_C),right=Side(style="thin",color=GRID_C),
@@ -9146,9 +9168,9 @@ def export_pending_utilisation_grid(title="Pending Utilization Submission", colu
             if val not in (None, ""):
                 # Numbers (Months Pending / Total Pending Months) stay numeric for correct spreadsheet math
                 try:
-                    cell.value = int(val) if str(val).strip().lstrip('-').isdigit() else val
+                    cell.value = int(val) if str(val).strip().lstrip('-').isdigit() else _safe_cell_value(val)
                 except Exception:
-                    cell.value = val
+                    cell.value = _safe_cell_value(val)
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             cell.border = thin_grid
 
@@ -9206,10 +9228,10 @@ def _export_xlsx(title, columns, rows):
     for row in rows:
         if row.get("__group__"):
             ws.merge_cells(start_row=r_idx,start_column=1,end_row=r_idx,end_column=max(ncols-1,1))
-            lc = ws.cell(row=r_idx,column=1,value=row.get("label",""))
+            lc = ws.cell(row=r_idx,column=1,value=_safe_cell_value(row.get("label","")))
             lc.font=group_font; lc.fill=group_fill; lc.border=thin_hdr
             lc.alignment=Alignment(horizontal="left",vertical="center",indent=1)
-            sc = ws.cell(row=r_idx,column=ncols,value=row.get("subtotal",""))
+            sc = ws.cell(row=r_idx,column=ncols,value=_safe_cell_value(row.get("subtotal","")))
             sc.font=group_font; sc.fill=group_fill; sc.border=thin_hdr
             sc.alignment=Alignment(horizontal="right",vertical="center")
             r_idx += 1; continue
@@ -9222,7 +9244,7 @@ def _export_xlsx(title, columns, rows):
             if align=="right" and isinstance(val,(int,float)):
                 cell.value=val; cell.number_format="#,##0.00"
             else:
-                cell.value=val
+                cell.value=_safe_cell_value(val)
             cell.alignment=Alignment(horizontal=align)
             if total_row: cell.font=total_font; cell.fill=total_fill; cell.border=thin_hdr
             else: cell.border=thin_grid

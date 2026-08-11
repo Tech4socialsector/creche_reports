@@ -1,10 +1,17 @@
 import frappe
 
-# @frappe.whitelist(allow_guest=True)
+from creche_reports.api import permissions as _perm
+
+
 @frappe.whitelist()
 def get_all_partners():
+    filters = {}
+    permitted_partner_ids = _perm.get_effective_partner_ids()
+    if permitted_partner_ids is not None:
+        filters["name"] = ["in", permitted_partner_ids or ["__none__"]]
     data = frappe.get_list(
         "Creche Partners",
+        filters=filters,
         fields=[
             "name",
             "partner_name",
@@ -16,11 +23,12 @@ def get_all_partners():
 
 
 
-# @frappe.whitelist(allow_guest=True)
 @frappe.whitelist()
 def get_all_budgets():
+    filters = _perm.apply_budget_id_scope({}, column="name")
     return frappe.get_list(
         "Creche Budget",
+        filters=filters,
         fields=[
             "name",
             "budget_reference_name",
@@ -65,7 +73,15 @@ def get_pending_utilisation(cutoff_date=None):
         cutoff = (today.replace(day=1) - relativedelta(months=months_back))
 
     # --- Fetch all budgets ------------------------------------------------
-    budgets = frappe.db.get_all(
+    budget_filters = [
+        ["start_date", "is", "set"],
+        ["end_date",   "is", "set"],
+        ["start_date", "<=", cutoff],   # budget must have started by cutoff
+    ]
+    permitted_budget_ids = _perm.get_effective_budget_ids()
+    if permitted_budget_ids is not None:
+        budget_filters.append(["name", "in", permitted_budget_ids or ["__none__"]])
+    budgets = frappe.get_all(
         "Creche Budget",
         fields=[
             "name",
@@ -79,12 +95,9 @@ def get_pending_utilisation(cutoff_date=None):
             "start_date",
             "end_date",
         ],
-        filters=[
-            ["start_date", "is", "set"],
-            ["end_date",   "is", "set"],
-            ["start_date", "<=", cutoff],   # budget must have started by cutoff
-        ],
-        limit=0,
+        filters=budget_filters,
+        ignore_permissions=True,
+        limit_page_length=0,
     )
 
     if not budgets:
@@ -95,11 +108,12 @@ def get_pending_utilisation(cutoff_date=None):
 
     existing = set(
         (r["budget_reference_id"], r["financial_year"], r["month"])
-        for r in frappe.db.get_all(
+        for r in frappe.get_all(
             "Creche utilisation",
             filters={"budget_reference_id": ["in", budget_names]},
             fields=["budget_reference_id", "financial_year", "month"],
-            limit=0,
+            ignore_permissions=True,
+            limit_page_length=0,
         )
     )
 

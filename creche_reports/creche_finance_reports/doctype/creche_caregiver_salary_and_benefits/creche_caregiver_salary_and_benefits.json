@@ -1,0 +1,259 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "CCSB-.####",
+ "creation": "2026-09-18 08:05:53.721752",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "partner_details_section",
+  "partner_id",
+  "partner_name",
+  "block",
+  "district",
+  "state",
+  "column_break_fipt",
+  "creche_ruralurban",
+  "total_no_of_current_caregivers",
+  "minimum_salary_of_caregiver",
+  "maximum_salary_of_caregiver",
+  "average_salary_of_caregivers",
+  "section_break_kxtn",
+  "pf",
+  "pf_employer_contribution",
+  "pf_employee_contribution",
+  "health_insurance",
+  "health_insurance_amount",
+  "tds_tax_deducted_at_source",
+  "column_break_yqvi",
+  "esi",
+  "esi_employer_contribution",
+  "esi_employee_contribution",
+  "life_accidental_insurance",
+  "life_accidental_insurance_amount",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "partner_id",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Partner ID",
+   "options": "Creche Partners",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "partner_id.partner_name",
+   "fieldname": "partner_name",
+   "fieldtype": "Data",
+   "label": "Partner Name",
+   "options": "Creche Partners",
+   "read_only": 1
+  },
+  {
+   "fieldname": "partner_details_section",
+   "fieldtype": "Section Break",
+   "label": "Partner Details\t\t\t\t\t\t\t\t\t"
+  },
+  {
+   "fieldname": "block",
+   "fieldtype": "Link",
+   "label": "Block",
+   "options": "Block",
+   "reqd": 1
+  },
+  {
+   "fieldname": "district",
+   "fieldtype": "Link",
+   "label": "District",
+   "options": "District",
+   "reqd": 1
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Link",
+   "label": "State",
+   "options": "District",
+   "reqd": 1
+  },
+  {
+   "fieldname": "creche_ruralurban",
+   "fieldtype": "Select",
+   "label": "Creche Rural/Urban",
+   "options": "\nRural\nUrban",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_no_of_current_caregivers",
+   "fieldtype": "Int",
+   "label": "Total No. of Current Caregivers",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "minimum_salary_of_caregiver",
+   "fieldtype": "Currency",
+   "label": "Minimum salary of caregiver",
+   "non_negative": 1,
+   "options": "INR",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "maximum_salary_of_caregiver",
+   "fieldtype": "Currency",
+   "label": "Maximum salary of caregiver",
+   "non_negative": 1,
+   "options": "INR",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "average_salary_of_caregivers",
+   "fieldtype": "Currency",
+   "label": "Average Salary of Caregivers",
+   "non_negative": 1,
+   "options": "INR",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_fipt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_kxtn",
+   "fieldtype": "Section Break",
+   "label": "Deductions if any from the salary/honorarium"
+  },
+  {
+   "fieldname": "pf",
+   "fieldtype": "Select",
+   "label": "PF (Provident Fund)",
+   "options": "\nYes\nNo",
+   "reqd": 1
+  },
+  {
+   "fieldname": "esi",
+   "fieldtype": "Select",
+   "label": "ESI (Employees' State Insurance)",
+   "options": "\nYes\nNo",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.pf==\"Yes\";",
+   "fieldname": "pf_employer_contribution",
+   "fieldtype": "Percent",
+   "label": "PF Employer Contribution(%)",
+   "mandatory_depends_on": "eval:doc.pf==\"Yes\";",
+   "precision": "1"
+  },
+  {
+   "depends_on": "eval:doc.pf==\"Yes\";",
+   "fieldname": "pf_employee_contribution",
+   "fieldtype": "Percent",
+   "label": "PF Employee Contribution(%)",
+   "mandatory_depends_on": "eval:doc.pf==\"Yes\";",
+   "precision": "1"
+  },
+  {
+   "depends_on": "eval:doc.esi==\"Yes\";",
+   "fieldname": "esi_employee_contribution",
+   "fieldtype": "Percent",
+   "label": "ESI Employee Contribution(%)",
+   "mandatory_depends_on": "eval:doc.pf==\"Yes\";",
+   "precision": "1"
+  },
+  {
+   "depends_on": "eval:doc.esi==\"Yes\";",
+   "fieldname": "esi_employer_contribution",
+   "fieldtype": "Percent",
+   "label": "ESI Employer Contribution(%)",
+   "mandatory_depends_on": "eval:doc.pf==\"Yes\";",
+   "precision": "1"
+  },
+  {
+   "fieldname": "health_insurance",
+   "fieldtype": "Select",
+   "label": "Health Insurance",
+   "options": "\nYes\nNo",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.health_insurance==\"Yes\";",
+   "fieldname": "health_insurance_amount",
+   "fieldtype": "Currency",
+   "label": "Health Insurance (Annual Premium Amount)",
+   "mandatory_depends_on": "eval:doc.health_insurance==\"Yes\";",
+   "options": "INR",
+   "precision": "0"
+  },
+  {
+   "fieldname": "life_accidental_insurance",
+   "fieldtype": "Select",
+   "label": "Life Accidental Insurance",
+   "options": "\nYes\nNo",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.life_accidental_insurance==\"Yes\";",
+   "fieldname": "life_accidental_insurance_amount",
+   "fieldtype": "Currency",
+   "label": "Life/Accidental (Annual Premium Amount)",
+   "mandatory_depends_on": "eval:doc.life_accidental_insurance==\"Yes\";",
+   "options": "INR"
+  },
+  {
+   "fieldname": "tds_tax_deducted_at_source",
+   "fieldtype": "Select",
+   "label": "TDS (Tax Deducted at Source)",
+   "options": "\nYes\nNo",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_yqvi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Creche Caregiver Salary and Benefits",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-18 11:35:04.109100",
+ "modified_by": "Administrator",
+ "module": "Creche Finance Reports",
+ "name": "Creche Caregiver Salary and Benefits",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "partner_name"
+}

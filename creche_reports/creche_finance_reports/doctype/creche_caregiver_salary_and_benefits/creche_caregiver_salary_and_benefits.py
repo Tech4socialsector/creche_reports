@@ -16,9 +16,9 @@ class CrecheCaregiverSalaryandBenefits(Document):
 
 		amended_from: DF.Link | None
 		average_salary_of_caregivers: DF.Currency
-		block: DF.Link
+		block: DF.Data
 		creche_ruralurban: DF.Literal["", "Rural", "Urban"]
-		district: DF.Link
+		district: DF.Data
 		esi: DF.Literal["", "Yes", "No"]
 		esi_employee_contribution: DF.Percent
 		esi_employer_contribution: DF.Percent

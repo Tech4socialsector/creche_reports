@@ -57,14 +57,14 @@
   },
   {
    "fieldname": "block",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "label": "Block",
    "options": "Block",
    "reqd": 1
   },
   {
    "fieldname": "district",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "label": "District",
    "options": "District",
    "reqd": 1
@@ -73,7 +73,7 @@
    "fieldname": "state",
    "fieldtype": "Link",
    "label": "State",
-   "options": "District",
+   "options": "State",
    "reqd": 1
   },
   {
@@ -162,7 +162,7 @@
    "fieldname": "esi_employee_contribution",
    "fieldtype": "Percent",
    "label": "ESI Employee Contribution(%)",
-   "mandatory_depends_on": "eval:doc.pf==\"Yes\";",
+   "mandatory_depends_on": "eval:doc.esi==\"Yes\";",
    "precision": "1"
   },
   {
@@ -170,7 +170,7 @@
    "fieldname": "esi_employer_contribution",
    "fieldtype": "Percent",
    "label": "ESI Employer Contribution(%)",
-   "mandatory_depends_on": "eval:doc.pf==\"Yes\";",
+   "mandatory_depends_on": "eval:doc.esi==\"Yes\";",
    "precision": "1"
   },
   {
@@ -230,7 +230,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-18 11:35:04.109100",
+ "modified": "2026-09-18 15:24:43.231461",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche Caregiver Salary and Benefits",

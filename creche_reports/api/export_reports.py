@@ -5,6 +5,7 @@ from typing import Any
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
+from frappe.utils.background_jobs import enqueue
 
 from creche_reports.api import permissions as _perm
 
@@ -26,251 +27,6 @@ def _safe_cell_value(value):
 # synchronously (or per background job run) — prevents an unbounded
 # `names`/row list from tying up a worker or the request thread indefinitely.
 MAX_EXPORT_RECORDS = 500
-
-
-@frappe.whitelist()
-def export_creche_utilisation_excel_object(names: Any = None):
-
-    # -----------------------
-    # HANDLE INPUT (OBJECT / STRING)
-    # -----------------------
-    if not names:
-        frappe.throw("Please select at least one record")
-
-    if isinstance(names, str):
-        try:
-            names = json.loads(names)
-        except:
-            names = [n.strip() for n in names.split(",") if n.strip()]
-
-    if not isinstance(names, list):
-        frappe.throw("Invalid names format")
-
-    if not names:
-        frappe.throw("No valid records found")
-
-    if len(names) > MAX_EXPORT_RECORDS:
-        frappe.throw(frappe._("Cannot export more than {0} records at once.").format(MAX_EXPORT_RECORDS))
-
-    # Every requested record must resolve to a budget the caller is
-    # permitted to see — a name the caller merely guessed/enumerated (rather
-    # than picked from their own scoped UI) is rejected outright.
-    budget_by_name = {
-        r.name: r.budget_reference_id
-        for r in frappe.get_all(
-            "Creche utilisation", filters={"name": ["in", names]},
-            fields=["name", "budget_reference_id"], ignore_permissions=True,
-        )
-    }
-    for n in names:
-        _perm.assert_budget_permitted(budget_by_name.get(n))
-
-    # -----------------------
-    # WORKBOOK
-    # -----------------------
-    wb = Workbook()
-    wb.remove(wb.active)
-
-    # -----------------------
-    # STYLES
-    # -----------------------
-    center = Alignment(horizontal="center", vertical="center")
-    left = Alignment(horizontal="left", vertical="center")
-    bold = Font(bold=True)
-    header_fill = PatternFill("solid", fgColor="D6DBDF")
-
-    thin = Side(style="thin")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-    def style(cell, bold_font=False, fill=None, align=None):
-        cell.border = border
-        if bold_font:
-            cell.font = bold
-        if fill:
-            cell.fill = fill
-        if align:
-            cell.alignment = align
-
-    # -----------------------
-    # LOOP DOCUMENTS
-    # -----------------------
-    for name in names:
-
-        doc = frappe.get_doc("Creche utilisation", name)
-
-        # -----------------------
-        # SHEET NAME
-        # -----------------------
-        sheet_name = f"{doc.partner_name}_{doc.monthu}_{doc.fy}"
-
-        for ch in ['\\', '/', '*', '?', ':', '[', ']']:
-            sheet_name = sheet_name.replace(ch, '')
-
-        sheet_name = sheet_name.replace(" ", "")
-        sheet_name = sheet_name[:31]
-
-        ws = wb.create_sheet(title=sheet_name)
-
-        row = 1
-        col_offset = 1  # ✅ START FROM COLUMN A
-
-        # -----------------------
-        # TITLE
-        # -----------------------
-        ws.cell(row=row, column=col_offset, value="Creche Utilisation Report")
-        ws.cell(row=row, column=col_offset).font = Font(size=10, bold=True)
-        row += 2
-
-        # -----------------------
-        # PARENT FIELDS
-        # -----------------------
-        parent_fields = [
-            ("Partner Name", doc.partner_name),
-            ("State", doc.state),
-            ("No of Creches", doc.no_of_creches),
-            ("Month", doc.monthu),
-            ("Financial Year", doc.fy),
-        ]
-
-        for label, value in parent_fields:
-            ws.cell(row=row, column=col_offset, value=label)
-            ws.cell(row=row, column=col_offset + 1, value=_safe_cell_value(value))
-
-            style(ws.cell(row=row, column=col_offset), bold_font=True, align=left)
-            style(ws.cell(row=row, column=col_offset + 1), align=left)
-
-            row += 1
-
-        row += 1
-
-        # -----------------------
-        # HEADER
-        # -----------------------
-        headers = ["S.No", "Budget Head", "Main Head", "Cost Category", "Amount"]
-
-        for col, h in enumerate(headers):
-            cell = ws.cell(row=row, column=col_offset + col, value=h)
-            style(cell, bold_font=True, fill=header_fill, align=center)
-
-        row += 1
-
-        # -----------------------
-        # DATA
-        # -----------------------
-        data_start_row = row
-
-        for idx, item in enumerate((doc.get("budgets") or []), start=1):
-
-            ws.cell(row=row, column=col_offset, value=idx)
-            ws.cell(row=row, column=col_offset + 1, value=_safe_cell_value(item.budget_head))
-            ws.cell(row=row, column=col_offset + 2, value=_safe_cell_value(item.budget_main_head))
-            ws.cell(row=row, column=col_offset + 3, value=_safe_cell_value(item.cost_category))
-            ws.cell(row=row, column=col_offset + 4, value=item.amount)
-
-            for col in range(5):
-                style(ws.cell(row=row, column=col_offset + col))
-
-            # Center align S.No
-            style(ws.cell(row=row, column=col_offset), align=center)
-
-            row += 1
-
-        data_end_row = row - 1
-        row += 1
-
-        # -----------------------
-        # TOTAL
-        # -----------------------
-        amount_col = get_column_letter(col_offset + 4)
-
-        ws.cell(row=row, column=col_offset + 3, value="Total Utilisation")
-        ws.cell(
-            row=row,
-            column=col_offset + 4,
-            value=f"=SUM({amount_col}{data_start_row}:{amount_col}{data_end_row})"
-        )
-
-        style(ws.cell(row=row, column=col_offset + 3), bold_font=True)
-        style(ws.cell(row=row, column=col_offset + 4), bold_font=True)
-
-        row += 1
-
-        # -----------------------
-        # BANK BALANCE
-        # -----------------------
-        ws.cell(row=row, column=col_offset + 3, value="Bank Balance")
-        ws.cell(row=row, column=col_offset + 4, value=doc.bankbalance)
-
-        style(ws.cell(row=row, column=col_offset + 3), bold_font=True)
-        style(ws.cell(row=row, column=col_offset + 4), bold_font=True)
-
-        # -----------------------
-        # AUTO WIDTH
-        # -----------------------
-        for col in ws.columns:
-            max_len = 0
-            col_letter = col[0].column_letter
-
-            for cell in col:
-                if cell.value:
-                    max_len = max(max_len, len(str(cell.value)))
-
-            ws.column_dimensions[col_letter].width = max_len + 3
-
-        ws.column_dimensions['A'].width = 10
-        ws.column_dimensions['B'].width = 25
-        ws.column_dimensions['C'].width = 30
-
-    # -----------------------
-    # OUTPUT
-    # -----------------------
-    stream = io.BytesIO()
-    wb.save(stream)
-    stream.seek(0)
-
-    frappe.response["filename"] = "Creche_Utilisation.xlsx"
-    frappe.response["filecontent"] = stream.getvalue()
-    frappe.response["type"] = "binary"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    import frappe
-import io
-import json
-
-from frappe.utils.background_jobs import enqueue
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
-from openpyxl.utils import get_column_letter
 
 
 # =========================================================
@@ -822,6 +578,280 @@ def export_creche_budget_excel(names: Any = None):
     stream.seek(0)
 
     filename = "Creche_Budget.xlsx" if len(names) > 1 else f"{names[0]}_Creche_Budget.xlsx"
+
+    frappe.response["filename"] = filename
+    frappe.response["filecontent"] = stream.getvalue()
+    frappe.response["type"] = "binary"
+
+
+# =========================================================
+# CRECHE CAREGIVER SALARY AND BENEFITS EXPORT
+# =========================================================
+
+def _is_caregiver_record_permitted(doc):
+    """A Creche Caregiver Salary and Benefits row is scoped like a budget:
+    a permission on any ONE of partner/state/district/block should grant
+    visibility, matched via the same union logic permissions.py uses for
+    budgets (see assert_budget_permitted) — checking partner_id alone would
+    incorrectly deny a user who was only granted access via State/District/
+    Block, and checking every field independently would incorrectly deny a
+    user whose only permission is on the partner.
+
+    Note this is intentionally NOT the same thing as "doc.partner_id is one
+    of the partners get_effective_partner_ids() returns" — that set is
+    itself a union across dimensions, so a partner can appear in it via a
+    completely different record's state/district/block than this one's.
+    This function re-checks the specific record's own four fields instead.
+    """
+    scope = _perm.get_permission_scope()
+    if all(v is None for v in scope.values()):
+        return True  # fully unrestricted
+
+    checks = {
+        "partner_id": doc.partner_id,
+        "state":      doc.state,
+        "district":   doc.district,
+        "block":      doc.block,
+    }
+    for field, value in checks.items():
+        permitted = scope.get(field)
+        if permitted is None:
+            continue
+        if value in permitted:
+            return True  # matched via this dimension — permitted
+    return False
+
+
+def _assert_caregiver_record_permitted(doc):
+    if not _is_caregiver_record_permitted(doc):
+        frappe.throw(
+            frappe._("You do not have permission to access this record."),
+            frappe.PermissionError,
+        )
+
+
+@frappe.whitelist()
+def export_creche_caregiver_salary_excel(names: Any = None, scope: str = "selected"):
+    """Export Creche Caregiver Salary and Benefits records to a single
+    Excel sheet, one row per record, laid out to match the standard
+    "Partner Details / Deductions if any from the salary/honorarium"
+    data-collection format (grouped headers with an Employer/Employee
+    Contribution sub-header under each of PF and ESI).
+
+    scope: "selected" (default) uses the caller-supplied `names` list;
+    "all" or "submitted" instead resolve the record list server-side
+    (restricted to submitted docs for "submitted"), permission-scoped the
+    same way either way — the caller never needs to enumerate names for
+    those two.
+    """
+    scope = (scope or "selected").lower()
+
+    if scope in ("all", "submitted"):
+        filters = {"docstatus": 1} if scope == "submitted" else {}
+        permitted_partner_ids = _perm.get_effective_partner_ids()
+        if permitted_partner_ids is not None:
+            filters["partner_id"] = ["in", permitted_partner_ids or ["__none__"]]
+        names = frappe.get_all(
+            "Creche Caregiver Salary and Benefits",
+            filters=filters,
+            pluck="name",
+            order_by="creation asc",
+        )
+        if not names:
+            frappe.throw(frappe._("No matching records found to export."))
+    else:
+        if not names:
+            frappe.throw("Please select at least one record")
+
+        if isinstance(names, str):
+            try:
+                names = json.loads(names)
+            except Exception:
+                names = [n.strip() for n in names.split(",") if n.strip()]
+
+        if not isinstance(names, list):
+            frappe.throw("Invalid names format")
+
+        if not names:
+            frappe.throw("No valid records found")
+
+    if len(names) > MAX_EXPORT_RECORDS:
+        frappe.throw(frappe._("Cannot export more than {0} records at once.").format(MAX_EXPORT_RECORDS))
+
+    docs = [frappe.get_doc("Creche Caregiver Salary and Benefits", n) for n in names]
+
+    if scope in ("all", "submitted"):
+        # These weren't individually requested — the partner-level
+        # pre-filter above only narrows the query, it doesn't guarantee
+        # every matched record's own state/district/block is permitted
+        # (a partner can be reachable via a totally different record's
+        # location). Drop anything that doesn't hold up rather than fail
+        # the whole export over one out-of-scope record.
+        docs = [doc for doc in docs if _is_caregiver_record_permitted(doc)]
+        if not docs:
+            frappe.throw(frappe._("No matching records found to export."))
+    else:
+        # "selected" records were explicitly named by the caller — deny
+        # outright rather than silently drop, since that's a genuine
+        # attempt to access something specific.
+        for doc in docs:
+            _assert_caregiver_record_permitted(doc)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Caregiver Salary and Benefits"
+
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    bold = Font(bold=True)
+    header_fill = PatternFill("solid", fgColor="D6DBDF")
+    thin = Side(style="thin")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    def style(cell, bold_font=False, fill=None, align=None):
+        cell.border = border
+        if bold_font:
+            cell.font = bold
+        if fill:
+            cell.fill = fill
+        if align:
+            cell.alignment = align
+
+    # -----------------------
+    # HEADER — two group bands, three header rows (matching the reference
+    # data-collection sheet: a group band, an "Employer/Employee
+    # Contribution" sub-header under PF and ESI, then the field labels)
+    # -----------------------
+    # (key, label, sub_header, group) — group spans are derived from this
+    # list below rather than hardcoded, so adding/removing a column can't
+    # silently desync the header merge math from the actual column count.
+    COLUMNS = [
+        ("s_no",               "S.No",                                   None,     ""),
+        ("partner_name",       "Name of the Partner",                    None,     "Partner Details"),
+        ("creche_ruralurban",  "Creche Rural/Urban",                     None,     "Partner Details"),
+        ("state",              "State",                                  None,     "Partner Details"),
+        ("district",           "District",                               None,     "Partner Details"),
+        ("block",              "Block",                                  None,     "Partner Details"),
+        ("total_caregivers",   "Total No. of Current Caregivers",        None,     "Partner Details"),
+        ("min_salary",         "Minimum salary of caregiver",            None,     "Partner Details"),
+        ("max_salary",         "Maximum salary of caregiver",            None,     "Partner Details"),
+        ("avg_salary",         "Average Salary of Caregivers",           None,     "Partner Details"),
+        ("pf",                 "PF (yes/no)",                            None,     "Deductions if any from the salary/honorarium"),
+        ("pf_employer",        "Employer Contribution",                  "pf_sub", "Deductions if any from the salary/honorarium"),
+        ("pf_employee",        "Employee Contribution",                  "pf_sub", "Deductions if any from the salary/honorarium"),
+        ("esi",                "ESI (yes/no)",                           None,     "Deductions if any from the salary/honorarium"),
+        ("esi_employer",       "Employer Contribution",                  "esi_sub", "Deductions if any from the salary/honorarium"),
+        ("esi_employee",       "Employee Contribution",                  "esi_sub", "Deductions if any from the salary/honorarium"),
+        ("health_insurance",   "Health Insurance (yes/no)",              None,     "Deductions if any from the salary/honorarium"),
+        ("health_insurance_amount", "Health Insurance (Annual Premium Amount)", None, "Deductions if any from the salary/honorarium"),
+        ("life_insurance",     "Life/Accidental Insurance (yes/no)",     None,     "Deductions if any from the salary/honorarium"),
+        ("life_insurance_amount", "Life/Accidental (Annual Premium Amount)", None, "Deductions if any from the salary/honorarium"),
+        ("tds",                "TDS (yes/no)",                           None,     "Deductions if any from the salary/honorarium"),
+    ]
+    ncols = len(COLUMNS)
+
+    # Derive (label, colspan) group bands from consecutive COLUMNS entries
+    # sharing the same group label, in order.
+    GROUPS = []
+    for _, _, _, group in COLUMNS:
+        if GROUPS and GROUPS[-1][0] == group:
+            GROUPS[-1] = (group, GROUPS[-1][1] + 1)
+        else:
+            GROUPS.append((group, 1))
+
+    # Row 1: group band ("Partner Details" / "Deductions...")
+    col = 1
+    for label, span in GROUPS:
+        if label:
+            ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + span - 1)
+        c = ws.cell(row=1, column=col, value=label)
+        style(c, bold_font=True, fill=header_fill, align=center)
+        for extra in range(1, span):
+            style(ws.cell(row=1, column=col + extra), fill=header_fill)
+        col += span
+
+    # Row 2: "If yes, provide the details" sub-band over PF/ESI's two
+    # contribution columns each (matches the reference sheet's middle row)
+    sub_bands = {"pf_sub": "If yes, provide the details", "esi_sub": "If yes, provide the details"}
+    sub_col_start = {}
+    for i, (key, label, sub, group) in enumerate(COLUMNS, start=1):
+        if sub and sub not in sub_col_start:
+            sub_col_start[sub] = i
+    for sub, start_col in sub_col_start.items():
+        ws.merge_cells(start_row=2, start_column=start_col, end_row=2, end_column=start_col + 1)
+        c = ws.cell(row=2, column=start_col, value=sub_bands[sub])
+        style(c, bold_font=True, fill=header_fill, align=center)
+        style(ws.cell(row=2, column=start_col + 1), fill=header_fill)
+
+    # Row 3: field labels. Columns with no sub-header merge rows 2-3 so the
+    # label doesn't look orphaned under an empty row 2 cell.
+    for i, (key, label, sub, group) in enumerate(COLUMNS, start=1):
+        if sub:
+            c = ws.cell(row=3, column=i, value=label)
+            style(c, bold_font=True, fill=header_fill, align=center)
+        else:
+            ws.merge_cells(start_row=2, start_column=i, end_row=3, end_column=i)
+            c = ws.cell(row=2, column=i, value=label)
+            style(c, bold_font=True, fill=header_fill, align=center)
+            style(ws.cell(row=3, column=i), fill=header_fill)
+
+    # -----------------------
+    # DATA
+    # -----------------------
+    row = 4
+    for idx, doc in enumerate(docs, start=1):
+        values = {
+            "s_no": idx,
+            "partner_name": doc.partner_name,
+            "creche_ruralurban": doc.creche_ruralurban,
+            "state": doc.state,
+            "district": doc.district,
+            "block": doc.block,
+            "total_caregivers": doc.total_no_of_current_caregivers,
+            "min_salary": doc.minimum_salary_of_caregiver,
+            "max_salary": doc.maximum_salary_of_caregiver,
+            "avg_salary": doc.average_salary_of_caregivers,
+            "pf": doc.pf,
+            "pf_employer": doc.pf_employer_contribution if doc.pf == "Yes" else None,
+            "pf_employee": doc.pf_employee_contribution if doc.pf == "Yes" else None,
+            "esi": doc.esi,
+            "esi_employer": doc.esi_employer_contribution if doc.esi == "Yes" else None,
+            "esi_employee": doc.esi_employee_contribution if doc.esi == "Yes" else None,
+            "health_insurance": doc.health_insurance,
+            "health_insurance_amount": doc.health_insurance_amount if doc.health_insurance == "Yes" else None,
+            "life_insurance": doc.life_accidental_insurance,
+            "life_insurance_amount": doc.life_accidental_insurance_amount if doc.life_accidental_insurance == "Yes" else None,
+            "tds": doc.tds_tax_deducted_at_source,
+        }
+        for i, (key, label, sub, group) in enumerate(COLUMNS, start=1):
+            v = values.get(key)
+            cell = ws.cell(row=row, column=i, value=_safe_cell_value(v) if v is not None else "")
+            style(cell, align=Alignment(horizontal="center", vertical="center"))
+        row += 1
+
+    # -----------------------
+    # COLUMN WIDTHS
+    # -----------------------
+    widths = [5, 22, 14, 14, 14, 14, 12, 12, 12, 14, 10, 12, 12, 10, 12, 12, 14, 18, 16, 16, 10]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    ws.freeze_panes = "A4"
+
+    # -----------------------
+    # OUTPUT
+    # -----------------------
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+
+    if scope == "all":
+        filename = "Creche_Caregiver_Salary_and_Benefits_All.xlsx"
+    elif scope == "submitted":
+        filename = "Creche_Caregiver_Salary_and_Benefits_Submitted.xlsx"
+    elif len(names) > 1:
+        filename = "Creche_Caregiver_Salary_and_Benefits.xlsx"
+    else:
+        filename = f"{names[0]}_Creche_Caregiver_Salary_and_Benefits.xlsx"
 
     frappe.response["filename"] = filename
     frappe.response["filecontent"] = stream.getvalue()

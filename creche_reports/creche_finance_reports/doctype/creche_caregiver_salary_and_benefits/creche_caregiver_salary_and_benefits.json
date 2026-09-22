@@ -186,8 +186,7 @@
    "fieldtype": "Currency",
    "label": "Health Insurance (Annual Premium Amount)",
    "mandatory_depends_on": "eval:doc.health_insurance==\"Yes\";",
-   "options": "INR",
-   "precision": "0"
+   "options": "INR"
   },
   {
    "fieldname": "life_accidental_insurance",
@@ -230,7 +229,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-18 15:24:43.231461",
+ "modified": "2026-09-18 16:00:33.216444",
  "modified_by": "Administrator",
  "module": "Creche Finance Reports",
  "name": "Creche Caregiver Salary and Benefits",

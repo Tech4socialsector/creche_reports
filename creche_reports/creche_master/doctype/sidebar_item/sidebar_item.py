@@ -57,9 +57,30 @@ class SidebarItem(Document):
 					)
 				)
 
+		self._validate_sequence_id()
 		self._validate_group_items()
 
+	def _validate_sequence_id(self):
+		# Two top-level items tied on the same Sequence ID don't error - they
+		# just silently fall back to alphabetical-by-item-name order, which
+		# looks like "my sequence change didn't take effect" to an admin who
+		# only changed one of the two. Catching the collision here instead
+		# makes the actual cause visible immediately, at save time.
+		clashing = frappe.get_all(
+			"Sidebar Item",
+			filters={"sequence_id": self.sequence_id, "name": ["!=", self.name or ""]},
+			fields=["name"],
+			limit=1,
+		)
+		if clashing:
+			frappe.throw(
+				_("Sequence ID {0} is already used by {1} - pick a different number.").format(
+					self.sequence_id, frappe.bold(clashing[0].name)
+				)
+			)
+
 	def _validate_group_items(self):
+		seen_sequence_ids = {}
 		for row in self.group_items or []:
 			if row.target_doctype and row.page_route:
 				frappe.throw(
@@ -69,6 +90,16 @@ class SidebarItem(Document):
 				frappe.throw(
 					_("Group Items List row {0}: pick a Target Doctype or a Page.").format(row.idx)
 				)
+			# Unique within THIS group's own children only - a different
+			# group's children are an independent list, so the same number
+			# reused there is not a collision.
+			if row.sequence_id in seen_sequence_ids:
+				frappe.throw(
+					_("Group Items List rows {0} and {1} both use Sequence ID {2} - pick different numbers.").format(
+						seen_sequence_ids[row.sequence_id], row.idx, row.sequence_id
+					)
+				)
+			seen_sequence_ids[row.sequence_id] = row.idx
 
 	def on_update(self):
 		_bust_sidebar_items_cache()

@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "item_name",
+  "link_type",
   "target_doctype",
   "page_route",
   "role",
@@ -23,22 +24,32 @@
    "reqd": 1
   },
   {
-   "depends_on": "eval:!doc.page_route",
-   "description": "A doctype's own list/form page. Leave blank and pick a Page instead for a page that isn't a doctype list/form.",
+   "description": "Is this item a doctype's own list/form page, or one of the app's built-in Vue pages/components that isn't a doctype list/form?",
+   "fieldname": "link_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Link Type",
+   "options": "\nDoctype\nPage"
+  },
+  {
+   "depends_on": "eval:doc.link_type==='Doctype'",
+   "description": "A doctype's own list/form page.",
    "fieldname": "target_doctype",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Target Doctype",
+   "mandatory_depends_on": "eval:doc.link_type==='Doctype'",
    "options": "DocType"
   },
   {
-   "depends_on": "eval:!doc.target_doctype",
-   "description": "A built-in app page that isn't a doctype list/form. Leave blank and pick a Doctype instead.",
+   "depends_on": "eval:doc.link_type==='Page'",
+   "description": "A built-in app page/component that isn't a doctype list/form.",
    "fieldname": "page_route",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Page",
-   "options": "\nBudget Import Template\nUtilisation Import Template"
+   "mandatory_depends_on": "eval:doc.link_type==='Page'",
+   "options": "\nDashboard\nBudget Import Template\nUtilisation Import Template\nBudget Utilisation Report"
   },
   {
    "description": "Only users with this role see this child item. Leave blank to show it to everyone who can already see the group.",

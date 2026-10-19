@@ -21,6 +21,20 @@ export const session = reactive({
 export const userResource = createResource({
   url: 'frappe.auth.get_logged_user',
   cache: 'frappe-user',
+  // Explicit GET - frappe-ui's createResource defaults to POST when no
+  // method is given (see frappeRequest.js's `method: options.method ||
+  // 'POST'`), and Frappe only enforces CSRF on unsafe methods (POST/PUT/
+  // DELETE), never GET. This resource re-fetches periodically (router.js's
+  // recheckAuthIfStale, on tab focus) using window.csrf_token, which is
+  // stamped once at initial page load and never refreshed - logging into
+  // the desk (or anywhere else on the same site) in another tab rotates the
+  // session's real CSRF token server-side, so this tab's stale copy then
+  // fails CSRF validation on its next POST and this call's onError() below
+  // wrongly treats that as "logged out" and redirects to /login, even
+  // though the session itself is perfectly valid. GET sidesteps the check
+  // entirely, since there's nothing here to protect against CSRF anyway -
+  // it's a read-only "who am I" query, not a state change.
+  method: 'GET',
   onSuccess(user) {
     session.user = user
     fetchUserDetails()

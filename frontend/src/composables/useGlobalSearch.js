@@ -3,8 +3,6 @@ import { useDebounceFn } from '@vueuse/core'
 import { useRoute, useRouter } from 'vue-router'
 import navIcon from '@/components/navIcon'
 import { fetchV2 } from '@/composables/useApiV2'
-import { SIDEBAR_NAV_GROUPS } from '@/data/sidebarNav'
-import { reportAccessResource } from '@/data/reportAccess'
 import { sidebarItemsResource } from '@/data/sidebarItems'
 
 // Shared "awesome bar" search logic - originally built inline inside
@@ -13,10 +11,13 @@ import { sidebarItemsResource } from '@/data/sidebarItems'
 // Now the data source for the single shared CommandPalette instance (mounted
 // once in AppLayout.vue) - see that file for how its output below is adapted
 // into CommandPalette's groups/items shape. Re-derives the same nav item list
-// AppSidebar.vue used to compute inline - the admin-configurable doctype
-// items/groups from sidebarItemsResource
-// (creche_reports.api.sidebar.get_sidebar_items) merged with the one
-// hardcoded "Data Import & Templates" group (sidebarNav.js).
+// AppSidebar.vue used to compute inline - entirely from the admin-configurable
+// doctype items/groups in sidebarItemsResource
+// (creche_reports.api.sidebar.get_sidebar_items); "Data Import & Templates"
+// used to be a second, hardcoded group merged in here too, but is now just
+// another Sidebar Item record like everything else (its two pages are
+// representable via Sidebar Item's own Page select - see api/sidebar.py's
+// CUSTOM_PAGES).
 // get_sidebar_items() leaves have `doctype: null` for a built-in page (e.g.
 // an import template, set via Sidebar Item's own Page select) - router.js
 // has a dedicated named route for each of these, not the generic
@@ -25,8 +26,10 @@ import { sidebarItemsResource } from '@/data/sidebarItems'
 // imported, same reasoning as every other small shared map in this app -
 // see api/sidebar.py's own comment on ROUTE_BY_DOCTYPE).
 const NAMED_ROUTE_BY_SLUG = {
+  dashboard: 'Dashboard',
   'budget-import-template': 'BudgetImportTemplate',
   'utilisation-import-template': 'UtilisationImportTemplate',
+  'budget-utilisation-report': 'BudgetUtilisationReport',
 }
 
 export function useGlobalSearch() {
@@ -43,34 +46,20 @@ export function useGlobalSearch() {
     }
   }
 
-  const fixedNavItems = computed(() => [
-    {
-      label: 'Dashboard',
-      icon: navIcon('panels-top-left'),
-      to: { name: 'Dashboard' },
-      isActive: route.name === 'Dashboard',
-    },
-    ...(reportAccessResource.data?.allowed
-      ? [
-          {
-            label: 'Budget Utilisation Report',
-            icon: navIcon('file-chart-column'),
-            to: { name: 'BudgetUtilisationReport' },
-            isActive: route.name === 'BudgetUtilisationReport',
-          },
-        ]
-      : []),
-  ])
+  // Dashboard and Budget Utilisation Report used to be hardcoded here too -
+  // both now representable as a Sidebar Item itself (see AppSidebar.vue's
+  // own note on its NAMED_ROUTE_BY_SLUG entries), so neither is hardcoded
+  // any more, to avoid showing twice once an admin adds the matching record.
+  const fixedNavItems = computed(() => [])
 
   const topLevelDoctypeItems = computed(() =>
     (sidebarItemsResource.data || []).filter((item) => !item.is_group).map(toNavItem),
   )
-  const doctypeGroupItems = computed(() => [
-    ...(sidebarItemsResource.data || [])
+  const doctypeGroupItems = computed(() =>
+    (sidebarItemsResource.data || [])
       .filter((item) => item.is_group)
       .flatMap((group) => group.children.map(toNavItem)),
-    ...SIDEBAR_NAV_GROUPS.flatMap((group) => group.items.map(toNavItem)),
-  ])
+  )
 
   const searchQuery = ref('')
   const recordSearchResults = ref([])

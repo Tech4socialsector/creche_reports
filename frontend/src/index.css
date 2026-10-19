@@ -123,3 +123,18 @@ would be illegible. */
 :root:not(.dark) .border-gray-900 {
   border-color: var(--app-accent) !important;
 }
+
+/* Row AND column grid lines for a dashboard drill-down popup's tables
+(DrillModal, CardDrillModal, OverviewStripModal, PendingUtilisationModal,
+PartnersThresholdModal) - these already had row dividers (divide-y) but no
+vertical lines between columns and no border around header cells. This is
+scoped to .drill-table specifically, not every <table> in the app (the
+doctype list view's own table/grid elsewhere stays plain, unbordered). */
+.drill-table,
+.drill-table th,
+.drill-table td {
+  border: 1px solid var(--outline-gray-2, #e2e2e2);
+}
+.drill-table {
+  border-collapse: collapse;
+}

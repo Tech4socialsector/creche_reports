@@ -1,7 +1,8 @@
 <template>
-  <Dialog v-model="isOpen" :options="{ size: '6xl', title: dialogTitle }">
+  <Dialog v-model="isOpen" :options="{ size: '7xl', title: dialogTitle }">
     <template #body-content>
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b pb-3 dark:border-gray-800">
+      <div class="card-drill-body flex flex-col">
+      <div class="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b pb-3 dark:border-gray-800">
         <nav class="flex min-w-0 flex-wrap items-center gap-2 text-sm">
           <span class="flex h-6 w-6 items-center justify-center rounded-full" :class="theme.bg">
             <LucideIcon :name="theme.icon" class="h-3.5 w-3.5" :class="theme.text" />
@@ -21,14 +22,15 @@
             </span>
           </template>
         </nav>
-        <div class="flex flex-shrink-0 items-center gap-2">
+        <div class="flex flex-shrink-0 flex-wrap items-center gap-3">
+          <Switch v-model="showFullNumbers" label="Show full numbers" size="sm" />
           <Dropdown :options="exportOptions" :button="{ variant: 'outline', iconLeft: 'lucide-download', loading: exporting, label: 'Export' }" />
         </div>
       </div>
 
-      <ErrorMessage class="mt-3" :message="exportError" />
+      <ErrorMessage class="mt-3 flex-shrink-0" :message="exportError" />
 
-      <div class="mt-3 max-w-xs">
+      <div class="mt-3 max-w-xs flex-shrink-0">
         <TextInput
           v-if="!selectedPartner"
           v-model="partnerSearch.searchQuery.value"
@@ -51,8 +53,8 @@
         </TextInput>
       </div>
 
-      <div class="mt-3 max-h-[65vh] overflow-x-auto overflow-y-auto">
-        <table v-if="!selectedPartner" class="w-full min-w-max text-left text-sm">
+      <div class="card-drill-scroll mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-auto">
+        <table v-if="!selectedPartner" class="drill-table w-full min-w-max text-left text-sm">
           <thead class="sticky top-0 z-10 text-xs uppercase text-gray-500 dark:text-gray-400" :class="theme.bg">
             <tr>
               <th class="px-3 py-2 font-medium">Partner</th>
@@ -79,7 +81,7 @@
           </tbody>
         </table>
 
-        <table v-else class="w-full min-w-max text-left text-sm">
+        <table v-else class="drill-table w-full min-w-max text-left text-sm">
           <thead class="sticky top-0 z-10 text-xs uppercase text-gray-500 dark:text-gray-400" :class="theme.bg">
             <tr>
               <th class="px-3 py-2 font-medium">Budget Reference</th>
@@ -103,15 +105,46 @@
           </tbody>
         </table>
       </div>
+      </div>
     </template>
   </Dialog>
 </template>
 
+<style scoped>
+/* Same fix as DrillModal.vue - frappe-ui's Dialog only caps DialogContent's
+height implicitly (its own overflow-y-auto overlay), so without this the
+whole dialog (header, search box, everything) scrolls as one block on a
+short viewport instead of just the table rows below staying put. */
+:deep(.dialog-content) {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+}
+:deep(.dialog-content.max-w-7xl) {
+  max-width: 90rem;
+}
+:deep(.dialog-content > div:first-child),
+:deep(.dialog-content > div:first-child > .flex),
+:deep(.dialog-content > div:first-child > .flex > .flex-1) {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.card-drill-body {
+  min-height: 0;
+  flex: 1;
+}
+.card-drill-scroll {
+  overscroll-behavior: contain;
+}
+</style>
+
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Dialog, Dropdown, ErrorMessage, TextInput } from 'frappe-ui'
+import { Dialog, Dropdown, ErrorMessage, Switch, TextInput } from 'frappe-ui'
 import LucideIcon from '@/components/LucideIcon.vue'
-import { formatInr, amountColorClass, METRIC_THEME } from '@/composables/useDashboardFormat'
+import { formatInr, amountColorClass, METRIC_THEME, showFullNumbers } from '@/composables/useDashboardFormat'
 import { useTableExport } from '@/composables/useTableExport'
 import { useTableSearch } from '@/composables/useTableSearch'
 

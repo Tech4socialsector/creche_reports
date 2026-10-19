@@ -38,6 +38,7 @@
           </template>
         </nav>
         <div class="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
+          <Switch v-model="showFullNumbers" label="Show full numbers" size="sm" />
           <Button
             v-if="level === 2 && showsLineItems && selectedPartner?.budgets?.length > 1"
             variant="outline"
@@ -117,7 +118,7 @@
             </button>
           </div>
 
-          <table v-else class="w-full min-w-max text-left text-sm">
+          <table v-else class="drill-table w-full min-w-max text-left text-sm">
             <thead class="sticky top-0 z-10 text-xs uppercase text-gray-500 dark:text-gray-400" :class="theme.bg">
               <tr>
                 <th class="px-3 py-2 font-medium">Partner</th>
@@ -197,7 +198,7 @@
             </button>
           </div>
 
-          <table v-else class="w-full min-w-max text-left text-sm">
+          <table v-else class="drill-table w-full min-w-max text-left text-sm">
             <thead class="sticky top-0 z-10 text-xs uppercase text-gray-500 dark:text-gray-400" :class="theme.bg">
               <tr>
                 <th class="px-3 py-2 font-medium">Budget Reference</th>
@@ -248,7 +249,7 @@
         </template>
 
         <template v-else-if="level === 3 && type === 'disbursement'">
-          <table class="w-full text-left text-sm">
+          <table class="drill-table w-full text-left text-sm">
             <thead class="sticky top-0 z-10 text-xs uppercase text-gray-500 dark:text-gray-400" :class="theme.bg">
               <tr>
                 <th class="px-3 py-2 font-medium">Date</th>
@@ -290,7 +291,13 @@ own height and making it a flex column lets the header (outside
 :deep(.dialog-content) {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 4rem);
+  max-height: calc(100vh - 2rem);
+}
+/* A little wider than frappe-ui's own max-w-7xl preset (its widest step) -
+there's no larger size option to switch to, so this stretches the same
+preset further instead. */
+:deep(.dialog-content.max-w-7xl) {
+  max-width: 90rem;
 }
 /* bg-surface-modal wrapper -> its .flex row (single child) -> .w-full.flex-1
 (holds the title bar, then our #body-content slot) - each needs to become a
@@ -316,12 +323,12 @@ down has nothing to actually grow/shrink within. */
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { breakpointsTailwind, useBreakpoints } from '@vueuse/core'
-import { Dialog, Button, Dropdown, ErrorMessage, TextInput, useCall } from 'frappe-ui'
+import { Dialog, Button, Dropdown, ErrorMessage, Switch, TextInput, useCall } from 'frappe-ui'
 import LucideIcon from '@/components/LucideIcon.vue'
 import { fetchV2 } from '@/composables/useApiV2'
 import Skeleton from '@/components/Skeleton.vue'
 import LineItemsTable from '@/components/dashboard/LineItemsTable.vue'
-import { formatInr, formatDate, formatPct, pctColorClass, pctBadgeClass, METRIC_THEME } from '@/composables/useDashboardFormat'
+import { formatInr, formatDate, formatPct, pctColorClass, pctBadgeClass, METRIC_THEME, showFullNumbers } from '@/composables/useDashboardFormat'
 
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = breakpoints.smaller('sm')

@@ -45,15 +45,19 @@ after_migrate = [
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "creche_reports",
-# 		"logo": "/assets/creche_reports/logo.png",
-# 		"title": "Creche Finance Reports",
-# 		"route": "/creche_reports",
-# 		"has_permission": "creche_reports.api.permission.has_app_permission"
-# 	}
-# ]
+# A tile on the desk's own "Apps" screen (the app-switcher grid, /apps) that
+# jumps into the Vue frontend - the reverse direction of AppSidebar.vue's own
+# "Go to Desk" menu item. No has_permission hook: the Vue app has no gate of
+# its own beyond being logged in (same bar as reaching the desk at all), so
+# this tile is visible to anyone who can already see the Apps screen.
+add_to_apps_screen = [
+	{
+		"name": "creche_reports",
+		"logo": "/assets/creche_reports/images/creche_reports_logo.svg",
+		"title": "Creche Finance Reports",
+		"route": "/creche-reports",
+	}
+]
 
 # Includes in <head>
 # ------------------

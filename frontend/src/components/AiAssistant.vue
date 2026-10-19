@@ -47,7 +47,8 @@
                 :class="m.role === 'user'
                   ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
                   : 'inline-block bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'"
-              >{{ m.content }}</div>
+                v-html="renderBold(m.content)"
+              />
               <AiBlocks v-if="m.blocks?.length" :blocks="m.blocks" />
             </div>
           </div>
@@ -163,6 +164,21 @@ const draft = ref('')
 const sendError = ref(null)
 
 const botName = computed(() => assistantConfigResource.data?.bot_name || 'Assistant')
+
+// The assistant's own guide now tells it to bold a count/total with
+// **this** markdown syntax (see the "Response Formatting" AI Guide Section),
+// but this chat only ever rendered plain text - not a full markdown
+// renderer (no new dependency, no markdown syntax beyond the one thing the
+// guide actually asks for), just **bold** support: escape everything first
+// so the message's own text can never inject HTML, then turn the (now
+// HTML-safe) **pairs** into <strong> tags.
+function renderBold(text) {
+  const escaped = String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  return escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+}
 
 const show = computed({
   get: () => assistantState.visible,

@@ -69,19 +69,52 @@ function sleep(ms) {
 // covers the (near-instant) enqueue call.
 export const sending = reactive({ loading: false })
 
+// window.csrf_token is stamped once at initial page load and never
+// refreshed (see data/session.js's own identical fix for userResource) -
+// logging in elsewhere, or a server restart invalidating sessions, rotates
+// the real session's CSRF token server-side, so a POST made from a tab that
+// has been open since before that keeps sending the old one and gets
+// rejected with CSRFTokenError. Reloading re-runs the app's boot sequence,
+// which fetches a fresh token from the server - the same recovery fetchV2()
+// already does for its own POST/fetch calls in useApiV2.js.
+function isStaleSessionError(error) {
+  return error?.type === 'CSRFTokenError' || error?.exc_type === 'CSRFTokenError'
+}
+
 export async function sendAssistantMessage(message) {
   sending.loading = true
   try {
-    const { job_id } = await sendMessageCall.submit({
+    const sendResult = await sendMessageCall.submit({
       messages: history.value,
       message,
     })
+    // useCall's own submit()/execute() resolves to null on ANY request
+    // failure (network error, a non-2xx response, a dead/stale session) -
+    // it never throws, it just means "no data came back" - see useCall.ts's
+    // own `data.value?.data ?? null`. Destructuring job_id straight off
+    // that without checking crashed with a cryptic "Cannot destructure
+    // property 'job_id' of null" instead of a real, readable error message.
+    if (!sendResult?.job_id) {
+      if (isStaleSessionError(sendMessageCall.error.value)) {
+        window.location.reload()
+        throw new Error('Your session needs refreshing - reloading…')
+      }
+      throw sendMessageCall.error.value || new Error('Could not reach the assistant. Please try again.')
+    }
+    const { job_id } = sendResult
 
     const startedAt = Date.now()
     let interval = POLL_INTERVAL_START_MS
     let result
     while (true) {
       result = await jobResultCall.submit({ job_id })
+      if (!result) {
+        if (isStaleSessionError(jobResultCall.error.value)) {
+          window.location.reload()
+          throw new Error('Your session needs refreshing - reloading…')
+        }
+        throw jobResultCall.error.value || new Error('Could not reach the assistant. Please try again.')
+      }
       if (result.status === 'done') break
       if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
         throw new Error('The assistant is taking longer than expected. Please try again.')

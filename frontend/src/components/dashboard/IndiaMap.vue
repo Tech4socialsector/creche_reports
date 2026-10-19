@@ -19,7 +19,7 @@
       </div>
       <div
         ref="mapContainer"
-        class="india-map mx-auto max-w-md"
+        class="india-map mx-auto max-w-2xl"
         v-html="svgMarkup"
         @mouseover="onMouseOver"
         @mouseleave="onMouseLeave"

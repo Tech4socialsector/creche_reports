@@ -1,14 +1,16 @@
 <template>
-  <Dialog v-model="isOpen" :options="{ size: stat === 'states' ? '7xl' : '5xl', title: title }">
+  <Dialog v-model="isOpen" :options="{ size: '7xl', title: title }">
     <template #body-content>
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-3 border-b pb-3 dark:border-gray-800">
+      <div class="overview-strip-body flex flex-col">
+      <div class="mb-3 flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b pb-3 dark:border-gray-800">
         <div class="flex items-center gap-2">
           <span class="flex h-6 w-6 items-center justify-center rounded-full" :class="statTheme.bg">
             <LucideIcon :name="statTheme.icon" class="h-3.5 w-3.5" :class="statTheme.text" />
           </span>
           <span class="text-sm font-semibold" :class="statTheme.text">{{ filteredRows.length }} {{ title.toLowerCase() }}</span>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap items-center gap-3">
+          <Switch v-model="showFullNumbers" label="Show full numbers" size="sm" />
           <div class="w-full max-w-xs sm:w-auto">
             <TextInput v-model="searchQuery" type="text" :placeholder="searchPlaceholder">
               <template #prefix>
@@ -20,13 +22,13 @@
         </div>
       </div>
 
-      <ErrorMessage class="mb-3" :message="exportError" />
+      <ErrorMessage class="mb-3 flex-shrink-0" :message="exportError" />
 
-      <div class="grid max-h-[70vh] grid-cols-1 items-start gap-4 overflow-y-auto" :class="stat === 'states' ? 'lg:grid-cols-4' : ''">
+      <div class="overview-strip-scroll grid min-h-0 flex-1 grid-cols-1 items-start gap-4 overflow-y-auto" :class="stat === 'states' ? 'lg:grid-cols-4' : ''">
         <IndiaMap v-if="stat === 'states'" :state-data="stateMapData" class="lg:col-span-3" />
 
         <div class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800" :class="stat === 'states' ? 'lg:col-span-1' : ''">
-          <table class="w-full min-w-max text-left text-sm">
+          <table class="drill-table w-full min-w-max text-left text-sm">
             <thead class="sticky top-0 z-10 text-xs uppercase text-gray-500 dark:text-gray-400" :class="statTheme.bg">
               <tr>
                 <th v-for="col in columns" :key="col.key" class="px-3 py-2 font-medium" :class="col.align === 'right' ? 'text-right' : ''">
@@ -54,16 +56,45 @@
           </table>
         </div>
       </div>
+      </div>
     </template>
   </Dialog>
 </template>
 
+<style scoped>
+/* Same fix as DrillModal.vue - without this, frappe-ui's Dialog overlay
+scrolls the whole popup (header included) instead of just the table rows. */
+:deep(.dialog-content) {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+}
+:deep(.dialog-content.max-w-7xl) {
+  max-width: 96rem;
+}
+:deep(.dialog-content > div:first-child),
+:deep(.dialog-content > div:first-child > .flex),
+:deep(.dialog-content > div:first-child > .flex > .flex-1) {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.overview-strip-body {
+  min-height: 0;
+  flex: 1;
+}
+.overview-strip-scroll {
+  overscroll-behavior: contain;
+}
+</style>
+
 <script setup>
 import { computed, watch } from 'vue'
-import { Dialog, Dropdown, ErrorMessage, TextInput } from 'frappe-ui'
+import { Dialog, Dropdown, ErrorMessage, Switch, TextInput } from 'frappe-ui'
 import LucideIcon from '@/components/LucideIcon.vue'
 import IndiaMap from '@/components/dashboard/IndiaMap.vue'
-import { formatInr, formatDate, STAT_THEME } from '@/composables/useDashboardFormat'
+import { formatInr, formatDate, STAT_THEME, showFullNumbers } from '@/composables/useDashboardFormat'
 import { useTableSearch } from '@/composables/useTableSearch'
 import { useTableExport } from '@/composables/useTableExport'
 

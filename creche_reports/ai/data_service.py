@@ -31,6 +31,7 @@ import frappe
 from frappe import _
 
 from creche_reports.ai.privacy import NAME_FIELDNAMES, TOKEN_RE, is_personal_field, token
+from creche_reports.api import permissions as _perm
 
 POLICY_CACHE_KEY = "creche_reports_ai_policies"
 MAX_ROWS_HARD = 50
@@ -46,6 +47,116 @@ ALWAYS_BLOCKED = {
 	"Activity Log", "Version", "Patch Log", "Scheduled Job Type", "Server Script", "Client Script",
 	"App Setting", "AI Guide Section", "AI Guide Instruction", "AI Data Policy", "AI Data Policy Field",
 }
+
+# This app's own custom doctypes only grant standard Frappe "read"
+# permission (DocPerm) to System Manager - every other role's access to
+# these 4 is scoped entirely through permissions.py's own User-Permission
+# based logic (partner/budget/state/district/block), the same mechanism the
+# Dashboard and reports already rely on (both fetch with ignore_permissions=
+# True, then narrow by hand through that module's helpers - see its own
+# docstring). frappe.has_permission()/frappe.get_list()'s own built-in
+# permission check would each independently say no for any non-admin user on
+# these 4, even when that same user can see this data perfectly well
+# elsewhere in the app - so these 4 go through _can_read()/_can_read_record()
+# for the "is this doctype/record visible at all" gate below, AND
+# _scoped_get_list() (further down) instead of a bare frappe.get_list() for
+# the actual row fetch, mirroring the Dashboard's own ignore_permissions=True
+# + manual narrowing rather than relying on frappe.get_list()'s own
+# (unusable, for these 4) permission enforcement. Every other doctype
+# (Caregiver Salary, Reminder Settings, any future one) isn't part of this
+# app's custom scoping scheme and keeps using frappe.has_permission()/a plain
+# frappe.get_list() as normal.
+_CUSTOM_SCOPED_DOCTYPES = {"Creche Budget", "Creche utilisation", "Creche Disbursement", "Creche Partners"}
+
+# The column on each custom-scoped doctype that identifies it for
+# permissions.py's own narrowing functions - "name" for Creche Budget/
+# Partners (the docname IS the identity to filter by), "budget_reference_id"
+# for Creche utilisation/Disbursement (both carry a link to their own
+# Creche Budget, which is what's actually permission-scoped).
+_SCOPE_COLUMN_BY_DOCTYPE = {
+	"Creche Budget": "name",
+	"Creche utilisation": "budget_reference_id",
+	"Creche Disbursement": "budget_reference_id",
+	"Creche Partners": "name",
+}
+
+
+def _apply_scope(doctype, filters):
+	"""Narrow `filters` by this app's own permission scoping for a
+	custom-scoped doctype - Creche Budget/utilisation/Disbursement all
+	resolve to a permitted Creche Budget id set (permissions.py's own
+	apply_budget_id_scope, already used by the Dashboard), Creche Partners to
+	a permitted partner id set directly."""
+	column = _SCOPE_COLUMN_BY_DOCTYPE[doctype]
+	if doctype == "Creche Partners":
+		effective = _perm.get_effective_partner_ids()
+		f = dict(filters)
+		if effective is None:
+			return f
+		existing = f.get(column)
+		requested = existing[1] if isinstance(existing, list) and existing and existing[0] == "in" else ([existing] if existing else [])
+		f[column] = ["in", _perm.intersect(requested, effective) or ["__none__"]]
+		return f
+	return _perm.apply_budget_id_scope(filters, column=column)
+
+
+def _scoped_get_list(doctype, **kwargs):
+	"""frappe.get_list() for a custom-scoped doctype - ignore_permissions=True
+	(frappe.get_list's own permission check would reject every non-admin role
+	on these 4, the same problem _can_read()/_can_read_record() solve for the
+	doctype/record-level gates above) plus _apply_scope() on the filters, so
+	"no DocPerm row for this role" never means "see everything" - only
+	whatever this app's own permission scoping already grants this user
+	elsewhere."""
+	kwargs["filters"] = _apply_scope(doctype, kwargs.get("filters") or {})
+	kwargs["ignore_permissions"] = True
+	return frappe.get_list(doctype, **kwargs)
+
+
+def _get_list_for(doctype, **kwargs):
+	"""search()/count_by()'s own fetch - routes a custom-scoped doctype
+	through _scoped_get_list(), everything else through a plain
+	frappe.get_list() (which already enforces that doctype's own normal
+	permissions, unaffected by any of this)."""
+	if doctype in _CUSTOM_SCOPED_DOCTYPES:
+		return _scoped_get_list(doctype, **kwargs)
+	return frappe.get_list(doctype, **kwargs)
+
+
+def _can_read(doctype):
+	"""Whether the signed-in user may read ANYTHING of `doctype` at all (the
+	"is this doctype visible to the assistant" gate) - mirrors is_unrestricted_user()
+	plus "has at least one User Permission scoping them into this app's data"
+	for the 4 custom-scoped doctypes, frappe.has_permission() for everything
+	else."""
+	if doctype not in _CUSTOM_SCOPED_DOCTYPES:
+		return frappe.has_permission(doctype, "read")
+	if _perm.is_unrestricted_user():
+		return True
+	return any(v is not None for v in _perm.get_permission_scope().values())
+
+
+def _can_read_record(doctype, name):
+	"""Whether the signed-in user may read this SPECIFIC record of `doctype` -
+	same split as _can_read(), but record-level: permissions.py's own
+	assert_* helpers (which already apply the OR-across-dimension semantics
+	the rest of the app uses for these doctypes) instead of frappe.has_permission's
+	doc-level check, which would again always say no for a non-admin role
+	with zero DocPerm rows on these doctypes."""
+	if doctype not in _CUSTOM_SCOPED_DOCTYPES:
+		return frappe.has_permission(doctype, "read", doc=name)
+	try:
+		if doctype == "Creche Partners":
+			_perm.assert_permitted("partner_id", name)
+		else:
+			# Creche Budget itself, or Creche utilisation/Disbursement (both
+			# carry budget_reference_id) - assert_budget_permitted already
+			# applies the same OR-across-dimension check for all three.
+			_perm.assert_budget_permitted(name)
+		return True
+	except frappe.PermissionError:
+		return False
+
 
 LAYOUT_FIELDTYPES = {"Section Break", "Column Break", "Tab Break", "HTML", "Heading", "Button", "Image"}
 # Values that must never leave the server for the model, whatever the policy.
@@ -111,6 +222,14 @@ APP_FRONTEND_DOCTYPES = {
 	"Creche Disbursement",
 	"Creche Partners",
 	"Creche Reminder Settings",
+	# Location reference doctypes - low-risk (no financial/personal data),
+	# genuinely useful for answering "which partners are in <state>" style
+	# questions. Each still needs its own enabled AI Data Policy on top of
+	# being listed here (see ensure_policies' auto-created disabled default) -
+	# being in this set is necessary, not sufficient.
+	"State",
+	"District",
+	"Block",
 }
 
 
@@ -146,7 +265,20 @@ def readable_fields(doctype, policy, parenttype=None):
 	types, not hidden by policy, and readable by this user at their
 	permission level. Child tables are returned separately."""
 	meta = frappe.get_meta(doctype)
-	permitted = set(meta.get_permitted_fieldnames(parenttype=parenttype, permission_type="read"))
+	if doctype in _CUSTOM_SCOPED_DOCTYPES and not parenttype:
+		# get_permitted_fieldnames() walks this doctype's DocPerm permlevel
+		# rows - which here only ever list System Manager (see
+		# _CUSTOM_SCOPED_DOCTYPES' own comment) - so for any other role it
+		# would return NO fields at all, not just gate the doctype as a
+		# whole. None of these doctypes actually use permlevel tiers (every
+		# field is permlevel 0), so "every field with a value" is the exact
+		# same fallback Frappe's own get_permitted_fieldnames() uses when a
+		# doctype has no permissions defined at all - just applied
+		# explicitly here, since these doctypes DO have permissions defined
+		# (for System Manager), just not for the role actually asking.
+		permitted = {df.fieldname for df in meta.get_fieldnames_with_value(with_field_meta=True)}
+	else:
+		permitted = set(meta.get_permitted_fieldnames(parenttype=parenttype, permission_type="read"))
 	return [
 		df for df in meta.fields
 		if _is_exposable(df)
@@ -187,7 +319,7 @@ def _reveal(doctype, name, fieldname):
 		df = frappe.get_meta(doctype).get_field(fieldname)
 		if not df or not is_personal_field(df) or df.fieldtype in ALWAYS_HIDDEN_FIELDTYPES or df.fieldtype in TABLE_FIELDTYPES:
 			return unavailable
-		if not frappe.has_permission(doctype, "read", doc=name):
+		if not _can_read_record(doctype, name):
 			return unavailable
 		if fieldname not in frappe.get_meta(doctype).get_permitted_fieldnames(permission_type="read"):
 			return unavailable
@@ -241,7 +373,7 @@ def list_available_doctypes():
 	out = []
 	for doctype in APP_FRONTEND_DOCTYPES:
 		policy = get_policy(doctype)
-		if policy and policy.can_read and frappe.has_permission(doctype, "read"):
+		if policy and policy.can_read and _can_read(doctype):
 			out.append({
 				"doctype": doctype,
 				"label": doctype,
@@ -272,7 +404,7 @@ def describe_doctype(doctype):
 
 def search(doctype, filters=None, fields=None, limit=20):
 	policy = require_access(doctype)
-	if not frappe.has_permission(doctype, "read"):
+	if not _can_read(doctype):
 		raise frappe.PermissionError(_("You do not have permission to view {0}").format(doctype))
 
 	readable = readable_fields(doctype, policy)
@@ -291,7 +423,7 @@ def search(doctype, filters=None, fields=None, limit=20):
 		select = list(dict.fromkeys(["name", *listed]))
 
 	limit = min(frappe.utils.cint(limit) or 20, policy.max_rows, MAX_ROWS_HARD)
-	rows = frappe.get_list(
+	rows = _get_list_for(
 		doctype,
 		filters=_clean_filters(filters, filterable),
 		fields=select,
@@ -313,14 +445,14 @@ def count_by(doctype, group_by, filters=None):
 	"""How many records fall under each value of one field (for charts and summaries): [{value, count}].
 	Only a plain, non-personal field can be grouped on."""
 	policy = require_access(doctype)
-	if not frappe.has_permission(doctype, "read"):
+	if not _can_read(doctype):
 		raise frappe.PermissionError(_("You do not have permission to view {0}").format(doctype))
 	readable = {df.fieldname: df for df in readable_fields(doctype, policy)}
 	df = readable.get(group_by)
 	if not df or is_personal_field(df) or df.fieldtype not in GROUPABLE_FIELDTYPES:
 		raise frappe.PermissionError(_("The assistant cannot group by {0}").format(group_by))
 	filterable = {n for n, f in readable.items() if not is_personal_field(f)} | {"name"}
-	rows = frappe.get_list(
+	rows = _get_list_for(
 		doctype,
 		filters=_clean_filters(filters, filterable),
 		fields=[group_by, {"COUNT": "name", "as": "count"}],
@@ -348,11 +480,12 @@ def _child_rows(parent_doctype, doc, table_df):
 
 def read(doctype, name):
 	policy = require_access(doctype)
-	if not frappe.has_permission(doctype, "read", doc=name):
+	if not _can_read_record(doctype, name):
 		raise frappe.PermissionError(_("You do not have permission to view this record"))
 
 	doc = frappe.get_doc(doctype, name)
-	doc.check_permission("read")
+	if doctype not in _CUSTOM_SCOPED_DOCTYPES:
+		doc.check_permission("read")
 	doc.apply_fieldlevel_read_permissions()
 
 	data = {"name": doc.name}

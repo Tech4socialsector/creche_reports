@@ -10,6 +10,7 @@
   "item_name",
   "is_group",
   "sequence_id",
+  "link_type",
   "target_doctype",
   "page_route",
   "icon",
@@ -45,20 +46,30 @@
    "label": "Sequence ID"
   },
   {
-   "depends_on": "eval:!doc.is_group && !doc.page_route",
-   "description": "A doctype's own list/form page. Leave blank and pick a Page below instead for a page that isn't a doctype list/form.",
+   "depends_on": "eval:!doc.is_group",
+   "description": "Is this item a doctype's own list/form page, or one of the app's built-in Vue pages/components that isn't a doctype list/form?",
+   "fieldname": "link_type",
+   "fieldtype": "Select",
+   "label": "Link Type",
+   "options": "\nDoctype\nPage"
+  },
+  {
+   "depends_on": "eval:!doc.is_group && doc.link_type==='Doctype'",
+   "description": "A doctype's own list/form page.",
    "fieldname": "target_doctype",
    "fieldtype": "Link",
    "label": "Target Doctype",
+   "mandatory_depends_on": "eval:!doc.is_group && doc.link_type==='Doctype'",
    "options": "DocType"
   },
   {
-   "depends_on": "eval:!doc.is_group && !doc.target_doctype",
-   "description": "A built-in app page that isn't a doctype list/form (e.g. an import template page). Leave blank and pick a Doctype above instead.",
+   "depends_on": "eval:!doc.is_group && doc.link_type==='Page'",
+   "description": "A built-in app page/component that isn't a doctype list/form (e.g. the Dashboard or an import template page).",
    "fieldname": "page_route",
    "fieldtype": "Select",
    "label": "Page",
-   "options": "\nBudget Import Template\nUtilisation Import Template"
+   "mandatory_depends_on": "eval:!doc.is_group && doc.link_type==='Page'",
+   "options": "\nDashboard\nBudget Import Template\nUtilisation Import Template\nBudget Utilisation Report"
   },
   {
    "description": "Optional sidebar icon.",

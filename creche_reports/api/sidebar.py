@@ -34,10 +34,27 @@ ROUTABLE_DOCTYPES = set(ROUTE_BY_DOCTYPE)
 # the doctype the page actually reads/writes (Budget Import Template only
 # ever downloads a Creche Budget template, etc.) - same read-permission bar
 # a doctype-backed item already needs, so a role that can't see Creche
-# Budget at all doesn't see its import template link either.
+# Budget at all doesn't see its import template link either. An entry can
+# use `permission_roles` instead of `permission_doctype` for a page gated by
+# a fixed role list rather than a doctype's own read permission (the Budget
+# Utilisation Report is a Script Report with its own `roles` list, not a
+# doctype a user reads/writes - see budget_utilisation_report.py's
+# REPORT_ROLES, mirrored here for the same reason that module mirrors the
+# Report doc's own role list rather than re-fetching it every call).
+# An entry with neither permission_doctype nor permission_roles is readable
+# by anyone already signed in - Dashboard has no doctype/role gate of its own
+# (router.js only requires session.user, same as the rest of the app), so
+# adding it here just lets it be represented as an ordinary Sidebar Item
+# record (orderable, nestable in a group, still subject to that item's own
+# Allowed Roles like any other) instead of staying hardcoded.
 CUSTOM_PAGES = {
 	"Budget Import Template": {"route": "budget-import-template", "permission_doctype": "Creche Budget"},
 	"Utilisation Import Template": {"route": "utilisation-import-template", "permission_doctype": "Creche utilisation"},
+	"Budget Utilisation Report": {
+		"route": "budget-utilisation-report",
+		"permission_roles": {"System Manager", "Creche Finance Head", "Creche Finance SPOCS", "Creche Finance PFO"},
+	},
+	"Dashboard": {"route": "dashboard"},
 }
 
 
@@ -138,13 +155,18 @@ def _leaf_shape(item_name, target_doctype, icon, page_route=None):
 def _leaf_readable(target_doctype, page_route, user):
 	"""Whether `user` has read access to whatever this leaf is backed by -
 	the doctype itself for a target_doctype leaf, or the CUSTOM_PAGES entry's
-	own permission_doctype for a page_route leaf (see CUSTOM_PAGES' own
-	comment for why that's the right doctype to check)."""
+	own permission_doctype/permission_roles for a page_route leaf (see
+	CUSTOM_PAGES' own comment for why each page picks whichever of the two
+	actually matches how that page gates access)."""
 	if page_route:
 		page = CUSTOM_PAGES.get(page_route)
 		if not page:
 			return False
-		return frappe.has_permission(page["permission_doctype"], "read", user=user)
+		if "permission_roles" in page:
+			return bool(page["permission_roles"] & set(frappe.get_roles(user)))
+		if "permission_doctype" in page:
+			return frappe.has_permission(page["permission_doctype"], "read", user=user)
+		return True
 	return bool(target_doctype) and frappe.has_permission(target_doctype, "read", user=user)
 
 
@@ -238,21 +260,27 @@ def get_sidebar_items():
 
 
 def ensure_default_sidebar_items():
-	"""Called from hooks.py's after_migrate - idempotently (re)creates the
+	"""Called from hooks.py's after_migrate - idempotently creates the
 	Sidebar Item rows for the 5 real doctype-linked items the hardcoded Vue
-	nav (frontend/src/data/sidebarNav.js's SIDEBAR_NAV_ITEMS) already shows,
-	as ungrouped top-level rows with no role restriction (matching that
-	hardcoded list's own current behavior: no role-gating was ever actually
-	used in production). Self-healing: safe to call on every migrate, it
-	only creates rows that don't already exist by item_name, never
-	overwrites an admin's own edits to an existing row.
+	nav (frontend/src/data/sidebarNav.js's SIDEBAR_NAV_ITEMS) used to show,
+	the FIRST time this app is installed/migrated. Self-healing was
+	originally keyed on `item_name` as a docname existence check alone - but
+	an admin who later restructures these (e.g. renaming "Creche Budget" into
+	a new "Home" group via Frappe's rename, with Creche Budget itself moved
+	into that group's own Group Items List) changes that record's docname,
+	so a plain existence-by-name check would no longer see it as "already
+	exists" and would happily recreate a duplicate top-level item right next
+	to the admin's own restructured one on the very next migrate.
+	Checking by `target_doctype` instead - as either a top-level item OR
+	nested inside ANY group's Group Items List - catches a item that has been
+	moved/renamed this way, not just one still sitting under its original
+	default name.
 
-	The "Data Import & Templates" group and its two Import Template pages
-	are NOT seeded here, even though Sidebar Item can now represent them via
-	`page_route` (see CUSTOM_PAGES) - they stay hardcoded in sidebarNav.js's
-	SIDEBAR_NAV_GROUPS for now so an admin doesn't find two copies of the
-	same group after upgrading; an admin who wants them doctype-driven
-	instead can always add the equivalent Sidebar Item rows by hand.
+	"Data Import & Templates" (and its two Import Template pages) isn't
+	seeded here either - it's no longer hardcoded anywhere in the frontend,
+	just an ordinary admin-created Sidebar Item group like any other (via
+	`page_route`, see CUSTOM_PAGES), so there's nothing default to recreate
+	for it on a fresh install - an admin adds it like any other group/item.
 	"""
 	defaults = [
 		("Creche Budget", "Creche Budget", "indian-rupee", 10),
@@ -261,12 +289,22 @@ def ensure_default_sidebar_items():
 		("Caregiver Salary", "Creche Caregiver Salary and Benefits", "dollar-sign", 40),
 		("Creche Partners", "Creche Partners", "briefcase", 50),
 	]
+	existing_top_level = set(
+		frappe.get_all("Sidebar Item", filters={"is_group": 0}, pluck="target_doctype")
+	)
+	existing_nested = set(
+		frappe.get_all("Sidebar Item Child", pluck="target_doctype")
+	)
+	already_represented = existing_top_level | existing_nested
 	for item_name, target_doctype, icon, sequence_id in defaults:
+		if target_doctype in already_represented:
+			continue
 		if frappe.db.exists("Sidebar Item", item_name):
 			continue
 		doc = frappe.new_doc("Sidebar Item")
 		doc.item_name = item_name
 		doc.is_group = 0
+		doc.link_type = "Doctype"
 		doc.target_doctype = target_doctype
 		doc.icon = icon
 		doc.sequence_id = sequence_id

@@ -1,6 +1,6 @@
 <template>
   <div class="app-sidebar flex h-full flex-shrink-0">
-    <Sidebar v-model:collapsed="collapsed" :sections="sections" :disable-collapse="embedded">
+    <Sidebar v-model:collapsed="collapsed" :disable-collapse="embedded">
       <!-- frappe-ui's own SidebarHeader hardcodes a 32x32 square logo slot -
       too small/square for the Azim Premji Foundation wordmark (icon + full
       "Azim Premji Foundation" text), so this replaces it entirely with a
@@ -100,24 +100,32 @@
           <hr class="my-2 border-t border-outline-gray-1" />
         </template>
 
-        <!-- Hardcoded nav groups (see data/sidebarNav.js's SIDEBAR_NAV_GROUPS,
-        e.g. "Data Import & Templates" grouping the two import template
-        pages) render here, inside the #header slot (the only slot
-        Sidebar.vue renders before its own :sections loop), rather than
-        being passed through :sections like the plain top-level items below -
-        frappe-ui's own SidebarSection has no way for a Group's header
-        click to both expand AND navigate to its first child (its header
-        @click only ever toggles its own internal collapsed state), so
-        groups use this app's own SidebarGroupSection instead. -->
-        <SidebarGroupSection
-          v-for="group in doctypeGroups"
-          :key="group.label"
-          :label="group.label"
-          :icon="group.icon"
-          :items="group.items"
-          :first-item="group.items[0]"
-          :is-sidebar-collapsed="sidebarCollapsed"
-        />
+        <!-- One interleaved list, in sequence_id order (see navEntries'
+        own comment for why leaves and groups used to never share an
+        order at all) - everything renders inside #header now (the only
+        slot Sidebar.vue places before its own :sections loop, which this
+        app no longer uses for its nav at all), picking SidebarItem or
+        SidebarGroupSection per entry's own `kind`. Groups still need
+        SidebarGroupSection specifically (not frappe-ui's own
+        SidebarSection) since a plain SidebarSection's header can't also
+        navigate on click - see that component's own comment. -->
+        <template v-for="entry in navEntries" :key="entry.label">
+          <SidebarItem
+            v-if="entry.kind === 'leaf'"
+            :label="entry.label"
+            :icon="entry.icon"
+            :to="entry.to"
+            :is-active="entry.isActive"
+          />
+          <SidebarGroupSection
+            v-else
+            :label="entry.label"
+            :icon="entry.icon"
+            :items="entry.items"
+            :first-item="entry.items[0]"
+            :is-sidebar-collapsed="sidebarCollapsed"
+          />
+        </template>
       </template>
 
       <template #footer-items="{ isCollapsed }">
@@ -158,17 +166,32 @@
   </div>
 </template>
 
-<style scoped>
-/* frappe-ui's Sidebar.vue hardcodes its expanded rail to w-60 (240px) with
-no prop to configure it - too narrow for the full app name ("Creche Finance
+<style>
+/* Plain (unscoped), not scoped + :deep() - that combination was silently
+vanishing from the production build's minified CSS (confirmed via direct
+compiler testing: Vue's own compileStyleAsync produces correct
+scoped+:deep() output for this exact rule, and it IS present in an
+unminified dev build, but esbuild's CSS minifier drops it in the real
+production build - something about the pairing of a plain class selector
+before :deep() in THIS file specifically wasn't surviving minification,
+unlike the same pattern in SidebarGroupSection.vue, which compiles/minifies
+fine). An unscoped class selector reaches into child component markup
+without any :deep() wrapper needed at all, sidestepping the bug entirely
+rather than continuing to chase its root cause in the Vue/Vite toolchain.
+
+frappe-ui's Sidebar.vue hardcodes its expanded rail to w-60 (240px) with no
+prop to configure it - too narrow for the full app name ("Creche Finance
 Reports") next to the logo/chevron in the header button, truncating it to
 "Creche Financ...". Widened just the expanded state here; the collapsed
 w-12 icon-only rail is untouched. MobileNav's embedded copy sizes itself
 with w-fit off this same element, so it picks up the new width too instead
-of needing a separate change there. -->
-.app-sidebar :deep(.w-60) {
+of needing a separate change there. */
+.app-sidebar .w-60 {
   width: 17rem;
 }
+</style>
+
+<style scoped>
 
 /* The assistant row reads as a real card (border + fill) rather than a
 plain hover-only row like the other sidebar items - a soft glow sweeps
@@ -271,8 +294,6 @@ import { session, logoutResource } from '@/data/session'
 import { assistantConfigResource, toggleAssistant } from '@/data/aiAssistant'
 import { appName, appLogo, appVersion, accentColor, helpDeskUrl } from '@/data/branding'
 import { openCommandPalette } from '@/data/commandPalette'
-import { SIDEBAR_NAV_GROUPS } from '@/data/sidebarNav'
-import { reportAccessResource } from '@/data/reportAccess'
 import { sidebarItemsResource } from '@/data/sidebarItems'
 
 const props = defineProps({
@@ -352,17 +373,17 @@ const menuItems = [
 // shared map in this app - see api/sidebar.py's own comment on
 // ROUTE_BY_DOCTYPE).
 const NAMED_ROUTE_BY_SLUG = {
+  dashboard: 'Dashboard',
   'budget-import-template': 'BudgetImportTemplate',
   'utilisation-import-template': 'UtilisationImportTemplate',
+  'budget-utilisation-report': 'BudgetUtilisationReport',
 }
 
-// Turn a plain nav entry into the shape SidebarItem/SidebarGroupSection
-// need (resolved `to` route + `isActive`). Three entry shapes feed this:
-// the hardcoded sidebarNav.js groups (`{ label, icon, namedRoute }` for a
-// named Vue route), sidebarItemsResource's API-driven doctype-backed leaves
-// (`{ label, icon, route }`, a :doctypeRoute slug), and its API-driven
-// page_route-backed leaves (`{ label, icon, route }` too, but the slug
-// resolves to a named route via NAMED_ROUTE_BY_SLUG instead).
+// Turn a plain nav entry into the shape SidebarItem/SidebarGroupSection need
+// (resolved `to` route + `isActive`) - sidebarItemsResource's API-driven
+// doctype-backed leaves (`{ label, icon, route }`, a :doctypeRoute slug) and
+// its API-driven page_route-backed leaves (`{ label, icon, route }` too, but
+// the slug resolves to a named route via NAMED_ROUTE_BY_SLUG instead).
 function toNavItem(entry) {
   const namedRoute = entry.namedRoute || NAMED_ROUTE_BY_SLUG[entry.route]
   return {
@@ -373,59 +394,28 @@ function toNavItem(entry) {
   }
 }
 
-// The 5 real doctype-linked items used to be hardcoded here (sidebarNav.js's
-// old SIDEBAR_NAV_ITEMS) - now admin-configurable via the "Sidebar Item"
-// doctype, fetched through sidebarItemsResource
-// (creche_reports.api.sidebar.get_sidebar_items), already filtered
-// server-side by enabled/allowed_roles/has_permission for the signed-in
-// user. Only the `is_group: false` top-level entries land here; `is_group:
-// true` entries are merged into doctypeGroups below instead.
-const topLevelDoctypeItems = computed(() =>
-  (sidebarItemsResource.data || []).filter((item) => !item.is_group).map(toNavItem),
+// ── FIX ──
+// Top-level leaf items (Dashboard, etc.) and groups (Home, Creche Partners,
+// etc.) used to render through two entirely separate mechanisms - leaves via
+// frappe-ui's own :sections prop (rendered by Sidebar.vue AFTER its #header
+// slot, unconditionally), groups via SidebarGroupSection inside #header
+// (rendered BEFORE :sections, since a plain SidebarSection's header can't
+// also navigate on click - see that component's own comment). That split
+// meant every group always rendered before every leaf, regardless of each
+// one's own sequence_id from the Sidebar Item doctype - an admin reordering
+// Dashboard to sequence_id 1 would never actually move it above any group,
+// since leaves and groups were never part of the same ordered list to begin
+// with. navEntries below is ONE list, in the API's own order (which already
+// reflects sequence_id - see get_sidebar_items' own order_by), each tagged
+// `kind: 'leaf' | 'group'` so the template can pick SidebarItem vs
+// SidebarGroupSection per entry while walking a single v-for - leaves and
+// groups can now actually interleave in whatever order their sequence_id
+// puts them in.
+const navEntries = computed(() =>
+  (sidebarItemsResource.data || []).map((item) =>
+    item.is_group
+      ? { kind: 'group', label: item.label, icon: item.icon, items: item.children.map(toNavItem) }
+      : { kind: 'leaf', ...toNavItem(item) },
+  ),
 )
-
-// SidebarSection headers are plain text, no icon slot (matching Frappe
-// desk's own sidebar group convention). Merges the doctype-driven groups
-// from the API with the one hardcoded "Data Import & Templates" group
-// (sidebarNav.js) - that group's two pages aren't doctype-backed, so they
-// can't be represented as Sidebar Item rows and stay hardcoded, appended
-// after whatever admin-configured groups exist.
-const doctypeGroups = computed(() => [
-  ...(sidebarItemsResource.data || [])
-    .filter((item) => item.is_group)
-    .map((group) => ({
-      label: group.label,
-      icon: group.icon,
-      items: group.children.map(toNavItem),
-    })),
-  ...SIDEBAR_NAV_GROUPS.map((group) => ({
-    label: group.label,
-    icon: group.icon,
-    items: group.items.map(toNavItem),
-  })),
-])
-
-const fixedNavItems = computed(() => [
-  {
-    label: 'Dashboard',
-    icon: navIcon('panels-top-left'),
-    to: { name: 'Dashboard' },
-    isActive: route.name === 'Dashboard',
-  },
-  ...(reportAccessResource.data?.allowed
-    ? [
-        {
-          label: 'Budget Utilisation Report',
-          icon: navIcon('file-chart-column'),
-          to: { name: 'BudgetUtilisationReport' },
-          isActive: route.name === 'BudgetUtilisationReport',
-        },
-      ]
-    : []),
-])
-
-// Doctype Groups are no longer part of :sections - they render via
-// SidebarGroupSection inside the #header slot instead (see the template),
-// since a plain SidebarSection's header can't also navigate on click.
-const sections = computed(() => [{ label: '', items: [...fixedNavItems.value, ...topLevelDoctypeItems.value] }])
 </script>

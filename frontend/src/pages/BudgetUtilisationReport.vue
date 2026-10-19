@@ -8,9 +8,8 @@
             :key="opt.value"
             type="button"
             class="rounded-full border px-3 py-1 text-xs font-medium transition-colors"
-            :class="reportApi.filters.level === opt.value
-              ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
-              : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'"
+            :class="reportApi.filters.level !== opt.value && 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'"
+            :style="reportApi.filters.level === opt.value ? { borderColor: '#1a4f8a', background: '#1a4f8a', color: '#fff' } : {}"
             @click="reportApi.filters.level = opt.value"
           >
             {{ opt.label }}
@@ -51,7 +50,7 @@
         <span class="flex items-center gap-2">
           <LucideIcon name="sliders-horizontal" class="h-4 w-4" />
           Filters
-          <span v-if="activeFilterCount" class="rounded-full bg-gray-900 px-1.5 py-0.5 text-xs font-semibold text-white dark:bg-gray-100 dark:text-gray-900">
+          <span v-if="activeFilterCount" class="rounded-full px-1.5 py-0.5 text-xs font-semibold text-white" style="background: #1a4f8a">
             {{ activeFilterCount }}
           </span>
         </span>
@@ -161,7 +160,7 @@
             type="button"
             class="flex w-full items-center gap-1.5 px-3.5 py-2.5 text-left"
             :class="rowClass(row)"
-            :style="{ paddingLeft: row.indent ? '2rem' : undefined }"
+            :style="{ paddingLeft: row.indent ? '2rem' : undefined, ...rowStyle(row) }"
             @click="hasChildren(row) ? toggle(row.row_name) : null"
           >
             <LucideIcon
@@ -196,7 +195,7 @@
               <div class="min-w-0">
                 <dt class="truncate text-gray-400 dark:text-gray-500">{{ col.label }}</dt>
                 <dd class="mt-0.5 truncate font-medium text-gray-700 dark:text-gray-300">
-                  <span v-if="col.fieldtype === 'Percent'" class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="pctBadgeClassFor(row)(row[col.fieldname])">
+                  <span v-if="col.fieldtype === 'Percent'" class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" style="background: #e8f0fb; color: #1a4f8a">
                     {{ formatCell(row, col) }}
                   </span>
                   <template v-else>{{ formatCell(row, col) || '—' }}</template>
@@ -209,14 +208,17 @@
 
       <div v-else class="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
         <table class="w-full min-w-max text-left text-sm">
-          <thead class="sticky top-0 z-20 text-xs uppercase text-gray-500 dark:text-gray-400">
+          <!-- Same blue header banner pattern as the Import Template pages
+          (#1a4f8a) instead of a flat gray header, for a consistent look
+          across the app's reporting pages. -->
+          <thead class="sticky top-0 z-20 text-xs uppercase text-white">
             <tr>
               <th
                 v-for="(col, ci) in reportApi.columns.value"
                 :key="col.fieldname"
-                class="whitespace-nowrap bg-gray-50 px-3 py-2 font-medium dark:bg-gray-800"
+                class="whitespace-nowrap px-3 py-2 font-medium"
                 :class="[alignClass(col), ci === 0 ? 'sticky left-0 z-10' : '']"
-                :style="{ minWidth: (col.width || 120) + 'px' }"
+                :style="{ minWidth: (col.width || 120) + 'px', background: '#1a4f8a' }"
               >
                 {{ col.label }}
               </th>
@@ -232,12 +234,14 @@
               v-for="(row, i) in visibleRows"
               :key="i"
               :class="rowClass(row)"
+              :style="rowStyle(row)"
             >
               <td
                 v-for="(col, ci) in reportApi.columns.value"
                 :key="col.fieldname"
                 class="whitespace-nowrap px-3 py-2"
-                :class="[alignClass(col), ci === 0 ? `sticky left-0 z-10 ${stickyCellBg(row)}` : '']"
+                :class="[alignClass(col), ci === 0 ? 'sticky left-0 z-10' : '']"
+                :style="ci === 0 ? stickyCellStyle(row) : {}"
               >
                 <span v-if="ci === 0" class="flex items-center gap-1.5" :style="{ paddingLeft: row.indent ? '1.25rem' : 0 }">
                   <LucideIcon
@@ -248,7 +252,7 @@
                   />
                   <span class="truncate">{{ formatCell(row, col) }}</span>
                 </span>
-                <span v-else-if="col.fieldtype === 'Percent'" class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="pctBadgeClassFor(row)(row[col.fieldname])">
+                <span v-else-if="col.fieldtype === 'Percent'" class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" style="background: #e8f0fb; color: #1a4f8a">
                   {{ formatCell(row, col) }}
                 </span>
                 <template v-else>{{ formatCell(row, col) }}</template>
@@ -270,7 +274,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import LucideIcon from '@/components/LucideIcon.vue'
 import Skeleton from '@/components/Skeleton.vue'
 import { useBudgetUtilisationReport, LEVEL_OPTIONS } from '@/composables/useBudgetUtilisationReport'
-import { formatInr, formatDate, formatPct, pctBadgeClass, showFullNumbers } from '@/composables/useDashboardFormat'
+import { formatInr, formatDate, formatPct, showFullNumbers } from '@/composables/useDashboardFormat'
 
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = breakpoints.smaller('sm')
@@ -365,37 +369,35 @@ const visibleRows = computed(() => {
 // (which paints its own opaque background over the row, see stickyCellBg)
 // never picked up a plain hover: utility at all since hover only applies to
 // the element it's written on.
+// Same blue palette as the Import Template pages: the grand total row as a
+// solid #1a4f8a bar (previously plain black/white), section rows tinted with
+// the same light-blue badge color (#e8f0fb/#1a4f8a) the import pages use for
+// their own pill labels, instead of plain gray.
 function rowClass(row) {
-  if (row.is_grand_total) return 'bg-gray-900 font-semibold text-white hover:bg-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-100'
-  if (row.indent === 0) return 'bg-gray-50/80 font-semibold text-gray-800 hover:bg-gray-100 dark:bg-gray-800/60 dark:text-gray-200 dark:hover:bg-gray-800'
+  if (row.is_grand_total) return 'font-semibold text-white hover:brightness-110 dark:hover:brightness-110'
+  if (row.indent === 0) return 'font-semibold hover:brightness-95 dark:hover:brightness-110'
   return 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800/50'
+}
+
+function rowStyle(row) {
+  if (row.is_grand_total) return { background: '#1a4f8a' }
+  if (row.indent === 0) return { background: '#e8f0fb', color: '#1a4f8a' }
+  return {}
 }
 
 // The sticky first column needs its own opaque background (a sticky cell
 // paints over whatever scrolls underneath it, so it can't rely on the
-// <tr>'s background showing through) - same three states as rowClass, with
-// a solid (not translucent) match for the two non-white rows since a
+// <tr>'s background showing through) - same colors as rowStyle, since a
 // semi-transparent bg would let the scrolled-under row-name text ghost
 // through the sticky cell.
-function stickyCellBg(row) {
-  if (row.is_grand_total) return 'bg-gray-900 dark:bg-gray-100'
-  if (row.indent === 0) return 'bg-gray-50 dark:bg-gray-800'
-  return 'bg-white dark:bg-gray-900'
+function stickyCellStyle(row) {
+  if (row.is_grand_total) return { background: '#1a4f8a' }
+  if (row.indent === 0) return { background: '#e8f0fb', color: '#1a4f8a' }
+  return {}
 }
 
 function alignClass(col) {
   return ['Currency', 'Int', 'Percent'].includes(col.fieldtype) ? 'text-right' : 'text-left'
-}
-
-// pctBadgeClass's dark-mode colors (bright text on a translucent dark bg)
-// assume the row around it is dark - true everywhere except the grand total
-// row, which inverts to a light bar in dark mode (see rowClass) for extra
-// emphasis. Using the normal dark-mode badge there put bright green/red text
-// on a near-white row, unreadable. The grand total row always gets the
-// light-mode badge colors instead, regardless of the page's actual theme.
-function pctBadgeClassFor(row) {
-  if (!row.is_grand_total) return pctBadgeClass
-  return (pct) => pctBadgeClass(pct).split(' ').filter((c) => !c.startsWith('dark:')).join(' ')
 }
 
 function formatCell(row, col) {

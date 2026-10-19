@@ -14,10 +14,10 @@
 
     <div v-if="initializing" class="space-y-4">
       <Skeleton height="6rem" />
-      <div class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+      <div class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         <Skeleton v-for="i in 6" :key="i" height="4rem" />
       </div>
-      <div class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+      <div class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         <Skeleton v-for="i in 9" :key="i" height="5.5rem" />
       </div>
     </div>
@@ -44,10 +44,10 @@
 
       <section class="mt-6">
         <h2 class="mb-3 text-base font-semibold text-gray-700 dark:text-gray-300">Operational Overview</h2>
-        <div v-if="summary.loading && !summary.data" class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+        <div v-if="summary.loading && !summary.data" class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           <Skeleton v-for="i in 6" :key="i" height="4rem" />
         </div>
-        <div v-else class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+        <div v-else class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           <button
             v-for="tile in overviewTiles"
             :key="tile.key"
@@ -71,7 +71,7 @@
       <template v-if="summary.data">
         <section class="mt-6">
           <h2 class="mb-3 text-base font-semibold text-gray-700 dark:text-gray-300">Financial Overview</h2>
-          <div class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+          <div class="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             <SummaryCard
               label="Approved Budget"
               :value="s.total_budget"

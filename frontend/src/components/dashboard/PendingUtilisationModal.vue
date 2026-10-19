@@ -1,12 +1,13 @@
 <template>
   <Dialog v-model="isOpen" :options="{ size: '7xl', title: 'Pending Utilization Submission' }">
     <template #body-content>
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b pb-3 dark:border-gray-800">
+      <div class="pending-util-body flex flex-col">
+      <div class="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b pb-3 dark:border-gray-800">
         <div class="flex items-center gap-2">
           <span class="flex h-6 w-6 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-900/30">
             <LucideIcon name="clock" class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           </span>
-          <p class="text-xs text-gray-500 dark:text-gray-400">Cutoff date: <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatDate(cutoff) }}</span></p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">Cutoff date: <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatDate(displayCutoff) }}</span></p>
         </div>
         <Button
           v-if="partners.length"
@@ -21,9 +22,9 @@
         </Button>
       </div>
 
-      <ErrorMessage class="mt-3" :message="exportError" />
+      <ErrorMessage class="mt-3 flex-shrink-0" :message="exportError" />
 
-      <div v-if="partners.length" class="mt-3 max-w-xs">
+      <div v-if="partners.length" class="mt-3 max-w-xs flex-shrink-0">
         <TextInput v-model="searchQuery" type="text" placeholder="Search partners...">
           <template #prefix>
             <LucideIcon name="search" class="h-4 w-4 text-ink-gray-5" />
@@ -31,7 +32,7 @@
         </TextInput>
       </div>
 
-      <div class="mt-3 max-h-[65vh] overflow-x-auto overflow-y-auto">
+      <div class="pending-util-scroll mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-auto">
         <div v-if="!partners.length" class="flex flex-col items-center justify-center gap-2 py-12">
           <span class="flex h-12 w-12 items-center justify-center rounded-full bg-green-50 dark:bg-green-900/30">
             <LucideIcon name="circle-check-big" class="h-6 w-6 text-green-600 dark:text-green-400" />
@@ -40,7 +41,7 @@
           <p class="text-xs text-gray-500 dark:text-gray-400">No pending utilisation submissions found.</p>
         </div>
 
-        <table v-else class="w-full min-w-max text-left text-sm">
+        <table v-else class="drill-table w-full min-w-max text-left text-sm">
           <thead class="sticky top-0 z-10 bg-amber-50 text-xs uppercase text-gray-500 dark:bg-amber-900/30 dark:text-gray-400">
             <tr>
               <th class="px-3 py-2 font-medium">#</th>
@@ -101,9 +102,38 @@
           </tbody>
         </table>
       </div>
+      </div>
     </template>
   </Dialog>
 </template>
+
+<style scoped>
+/* Same fix as DrillModal.vue - without this, frappe-ui's Dialog overlay
+scrolls the whole popup (header included) instead of just the table rows. */
+:deep(.dialog-content) {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+}
+:deep(.dialog-content.max-w-7xl) {
+  max-width: 90rem;
+}
+:deep(.dialog-content > div:first-child),
+:deep(.dialog-content > div:first-child > .flex),
+:deep(.dialog-content > div:first-child > .flex > .flex-1) {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.pending-util-body {
+  min-height: 0;
+  flex: 1;
+}
+.pending-util-scroll {
+  overscroll-behavior: contain;
+}
+</style>
 
 <script setup>
 import { computed, watch } from 'vue'
@@ -123,6 +153,18 @@ const emit = defineEmits(['update:modelValue'])
 const isOpen = computed({
   get: () => props.modelValue,
   set: (v) => emit('update:modelValue', v),
+})
+
+// Shown label only - the backend's own `cutoff` (the 5th of LAST month)
+// still drives every actual check below (which months count as missing,
+// days overdue, etc.) and is never changed. This just reframes what's
+// displayed as "the 5th of this month" (today's month) rather than the
+// month being checked, since that's the date partners actually see as
+// their current deadline, even though what's actually being verified is
+// still last month's submission.
+const displayCutoff = computed(() => {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), 5)
 })
 
 const { searchQuery, filteredRows: filteredPartners } = useTableSearch(

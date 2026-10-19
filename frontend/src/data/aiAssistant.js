@@ -70,20 +70,40 @@ function sleep(ms) {
 export const sending = reactive({ loading: false })
 
 // window.csrf_token is stamped once at initial page load and never
-// refreshed (see data/session.js's own identical fix for userResource) -
-// logging in elsewhere, or a server restart invalidating sessions, rotates
-// the real session's CSRF token server-side, so a POST made from a tab that
-// has been open since before that keeps sending the old one and gets
-// rejected with CSRFTokenError. Reloading re-runs the app's boot sequence,
-// which fetches a fresh token from the server - the same recovery fetchV2()
-// already does for its own POST/fetch calls in useApiV2.js.
-function isStaleSessionError(error) {
-  return error?.type === 'CSRFTokenError' || error?.exc_type === 'CSRFTokenError'
+// refreshed on its own - logging in elsewhere, a server restart, or the
+// session simply expiring can all reissue the session with a new CSRF
+// token server-side, so a POST made from a tab that has been open since
+// before that keeps sending the old one and gets rejected with
+// CSRFTokenError. Rather than wait for that 400 and react to it (which
+// depends on the error's shape round-tripping through useCall exactly as
+// expected, and still sends one guaranteed-to-fail request first), this
+// fetches the session's *current* token (api/common.py's get_csrf_token - a
+// GET, so it's exempt from CSRF validation itself) right before every send
+// and overwrites window.csrf_token with it - useFrappeFetch's beforeFetch
+// hook (see node_modules/frappe-ui/src/data-fetching/useFrappeFetch.ts's
+// setHeaders) reads window.csrf_token fresh on every request useCall makes,
+// so this guarantees the POST that follows always carries a token that
+// matches the live session, with no dependency on reload timing, on a
+// previous request having failed first, or on the server's error shape.
+async function refreshCsrfToken() {
+  try {
+    const res = await fetch('/api/v2/method/creche_reports.api.common.get_csrf_token', {
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) return null
+    const body = await res.json()
+    const token = body?.data ?? body?.message
+    if (token) window.csrf_token = token
+    return token || null
+  } catch {
+    return null
+  }
 }
 
 export async function sendAssistantMessage(message) {
   sending.loading = true
   try {
+    await refreshCsrfToken()
     const sendResult = await sendMessageCall.submit({
       messages: history.value,
       message,
@@ -95,10 +115,6 @@ export async function sendAssistantMessage(message) {
     // that without checking crashed with a cryptic "Cannot destructure
     // property 'job_id' of null" instead of a real, readable error message.
     if (!sendResult?.job_id) {
-      if (isStaleSessionError(sendMessageCall.error.value)) {
-        window.location.reload()
-        throw new Error('Your session needs refreshing - reloading…')
-      }
       throw sendMessageCall.error.value || new Error('Could not reach the assistant. Please try again.')
     }
     const { job_id } = sendResult
@@ -109,10 +125,6 @@ export async function sendAssistantMessage(message) {
     while (true) {
       result = await jobResultCall.submit({ job_id })
       if (!result) {
-        if (isStaleSessionError(jobResultCall.error.value)) {
-          window.location.reload()
-          throw new Error('Your session needs refreshing - reloading…')
-        }
         throw jobResultCall.error.value || new Error('Could not reach the assistant. Please try again.')
       }
       if (result.status === 'done') break

@@ -293,6 +293,20 @@ own height and making it a flex column lets the header (outside
   flex-direction: column;
   max-height: calc(100vh - 2rem);
 }
+/* frappe-ui's DialogOverlay hardcodes overflow-y-auto on the outer
+fixed full-screen wrapper (see Dialog.vue) - .dialog-content above already
+caps its own height and this component's own .drill-scroll is the one
+inner area meant to scroll, so the overlay's overflow should never need
+to engage. But when it does (content briefly taller than expected, a
+reflow before .drill-scroll's own overflow fully clips), the overlay - not
+.drill-scroll - becomes the active scroll surface, and since the overlay
+IS the full-screen backdrop, that reads as "the whole popup scrolled"
+instead of just the table rows. Disabling it here forces .drill-scroll to
+be the only scrollable area, matching the desk dashboard's equivalent
+drill-down modal fix (.cbd-dw in creche_dashboard.js). */
+:deep(.dialog-overlay) {
+  overflow: hidden;
+}
 /* A little wider than frappe-ui's own max-w-7xl preset (its widest step) -
 there's no larger size option to switch to, so this stretches the same
 preset further instead. */

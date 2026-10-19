@@ -120,6 +120,14 @@ short viewport instead of just the table rows below staying put. */
   flex-direction: column;
   max-height: calc(100vh - 2rem);
 }
+/* frappe-ui's DialogOverlay hardcodes overflow-y-auto on the outer
+fixed wrapper - .dialog-content above already caps its own height, so the
+overlay's own overflow must be disabled too or it silently takes over as
+the scroll surface whenever this modal's content is briefly taller than
+expected, scrolling the whole popup instead of just .card-drill-scroll. */
+:deep(.dialog-overlay) {
+  overflow: hidden;
+}
 :deep(.dialog-content.max-w-7xl) {
   max-width: 90rem;
 }

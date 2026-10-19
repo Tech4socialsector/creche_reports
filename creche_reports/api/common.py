@@ -4,6 +4,22 @@ from frappe.utils.password import get_decrypted_password
 from creche_reports.api import permissions as _perm
 
 
+@frappe.whitelist()
+def get_csrf_token():
+	"""window.csrf_token is stamped once into the Vue SPA's boot HTML
+	(creche-reports.py's get_context) and never updates itself for as long as
+	that tab stays open - a long-lived session can be reissued server-side
+	(expiry, a restart, re-authentication in another tab) with a new CSRF
+	token without this tab's copy ever finding out, so every POST it sends
+	afterwards fails with CSRFTokenError until a full page reload happens to
+	fetch fresh HTML. A GET request is exempt from CSRF validation itself
+	(frappe.auth.HTTPRequest.validate_csrf_token only checks unsafe HTTP
+	methods), so this lets the frontend fetch the session's *current* token
+	on demand and retry its failed call with it, instead of reloading the
+	page and hoping - see aiAssistant.js's isStaleSessionError handling."""
+	return frappe.sessions.get_csrf_token()
+
+
 @frappe.whitelist(allow_guest=True)
 def get_social_login_providers(redirect_to=None):
 	"""The same Social Login Key rows/logic Frappe's own desk login page

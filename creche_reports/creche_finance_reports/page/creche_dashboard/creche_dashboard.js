@@ -9021,13 +9021,36 @@ class CrecheBudgetDashboard {
 		.cbd-st__drill-btn:hover { background:#e0e7ff; }
 
 		/* ── sm modal wrap ── */
-		.cbd-sm-wrap { position:fixed; inset:0; z-index:3100; background:rgba(0,0,0,0); display:flex; align-items:flex-start; justify-content:center; padding:0; box-sizing:border-box; overflow-y:auto; transition:background .2s ease; pointer-events:none; }
+		/* ── FIX ──
+		   Same issue as .cbd-dw below: overflow-y:auto on this OUTER fixed
+		   overlay competed with whatever inner container (.cbd-bm__page,
+		   etc.) is supposed to be the one that scrolls. .cbd-sm-modal
+		   already caps its own height (max-height:calc(100vh - 80px)) and
+		   clips overflow, so this outer wrapper should never need to
+		   scroll itself - if it ever did, that's exactly "the whole popup
+		   scrolled" instead of just its content. */
+		.cbd-sm-wrap { position:fixed; inset:0; z-index:3100; background:rgba(0,0,0,0); display:flex; align-items:flex-start; justify-content:center; padding:0; box-sizing:border-box; overflow:hidden; transition:background .2s ease; pointer-events:none; }
 		.cbd-sm-wrap--open { background:rgba(0,0,0,.4); pointer-events:all; }
 		.cbd-sm-modal { background:#fff; width:auto; min-width:440px; max-width:min(95vw,820px); margin:40px auto; border-radius:10px; border:1px solid #e5e7eb; box-shadow:0 8px 32px rgba(0,0,0,.12); display:flex; flex-direction:column; max-height:calc(100vh - 80px); opacity:0; transform:translateY(12px); transition:opacity .2s ease, transform .2s ease; overflow:hidden; }
 		.cbd-sm-wrap--open .cbd-sm-modal { opacity:1; transform:translateY(0); }
 
 		/* ── Universal Drill Modal (dw) ── */
-		.cbd-dw { position:fixed; inset:0; z-index:3200; background:rgba(0,0,0,0); display:flex; align-items:flex-start; justify-content:center; padding:0; overflow-y:auto; box-sizing:border-box; transition:background .2s ease; pointer-events:none; }
+		/* ── FIX ──
+		   overflow-y:auto on this OUTER fixed overlay competed with
+		   .cbd-dm__tbl-wrap's own inner scroll below - .cbd-dm already caps
+		   its own height (max-height:calc(100vh - 28px)) and clips
+		   anything taller (overflow:hidden), so nothing should ever need
+		   this outer wrapper to scroll. But if .cbd-dm's content briefly
+		   exceeded that height for any reason (a reflow from
+		   table-layout:auto, a wide/tall table before the inner
+		   overflow:auto container fully took over), this outer
+		   overflow-y:auto silently became the active scroll area instead -
+		   from the user's side that looks exactly like "the whole popup
+		   scrolled" (header, topbar and all), not just the table rows,
+		   since this element IS the full-screen surface. Removed: the
+		   inner .cbd-dm__tbl-wrap is the only scroll container that should
+		   ever engage. */
+		.cbd-dw { position:fixed; inset:0; z-index:3200; background:rgba(0,0,0,0); display:flex; align-items:flex-start; justify-content:center; padding:0; overflow:hidden; box-sizing:border-box; transition:background .2s ease; pointer-events:none; }
 		.cbd-dw--open { background:rgba(0,0,0,.45); pointer-events:all; }
 		.cbd-dm { background:#fff; width:min(99vw, 1380px); margin:14px auto; border-radius:12px; border:1px solid #e2e8f0; box-shadow:0 24px 64px rgba(0,0,0,.20); display:flex; flex-direction:column; min-height:200px; max-height:calc(100vh - 28px); overflow:hidden; opacity:0; transform:translateY(14px); transition:opacity .2s ease, transform .2s ease; }
 		.cbd-dw--open .cbd-dm { opacity:1; transform:translateY(0); }

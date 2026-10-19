@@ -1137,15 +1137,6 @@ def _apply_budget_permission_scope(filters: dict) -> dict:
 # ──────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def debug_user_permissions():
-	user = frappe.session.user
-	roles = frappe.get_roles(user)
-	rows     = frappe.db.sql("SELECT * FROM `tabUser Permission` WHERE user = %s", (user,), as_dict=True)
-	filtered = frappe.db.sql("SELECT * FROM `tabUser Permission` WHERE user = %s AND allow = %s", (user,"Creche Partners"), as_dict=True)
-	distinct = frappe.db.sql("SELECT DISTINCT allow FROM `tabUser Permission` WHERE user = %s", (user,), as_dict=True)
-	return {"user":user,"roles":roles,"all_permissions":rows,"creche_partners_permissions":filtered,"distinct_allows":distinct}
-
-@frappe.whitelist()
 def get_partner_options(txt=""):
 	permitted = _get_user_permitted_partners()
 	filters   = {}
@@ -2281,65 +2272,6 @@ def get_pending_utilisation_summary(cutoff_date=None):
     result.sort(key=lambda r: (-r["max_days_overdue"], r["partner_name"] or ""))
 
     return {"partners": result, "cutoff": str(cutoff)}
-
-
-# ──────────────────────────────────────────────────────────────────────────
-# Send reminder emails
-# ──────────────────────────────────────────────────────────────────────────
-
-@frappe.whitelist()
-def send_utilisation_reminder(partner_ids=None, custom_message=None):
-    if isinstance(partner_ids, str):
-        try:
-            partner_ids = json.loads(partner_ids)
-        except Exception:
-            partner_ids = [p.strip() for p in partner_ids.split(",") if p.strip()]
-    partner_ids = partner_ids or []
-    if not partner_ids:
-        frappe.throw(frappe._("No partners selected"))
-
-    permitted = _get_user_permitted_partners()
-    if permitted is not None:
-        partner_ids = [p for p in partner_ids if p in permitted]
-        if not partner_ids:
-            frappe.throw(frappe._("You do not have permission to email these partners"))
-
-    email_map = _get_partner_emails(partner_ids)
-    partner_names = {
-        r.name: r.partner_name
-        for r in frappe.get_all(
-            "Creche Partners",
-            filters={"name": ["in", partner_ids]},
-            fields=["name", "partner_name"],
-            ignore_permissions=True,
-        )
-    }
-
-    default_message = (
-        "This is a reminder that your utilisation report submission is pending. "
-        "Kindly submit it at the earliest to keep your budget records up to date."
-    )
-    message_body = custom_message or default_message
-
-    sent, failed = [], []
-    for pid in partner_ids:
-        email = email_map.get(pid)
-        pname = partner_names.get(pid, pid)
-        if not email:
-            failed.append({"partner_id": pid, "partner_name": pname, "reason": "No email on file"})
-            continue
-        try:
-            frappe.sendmail(
-                recipients=[email],
-                subject="Utilisation Report Submission Reminder",
-                message=f"<p>Dear {frappe.utils.escape_html(pname)},</p><p>{frappe.utils.escape_html(message_body)}</p>",
-                now=True,
-            )
-            sent.append({"partner_id": pid, "partner_name": pname, "email": email})
-        except Exception as e:
-            failed.append({"partner_id": pid, "partner_name": pname, "reason": str(e)})
-
-    return {"sent": sent, "failed": failed}
 
 
 # """

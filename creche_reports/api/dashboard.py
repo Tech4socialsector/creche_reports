@@ -1,6 +1,5 @@
 
 import frappe
-from collections import defaultdict
 from typing import Optional
 
 from creche_reports.api import permissions as perm
@@ -129,26 +128,6 @@ def _add_month_filter(filters: dict, month: Optional[str], quarter: Optional[str
         if expanded:
             f["month"] = ["in", expanded]
     return f
-
-
-def get_expense_summary(items: list) -> list:
-    summary: dict = defaultdict(lambda: {
-        "type_of_expenses_id": "",
-        "type_of_expenses": "",
-        "budget_main_head": "",
-        "budget_sub_head": "",
-        "total_amount": 0,
-    })
-    for row in items:
-        item = summary[row["type_of_expenses_id"]]
-        item.update({
-            "type_of_expenses_id": row["type_of_expenses_id"],
-            "type_of_expenses": row["type_of_expenses"],
-            "budget_main_head": row["budget_main_head"],
-            "budget_sub_head": row["budget_sub_head"],
-        })
-        item["total_amount"] += row["total_amount"] or 0
-    return list(summary.values())
 
 
 # ---------------------------------------------------------------------------
@@ -496,36 +475,6 @@ def get_budget_breakdown(
 
 
 # ---------------------------------------------------------------------------
-# DRILL-DOWN: MONTH LEVEL (for a single budget)
-# ---------------------------------------------------------------------------
-
-@frappe.whitelist()
-def get_month_breakdown(
-    budget_reference_id: str,
-    month: str = None,
-    quarter: str = None,
-) -> list:
-    """Return one row per month submitted for the given budget."""
-    _assert_budget_permitted(budget_reference_id)
-
-    filters: dict = {"budget_reference_id": budget_reference_id}
-    filters = _add_month_filter(filters, month, quarter)
-
-    records = frappe.get_all(
-        "Creche utilisation",
-        filters=filters,
-        fields=[
-            "name", "month", "date", "total_utilisation",
-            "balance_amount", "interest_from_bank", "declaration", "no_of_creches",
-        ],
-    )
-
-    midx = {m: i for i, m in enumerate(MONTH_ORDER)}
-    records.sort(key=lambda x: midx.get(x.month, 99))
-    return [dict(r) for r in records]
-
-
-# ---------------------------------------------------------------------------
 # DRILL-DOWN: EXPENSE LINE-ITEM BREAKDOWN (budget vs utilisation for a budget)
 # ---------------------------------------------------------------------------
 
@@ -727,146 +676,6 @@ def get_budget_expense_breakdown(
         ),
         "monthly_summary": monthly_summary,
     }
-
-
-# ---------------------------------------------------------------------------
-# LEGACY — kept for backward compatibility with other pages
-# ---------------------------------------------------------------------------
-
-@frappe.whitelist()
-def get_creche_utilisation(
-    budget_reference_id: str = None,
-    partner_id: str = None,
-    state: str = None,
-    financial_year: str = None,
-    month: str = None,
-    report_type: str = None,
-) -> dict:
-
-    filters = {
-        k: v for k, v in {
-            "budget_reference_id": budget_reference_id,
-            "partner_id": partner_id,
-            "state": state,
-            "financial_year": financial_year,
-        }.items() if v
-    }
-
-    if month:
-        if isinstance(month, str) and "," in month:
-            month = [m.strip() for m in month.split(",")]
-        if isinstance(month, list):
-            filters["month"] = ["in", [m for m in MONTH_ORDER if m in month]]
-        elif report_type == "Month wise":
-            filters["month"] = month
-        elif report_type == "YTD":
-            filters["month"] = ["in", MONTH_ORDER[:MONTH_ORDER.index(month) + 1]]
-
-    parent_docs = frappe.get_all(
-        "Creche utilisation",
-        filters=filters,
-        fields=[
-            "name", "budget_reference_id", "budget_reference_name",
-            "partner_id", "partner_name", "grant_id", "state",
-            "financial_year", "month", "date", "total_utilisation",
-            "balance_amount", "interest_from_bank",
-        ],
-        order_by="date desc",
-    )
-
-    if not parent_docs:
-        return {}
-
-    parent_names = [d.name for d in parent_docs]
-
-    child_rows = frappe.get_all(
-        "Utilisation Items",
-        filters={"parent": ["in", parent_names], "parenttype": "Creche utilisation"},
-        fields=[
-            "parent", "type_of_expenses_id", "type_of_expenses",
-            "budget_main_head", "budget_sub_head", "total_amount",
-        ],
-    )
-
-    parent_items: dict = defaultdict(list)
-    for row in child_rows:
-        parent_items[row.parent].append({
-            "type_of_expenses_id": row.type_of_expenses_id,
-            "type_of_expenses": row.type_of_expenses,
-            "budget_main_head": row.budget_main_head,
-            "budget_sub_head": row.budget_sub_head,
-            "total_amount": row.total_amount or 0,
-        })
-
-    all_items: list = []
-    for items in parent_items.values():
-        all_items.extend(items)
-
-    overview = {
-        "total_records": len(parent_docs),
-        "total_utilisation": sum(d.total_utilisation or 0 for d in parent_docs),
-        "total_balance_amount": sum(d.balance_amount or 0 for d in parent_docs),
-        "total_interest_from_bank": sum(d.interest_from_bank or 0 for d in parent_docs),
-        "expense_items": get_expense_summary(all_items),
-    }
-
-    partner_summary: dict = {}
-    for doc in parent_docs:
-        partner_key = doc.partner_id
-        if partner_key not in partner_summary:
-            partner_summary[partner_key] = {
-                "partner_id": doc.partner_id,
-                "partner_name": doc.partner_name,
-                "total_records": 0, "total_utilisation": 0,
-                "total_balance_amount": 0, "total_interest_from_bank": 0,
-                "expense_items": [], "budgets": {}, "_items": [],
-            }
-        partner = partner_summary[partner_key]
-        partner["total_records"] += 1
-        partner["total_utilisation"] += doc.total_utilisation or 0
-        partner["total_balance_amount"] += doc.balance_amount or 0
-        partner["total_interest_from_bank"] += doc.interest_from_bank or 0
-        partner["_items"].extend(parent_items.get(doc.name, []))
-
-        budget_key = doc.budget_reference_id
-        if budget_key not in partner["budgets"]:
-            partner["budgets"][budget_key] = {
-                "budget_reference_id": doc.budget_reference_id,
-                "budget_reference_name": doc.budget_reference_name,
-                "grant_id": doc.grant_id, "state": doc.state,
-                "financial_year": doc.financial_year,
-                "total_records": 0, "total_utilisation": 0,
-                "total_balance_amount": 0, "total_interest_from_bank": 0,
-                "expense_items": [], "months": [], "_items": [],
-            }
-        budget = partner["budgets"][budget_key]
-        budget["total_records"] += 1
-        budget["total_utilisation"] += doc.total_utilisation or 0
-        budget["total_balance_amount"] += doc.balance_amount or 0
-        budget["total_interest_from_bank"] += doc.interest_from_bank or 0
-        budget["_items"].extend(parent_items.get(doc.name, []))
-        budget["months"].append({
-            "name": doc.name, "month": doc.month, "date": doc.date,
-            "total_utilisation": doc.total_utilisation,
-            "balance_amount": doc.balance_amount,
-            "interest_from_bank": doc.interest_from_bank,
-            "expense_items": get_expense_summary(parent_items.get(doc.name, [])),
-            "utilisation_items": parent_items.get(doc.name, []),
-        })
-
-    final_partners = []
-    for partner in partner_summary.values():
-        partner["expense_items"] = get_expense_summary(partner["_items"])
-        del partner["_items"]
-        budgets = []
-        for budget in partner["budgets"].values():
-            budget["expense_items"] = get_expense_summary(budget["_items"])
-            del budget["_items"]
-            budgets.append(budget)
-        partner["budgets"] = budgets
-        final_partners.append(partner)
-
-    return {"overview": overview, "partners": final_partners}
 
 
 

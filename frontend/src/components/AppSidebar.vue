@@ -1,0 +1,431 @@
+<template>
+  <div class="app-sidebar flex h-full flex-shrink-0">
+    <Sidebar v-model:collapsed="collapsed" :sections="sections" :disable-collapse="embedded">
+      <!-- frappe-ui's own SidebarHeader hardcodes a 32x32 square logo slot -
+      too small/square for the Azim Premji Foundation wordmark (icon + full
+      "Azim Premji Foundation" text), so this replaces it entirely with a
+      wider layout that still keeps the same dropdown-menu behavior. -->
+      <template #header>
+        <Dropdown :options="menuItems" placement="left">
+          <template #default="{ open }">
+            <button
+              type="button"
+              class="flex h-12 w-full items-center gap-2 rounded-md px-2 py-2 duration-300 ease-in-out"
+              :class="open ? 'bg-surface-white shadow-sm' : 'hover:bg-surface-gray-3'"
+            >
+              <!-- The full wordmark (icon + "Azim Premji Foundation" text)
+              only reads properly at a wide aspect ratio - collapsed to the
+              12px rail there's no honest way to show it, so collapsed falls
+              back to the same initial-letter mark used when no logo is
+              configured at all, rather than showing an unreadable sliver of
+              a squeezed-down wordmark. -->
+              <img
+                v-if="appLogo && !collapsed"
+                :src="appLogo"
+                class="h-8 max-w-[11rem] flex-shrink-0 object-contain object-left"
+                alt="App logo"
+                @click.stop="goHome"
+              />
+              <span
+                v-else
+                class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-surface-gray-4 text-ink-gray-7"
+                @click.stop="goHome"
+              >
+                {{ appName.charAt(0).toUpperCase() }}
+              </span>
+              <div
+                class="flex flex-1 flex-col truncate text-left duration-300 ease-in-out"
+                :class="collapsed ? 'ml-0 w-0 overflow-hidden opacity-0' : 'ml-1 w-auto opacity-100'"
+              >
+                <!-- The app's own name, distinct from the account row below
+                it (the signed-in user) - the branding button shows both,
+                same as it did before the header was widened for the
+                wordmark logo. -->
+                <div class="truncate text-sm font-medium text-ink-gray-8 leading-none">{{ appName }}</div>
+                <div class="mt-1 truncate text-xs text-ink-gray-5 leading-none">{{ session.full_name || session.user }}</div>
+              </div>
+              <LucideIcon
+                name="chevron-down"
+                class="h-4 w-4 flex-shrink-0 text-ink-gray-7 duration-300 ease-in-out"
+                :class="collapsed ? 'ml-0 w-0 overflow-hidden opacity-0' : 'ml-1 w-auto opacity-100'"
+              />
+            </button>
+          </template>
+        </Dropdown>
+
+        <!-- Search / Help Desk / Notifications, same shape as Frappe Cloud's
+        and Helpdesk's own sidebars: a couple of fixed utility rows right
+        under the branding button, a divider, then the doctype-driven nav
+        below. Collapsed to the 12px rail there's no room for an inline
+        search input, so this whole block hides there instead of rendering
+        an unusable half-cut text field. This button no longer manages its
+        own dropdown/results - it just opens the one shared CommandPalette
+        (mounted once in AppLayout.vue), same as MobileNav's search tab. -->
+        <template v-if="!collapsed">
+          <div class="relative mt-2 flex flex-col gap-0.5">
+            <button
+              type="button"
+              class="flex h-7 w-full items-center gap-2 rounded px-2 py-1 text-ink-gray-6 hover:bg-surface-gray-2"
+              @click="openCommandPalette"
+            >
+              <LucideIcon name="search" class="size-4 flex-shrink-0" />
+              <span class="flex-1 truncate text-left text-sm">Search</span>
+              <KeyboardShortcut combo="Mod+K" bg />
+            </button>
+
+            <!-- A real <a> rather than SidebarItem's own :on-click +
+            window.open() - some browsers' popup blockers can swallow a
+            window.open() call made from inside a Vue click handler (it
+            isn't always recognized as "the direct result of a user
+            gesture" the way a native anchor's own navigation always is),
+            which was silently no-opping this link. An anchor sidesteps
+            that entirely. -->
+            <a
+              v-if="helpDeskUrl"
+              :href="helpDeskUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex h-7 w-full items-center gap-2 rounded px-2 py-1 text-ink-gray-6 hover:bg-surface-gray-2"
+            >
+              <LucideIcon :name="'life-buoy'" class="size-4 flex-shrink-0" />
+              <span class="flex-1 truncate text-left text-sm">Help Desk</span>
+            </a>
+            <SidebarItem
+              label="Notifications"
+              :icon="navIcon('bell')"
+              :on-click="() => window.open('/app/notification-log', '_self')"
+            />
+          </div>
+
+          <hr class="my-2 border-t border-outline-gray-1" />
+        </template>
+
+        <!-- Hardcoded nav groups (see data/sidebarNav.js's SIDEBAR_NAV_GROUPS,
+        e.g. "Data Import & Templates" grouping the two import template
+        pages) render here, inside the #header slot (the only slot
+        Sidebar.vue renders before its own :sections loop), rather than
+        being passed through :sections like the plain top-level items below -
+        frappe-ui's own SidebarSection has no way for a Group's header
+        click to both expand AND navigate to its first child (its header
+        @click only ever toggles its own internal collapsed state), so
+        groups use this app's own SidebarGroupSection instead. -->
+        <SidebarGroupSection
+          v-for="group in doctypeGroups"
+          :key="group.label"
+          :label="group.label"
+          :icon="group.icon"
+          :items="group.items"
+          :first-item="group.items[0]"
+          :is-sidebar-collapsed="sidebarCollapsed"
+        />
+      </template>
+
+      <template #footer-items="{ isCollapsed }">
+        <!-- Same divider the header uses to separate search/Help Desk/
+        Notifications from the nav list below it (line ~152) - without one
+        here, the footer's own mt-auto bottom-pinning (frappe-ui's
+        Sidebar.vue) leaves a visually unexplained gap between the last nav
+        item and this card on any screen taller than the nav list itself,
+        reading as a rendering glitch rather than an intentional "pinned to
+        the bottom" section. -->
+        <hr class="mb-2 border-t border-outline-gray-1" />
+        <Tooltip :text="`Ask ${assistantBotName}`" :disabled="!isCollapsed">
+          <button
+            v-if="assistantConfigResource.data?.enabled"
+            type="button"
+            class="assistant-card relative flex w-full items-center gap-2 overflow-hidden rounded-lg border border-outline-gray-1 bg-surface-gray-1 px-2 py-1.5 text-left hover:bg-surface-gray-2"
+            :class="{ 'justify-center': isCollapsed }"
+            @click="toggleAssistant"
+          >
+            <span class="assistant-badge flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-white shadow-sm" :style="{ background: `linear-gradient(135deg, ${accentColor}, ${shade(accentColor, -30)})` }">
+              <SparklesIcon class="h-3.5 w-3.5" />
+            </span>
+            <span v-if="!isCollapsed" class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-medium text-ink-gray-8">
+                {{ assistantBotName }}
+              </span>
+              <span class="block text-xs leading-snug text-ink-gray-5">Ask about budgets and reports</span>
+            </span>
+            <LucideIcon v-if="!isCollapsed" name="arrow-up-right" class="h-3.5 w-3.5 flex-shrink-0 text-ink-gray-4" />
+          </button>
+        </Tooltip>
+        <div v-if="!isCollapsed" class="mt-1 flex items-center justify-center gap-1.5 px-2 text-xs text-ink-gray-4">
+          <span class="truncate">{{ appName }}</span>
+          <span v-if="appVersion">· {{ appVersion }}</span>
+        </div>
+      </template>
+    </Sidebar>
+  </div>
+</template>
+
+<style scoped>
+/* frappe-ui's Sidebar.vue hardcodes its expanded rail to w-60 (240px) with
+no prop to configure it - too narrow for the full app name ("Creche Finance
+Reports") next to the logo/chevron in the header button, truncating it to
+"Creche Financ...". Widened just the expanded state here; the collapsed
+w-12 icon-only rail is untouched. MobileNav's embedded copy sizes itself
+with w-fit off this same element, so it picks up the new width too instead
+of needing a separate change there. -->
+.app-sidebar :deep(.w-60) {
+  width: 17rem;
+}
+
+/* The assistant row reads as a real card (border + fill) rather than a
+plain hover-only row like the other sidebar items - a soft glow sweeps
+behind it on a loop via ::before (under the icon/text, which get
+position:relative + z-index above it) so the whole card reads as
+"alive," not just the small icon badge. */
+.assistant-card {
+  animation: assistant-card-glow 3.2s ease-in-out infinite;
+}
+.assistant-card::before {
+  content: '';
+  position: absolute;
+  inset: -40% -10%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.35), transparent 70%);
+  animation: assistant-card-sweep 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+.assistant-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes assistant-card-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+  50% {
+    box-shadow: 0 0 12px 1px rgba(99, 102, 241, 0.25);
+  }
+}
+
+@keyframes assistant-card-sweep {
+  0%, 100% {
+    transform: translateX(-20%);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateX(20%);
+    opacity: 1;
+  }
+}
+
+/* A breathing glow, not a literal on/off blink - a hard blink reads as an
+alert/error state on something that's just inviting a tap. */
+.assistant-badge {
+  position: relative;
+  animation: assistant-badge-breathe 2.4s ease-in-out infinite;
+}
+.assistant-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: assistant-badge-ping 2.4s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes assistant-badge-breathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes assistant-badge-ping {
+  0% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-card,
+  .assistant-card::before,
+  .assistant-badge,
+  .assistant-badge::after {
+    animation: none;
+  }
+}
+
+</style>
+
+<script setup>
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { breakpointsTailwind, useBreakpoints } from '@vueuse/core'
+import { Dropdown, KeyboardShortcut, Sidebar, SidebarItem, Tooltip } from 'frappe-ui'
+import LucideIcon from '@/components/LucideIcon.vue'
+import SparklesIcon from '@/components/SparklesIcon.vue'
+import SidebarGroupSection from '@/components/SidebarGroupSection.vue'
+import navIcon from '@/components/navIcon'
+import { session, logoutResource } from '@/data/session'
+import { assistantConfigResource, toggleAssistant } from '@/data/aiAssistant'
+import { appName, appLogo, appVersion, accentColor, helpDeskUrl } from '@/data/branding'
+import { openCommandPalette } from '@/data/commandPalette'
+import { SIDEBAR_NAV_GROUPS } from '@/data/sidebarNav'
+import { reportAccessResource } from '@/data/reportAccess'
+import { sidebarItemsResource } from '@/data/sidebarItems'
+
+const props = defineProps({
+  // Rendered inside MobileNav's drawer rather than as the persistent
+  // desktop rail: no collapse toggle (there's no room to re-expand it
+  // without the desktop rail's own click target).
+  embedded: { type: Boolean, default: false },
+})
+
+const route = useRoute()
+const router = useRouter()
+const collapsed = ref(false)
+
+// frappe-ui's own Sidebar.vue computes this same thing internally as
+// `shouldCollapse` ((isCollapsed || isMobile) && !disableCollapse) and
+// provides only the raw v-model `isCollapsed` ref under the
+// 'isSidebarCollapsed' injection key - NOT this derived value. A naive
+// `inject('isSidebarCollapsed')` (as SidebarSection.vue itself does, and as
+// an earlier version of this app's own SidebarGroupSection.vue copied)
+// misses the isMobile/disableCollapse auto-collapse case entirely: on a
+// narrow desktop window the rail visually shrinks to w-12 via isMobile
+// without the user ever toggling `collapsed`, so that injected value would
+// stay false while the rail is actually icon-only - recomputed the same
+// way here and passed down explicitly as a prop instead of relying on
+// inject for this component's own group sections.
+const breakpoints = useBreakpoints(breakpointsTailwind)
+const isMobileViewport = breakpoints.smaller('sm')
+const sidebarCollapsed = computed(() => (collapsed.value || isMobileViewport.value) && !props.embedded)
+
+const assistantBotName = computed(() => assistantConfigResource.data?.bot_name || 'Assistant')
+
+// Clicking the logo (not the rest of the header button) goes to the
+// Dashboard instead of opening the account menu - @click.stop on the img/
+// fallback span keeps this separate from the button's own Dropdown trigger.
+function goHome() {
+  router.push({ name: 'Dashboard' })
+}
+
+// Same small hex-shade helper duplicated in Login.vue/branding.js - used
+// here for the assistant card's icon tile gradient (a darker variant of the
+// app's own accent color), not worth promoting to a shared export for one
+// line of math reused in a couple of places.
+function shade(hex, percent) {
+  const clean = hex.replace('#', '')
+  const num = parseInt(clean.length === 3 ? clean.replace(/(.)/g, '$1$1') : clean, 16)
+  const r = Math.max(0, Math.min(255, ((num >> 16) & 0xff) + percent))
+  const g = Math.max(0, Math.min(255, ((num >> 8) & 0xff) + percent))
+  const b = Math.max(0, Math.min(255, (num & 0xff) + percent))
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+// Note: frappe-ui's Dropdown menu items only take the fast Lucide CSS-class
+// path (see node_modules/frappe-ui's isLucideIconString()) for a string
+// prefixed `lucide-`; anything else falls through to frappe-ui's own
+// internal (feather-icons-based) FeatherIcon, which this app no longer
+// wants to render from.
+const menuItems = [
+  {
+    label: 'Go to Desk',
+    icon: 'lucide-grid',
+    onClick: () => window.open('/app', '_self'),
+  },
+  {
+    label: 'Logout',
+    icon: 'lucide-log-out',
+    onClick: () => logoutResource.submit(),
+  },
+]
+
+// get_sidebar_items() leaves have `doctype: null` for a built-in page (set
+// via Sidebar Item's own Page select, see api/sidebar.py's CUSTOM_PAGES) -
+// router.js has a dedicated named route for each of these, not the generic
+// :doctypeRoute path a doctype-backed leaf uses, so this maps the route
+// slug the backend already resolved (budget-import-template, etc.) to the
+// matching named Vue route. Kept in sync with useGlobalSearch.js's own copy
+// (duplicated rather than imported, same reasoning as every other small
+// shared map in this app - see api/sidebar.py's own comment on
+// ROUTE_BY_DOCTYPE).
+const NAMED_ROUTE_BY_SLUG = {
+  'budget-import-template': 'BudgetImportTemplate',
+  'utilisation-import-template': 'UtilisationImportTemplate',
+}
+
+// Turn a plain nav entry into the shape SidebarItem/SidebarGroupSection
+// need (resolved `to` route + `isActive`). Three entry shapes feed this:
+// the hardcoded sidebarNav.js groups (`{ label, icon, namedRoute }` for a
+// named Vue route), sidebarItemsResource's API-driven doctype-backed leaves
+// (`{ label, icon, route }`, a :doctypeRoute slug), and its API-driven
+// page_route-backed leaves (`{ label, icon, route }` too, but the slug
+// resolves to a named route via NAMED_ROUTE_BY_SLUG instead).
+function toNavItem(entry) {
+  const namedRoute = entry.namedRoute || NAMED_ROUTE_BY_SLUG[entry.route]
+  return {
+    label: entry.label,
+    icon: navIcon(entry.icon || 'file-text'),
+    to: namedRoute ? { name: namedRoute } : { name: 'DoctypeList', params: { doctypeRoute: entry.route } },
+    isActive: namedRoute ? route.name === namedRoute : route.params.doctypeRoute === entry.route,
+  }
+}
+
+// The 5 real doctype-linked items used to be hardcoded here (sidebarNav.js's
+// old SIDEBAR_NAV_ITEMS) - now admin-configurable via the "Sidebar Item"
+// doctype, fetched through sidebarItemsResource
+// (creche_reports.api.sidebar.get_sidebar_items), already filtered
+// server-side by enabled/allowed_roles/has_permission for the signed-in
+// user. Only the `is_group: false` top-level entries land here; `is_group:
+// true` entries are merged into doctypeGroups below instead.
+const topLevelDoctypeItems = computed(() =>
+  (sidebarItemsResource.data || []).filter((item) => !item.is_group).map(toNavItem),
+)
+
+// SidebarSection headers are plain text, no icon slot (matching Frappe
+// desk's own sidebar group convention). Merges the doctype-driven groups
+// from the API with the one hardcoded "Data Import & Templates" group
+// (sidebarNav.js) - that group's two pages aren't doctype-backed, so they
+// can't be represented as Sidebar Item rows and stay hardcoded, appended
+// after whatever admin-configured groups exist.
+const doctypeGroups = computed(() => [
+  ...(sidebarItemsResource.data || [])
+    .filter((item) => item.is_group)
+    .map((group) => ({
+      label: group.label,
+      icon: group.icon,
+      items: group.children.map(toNavItem),
+    })),
+  ...SIDEBAR_NAV_GROUPS.map((group) => ({
+    label: group.label,
+    icon: group.icon,
+    items: group.items.map(toNavItem),
+  })),
+])
+
+const fixedNavItems = computed(() => [
+  {
+    label: 'Dashboard',
+    icon: navIcon('panels-top-left'),
+    to: { name: 'Dashboard' },
+    isActive: route.name === 'Dashboard',
+  },
+  ...(reportAccessResource.data?.allowed
+    ? [
+        {
+          label: 'Budget Utilisation Report',
+          icon: navIcon('file-chart-column'),
+          to: { name: 'BudgetUtilisationReport' },
+          isActive: route.name === 'BudgetUtilisationReport',
+        },
+      ]
+    : []),
+])
+
+// Doctype Groups are no longer part of :sections - they render via
+// SidebarGroupSection inside the #header slot instead (see the template),
+// since a plain SidebarSection's header can't also navigate on click.
+const sections = computed(() => [{ label: '', items: [...fixedNavItems.value, ...topLevelDoctypeItems.value] }])
+</script>

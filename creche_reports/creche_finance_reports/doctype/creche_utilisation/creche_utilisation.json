@@ -20,6 +20,7 @@
   "partner_name",
   "no_of_creches",
   "no_of_running_creches",
+  "budget_status",
   "financial_year",
   "month",
   "utilisation_items_and_spend_amount_section",
@@ -37,6 +38,7 @@
    "fetch_from": "budget_reference_id.partner_name",
    "fieldname": "partner_name",
    "fieldtype": "Data",
+   "in_global_search": 1,
    "label": "Partner Name",
    "options": "Creche Partners",
    "read_only": 1
@@ -45,6 +47,7 @@
    "fetch_from": "budget_reference_id.grant_id",
    "fieldname": "grant_id",
    "fieldtype": "Data",
+   "in_global_search": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Grant ID",
@@ -145,6 +148,7 @@
    "fetch_from": "budget_reference_id.budget_reference_name",
    "fieldname": "budget_reference_name",
    "fieldtype": "Data",
+   "in_global_search": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Budget reference Name",
@@ -167,6 +171,7 @@
    "fetch_from": "budget_reference_id.partner_id",
    "fieldname": "partner_id",
    "fieldtype": "Link",
+   "in_global_search": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Partner ID",
@@ -213,6 +218,16 @@
    "in_standard_filter": 1,
    "label": "No of running creches",
    "non_negative": 1
+  },
+  {
+   "fetch_from": "budget_reference_id.budget_status",
+   "fieldname": "budget_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Budget Status",
+   "options": "Active\nClosed",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,

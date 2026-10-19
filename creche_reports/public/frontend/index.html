@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" id="app-favicon" href="/assets/creche_reports/frontend/favicon.png" />
+    <title>Creche Finance Reports</title>
+    <script type="module" crossorigin src="/assets/creche_reports/frontend/assets/index-DaRfX6bl.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/creche_reports/frontend/assets/index-fed5rC5m.css">
+  <link rel="manifest" href="/assets/creche_reports/frontend/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/assets/creche_reports/frontend/registerSW.js"></script></head>
+  <body>
+    <div id="app"></div>
+  
+          <script>
+              {% for key in boot %}
+              window["{{ key }}"] = {{ boot[key] | tojson }};
+              {% endfor %}
+          </script>
+          </body>
+          
+</html>

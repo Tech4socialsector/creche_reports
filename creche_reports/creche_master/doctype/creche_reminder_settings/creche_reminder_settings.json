@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "creation": "2026-08-10 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enable_month_end_reminder",
+  "days_before_month_end",
+  "column_break_email",
+  "reminder_email_subject",
+  "section_break_message",
+  "reminder_email_message",
+  "section_break_status",
+  "last_run_on",
+  "last_run_summary"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "description": "When enabled, every partner with a Creche Budget still open at month end and no Creche Utilisation submitted for that month will automatically receive a reminder email.",
+   "fieldname": "enable_month_end_reminder",
+   "fieldtype": "Check",
+   "label": "Enable Month-End Utilisation Reminder"
+  },
+  {
+   "default": "0",
+   "depends_on": "enable_month_end_reminder",
+   "description": "0 = send on the last calendar day of the month. Set higher to send a few days earlier.",
+   "fieldname": "days_before_month_end",
+   "fieldtype": "Int",
+   "label": "Send This Many Days Before Month End",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_email",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Reminder: Submit Utilisation Report for {month}",
+   "depends_on": "enable_month_end_reminder",
+   "description": "Available placeholders: {month}, {partner_name}, {budget_reference_name}, {grant_id}, {financial_year}",
+   "fieldname": "reminder_email_subject",
+   "fieldtype": "Data",
+   "label": "Email Subject"
+  },
+  {
+   "depends_on": "enable_month_end_reminder",
+   "fieldname": "section_break_message",
+   "fieldtype": "Section Break",
+   "label": "Email Body"
+  },
+  {
+   "description": "Leave blank to use the default message. Available placeholders: {month}, {partner_name}, {budget_reference_name}, {grant_id}, {financial_year}",
+   "fieldname": "reminder_email_message",
+   "fieldtype": "Text Editor",
+   "label": "Custom Message (optional)"
+  },
+  {
+   "fieldname": "section_break_status",
+   "fieldtype": "Section Break",
+   "label": "Last Run"
+  },
+  {
+   "fieldname": "last_run_on",
+   "fieldtype": "Datetime",
+   "label": "Last Run On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_run_summary",
+   "fieldtype": "Small Text",
+   "label": "Last Run Summary",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Creche Master",
+ "name": "Creche Reminder Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

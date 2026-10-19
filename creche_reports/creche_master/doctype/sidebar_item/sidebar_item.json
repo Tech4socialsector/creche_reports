@@ -1,0 +1,132 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:item_name",
+ "creation": "2026-10-19 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_name",
+  "is_group",
+  "sequence_id",
+  "target_doctype",
+  "page_route",
+  "icon",
+  "section_break_group",
+  "group_items",
+  "section_break_roles",
+  "allowed_roles",
+  "enabled"
+ ],
+ "fields": [
+  {
+   "description": "The label shown for this item in the app's sidebar.",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "description": "A group is a collapsible header containing the items in Group Items List below, instead of being a link itself.",
+   "fieldname": "is_group",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Group"
+  },
+  {
+   "default": "0",
+   "description": "Lower numbers show first.",
+   "fieldname": "sequence_id",
+   "fieldtype": "Int",
+   "label": "Sequence ID"
+  },
+  {
+   "depends_on": "eval:!doc.is_group && !doc.page_route",
+   "description": "A doctype's own list/form page. Leave blank and pick a Page below instead for a page that isn't a doctype list/form.",
+   "fieldname": "target_doctype",
+   "fieldtype": "Link",
+   "label": "Target Doctype",
+   "options": "DocType"
+  },
+  {
+   "depends_on": "eval:!doc.is_group && !doc.target_doctype",
+   "description": "A built-in app page that isn't a doctype list/form (e.g. an import template page). Leave blank and pick a Doctype above instead.",
+   "fieldname": "page_route",
+   "fieldtype": "Select",
+   "label": "Page",
+   "options": "\nBudget Import Template\nUtilisation Import Template"
+  },
+  {
+   "description": "Optional sidebar icon.",
+   "fieldname": "icon",
+   "fieldtype": "Icon",
+   "label": "Icon"
+  },
+  {
+   "depends_on": "eval:doc.is_group",
+   "fieldname": "section_break_group",
+   "fieldtype": "Section Break",
+   "label": "Group Items"
+  },
+  {
+   "depends_on": "eval:doc.is_group",
+   "description": "The items nested under this group, in display order (use each row's own Sequence ID to control order within the group). Each row's own Role restricts that specific child item independently of this group's own Allowed Roles below - a user must pass BOTH to see that child.",
+   "fieldname": "group_items",
+   "fieldtype": "Table",
+   "label": "Group Items List",
+   "options": "Sidebar Item Child"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_roles",
+   "fieldtype": "Section Break",
+   "label": "Visibility"
+  },
+  {
+   "description": "Only users with at least one of these roles see this item. Leave empty to show to everyone.",
+   "fieldname": "allowed_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Allowed Roles",
+   "options": "Has Role"
+  },
+  {
+   "default": "1",
+   "description": "Off = hidden from everyone regardless of role.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-19 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Creche Master",
+ "name": "Sidebar Item",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

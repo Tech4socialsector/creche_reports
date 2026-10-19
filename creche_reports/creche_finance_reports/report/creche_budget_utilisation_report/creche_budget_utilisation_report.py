@@ -2360,6 +2360,13 @@ def apply_user_permission_filters(filters):
 	return filters
 
 
+# The only doctypes this ever legitimately resolves values for - anything
+# else used to fall through to an unscoped frappe.get_all() lookup, letting
+# any logged-in user pull docnames (e.g. User emails) from an arbitrary
+# doctype regardless of their own permissions. Reject outright instead.
+_PERMITTED_FILTER_DOCTYPES = {"Creche Partners", "State", "District", "Block"}
+
+
 @frappe.whitelist()
 def get_permitted_filter_values(doctype):
 	"""
@@ -2391,20 +2398,31 @@ def get_permitted_filter_values(doctype):
 	values (matching what the report's filters actually compare against),
 	not docnames.
 	"""
+	if doctype not in _PERMITTED_FILTER_DOCTYPES:
+		frappe.throw(frappe._("Invalid doctype."), frappe.PermissionError)
+
+	# This report's own role gate (creche_budget_utilisation_report.json's
+	# `roles` list) is normally enforced by the report-runner before
+	# execute()/get_data() ever run - but this function carries its own
+	# @frappe.whitelist(), so it's independently reachable by any logged-in
+	# user who knows the method path, bypassing that gate entirely unless
+	# re-checked here too. Reading the live Report doc (not a hardcoded role
+	# set) keeps this in sync with whatever roles are actually configured.
+	if not frappe.get_doc("Report", "Creche Budget Utilisation Report").is_permitted():
+		frappe.throw(frappe._("You do not have permission to access this report."), frappe.PermissionError)
+
 	budgets = _perm.get_permitted_budgets()
 
 	if doctype == "Creche Partners":
 		if budgets is None:
-			return frappe.get_all("Creche Partners", pluck="partner_name", order_by="partner_name asc")
+			return frappe.get_list("Creche Partners", pluck="partner_name", order_by="partner_name asc")
 		partner_ids = {b["partner_id"] for b in budgets if b.get("partner_id")}
 		return sorted(_partner_docnames_to_display_names(partner_ids))
 
-	column = {"State": "state", "District": "district", "Block": "block"}.get(doctype)
-	if column is None:
-		return frappe.get_all(doctype, pluck="name", order_by="name asc")
+	column = {"State": "state", "District": "district", "Block": "block"}[doctype]
 
 	if budgets is None:
-		return frappe.get_all(doctype, pluck="name", order_by="name asc")
+		return frappe.get_list(doctype, pluck="name", order_by="name asc")
 	return sorted({b[column] for b in budgets if b.get(column)})
 
 

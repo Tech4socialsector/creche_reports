@@ -15,14 +15,33 @@ doc_events = {
     # "Creche utilisation": {
     #     "after_insert":
     #         "creche_reports.events.send_utilisation_import_email"
-    # }scheduler_events = {
-
+    # }
+    "DocType": {
+        "after_insert": "creche_reports.ai.policy.on_doctype_created"
+    },
 }
 scheduler_events = {
     "daily": [
-        "creche_reports.api.scheduler.send_utilisation_reminders"
+        "creche_reports.api.scheduler.send_utilisation_reminders",
+        "creche_reports.api.scheduler.send_month_end_utilisation_reminders"
     ]
 }
+
+# AI Data Policy: every doctype in this app's own modules gets a (disabled by
+# default) policy after each migrate, so a new doctype never starts visible
+# to the assistant by accident - see creche_reports/ai/policy.py.
+#
+# Global Search: rebuilds Global Search Settings' allow-list from every
+# installed app's global_search_doctypes hook (see this file's own, below) -
+# without this, declaring the hook alone wouldn't actually enable search for
+# these doctypes on a fresh install until an admin manually clicked "Reset"
+# on the Global Search Settings desk page - see api/sidebar.py's own comment.
+after_migrate = [
+	"creche_reports.ai.policy.ensure_policies",
+	"creche_reports.api.sidebar.ensure_global_search_doctypes",
+	"creche_reports.api.sidebar.ensure_default_sidebar_items",
+	"creche_reports.api.keyboard_shortcuts.ensure_default_keyboard_shortcuts",
+]
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
@@ -71,11 +90,43 @@ app_include_js = "/assets/creche_reports/js/response_crypto.js?v=4"
 # include app icons in desk
 # app_include_icons = "creche_reports/public/icons.svg"
 
+# Website Routes
+# --------------
+# Client-side routes for the Creche Finance Reports Vue app (frontend/) all
+# render the same www/creche-reports.html shell; vue-router then handles the
+# sub-path in the browser.
+
+website_route_rules = [
+	{"from_route": "/creche-reports/<path:app_path>", "to_route": "creche-reports"},
+]
+
+# Global Search
+# -------------
+# Frappe's own full-text search (the desk "awesome bar", also what backs the
+# Vue app's own sidebar search - see creche_reports.api.sidebar.global_search)
+# only indexes/searches doctypes listed here - a doctype's fields being
+# marked in_global_search alone is NOT enough, this allow-list is a second,
+# separate gate (frappe.desk.doctype.global_search_settings). Without this
+# hook, a fresh site install would need an admin to manually add these five
+# doctypes via the Global Search Settings desk page before search found
+# anything, same gap this app had until this hook was added.
+global_search_doctypes = {
+	"Default": [
+		{"doctype": "Creche Budget"},
+		{"doctype": "Creche utilisation"},
+		{"doctype": "Creche Disbursement"},
+		{"doctype": "Creche Caregiver Salary and Benefits"},
+		{"doctype": "Creche Partners"},
+	]
+}
+
 # Home Pages
 # ----------
 
 # application home page (will override Website Settings)
-# home_page = "login"
+# Lands logged-in users on the Vue app instead of the Frappe desk - the Vue
+# router's own beforeEach guard then sends '/' to '/home' from there.
+home_page = "creche-reports"
 
 # website user home page (by Role)
 # role_home_page = {

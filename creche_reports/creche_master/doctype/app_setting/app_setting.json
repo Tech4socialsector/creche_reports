@@ -1,0 +1,211 @@
+{
+ "actions": [],
+ "creation": "2026-10-07 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "app_name",
+  "app_logo",
+  "column_break_main_x",
+  "app_logo_dark",
+  "section_break_appearance",
+  "accent_color",
+  "column_break_appearance",
+  "app_version",
+  "section_break_general",
+  "help_desk_url",
+  "section_break_login",
+  "login_headline",
+  "column_break_section_break_login_x",
+  "login_description",
+  "section_break_ai",
+  "ai_assistant_enabled",
+  "ai_allowed_roles",
+  "ai_bot_name",
+  "ai_daily_message_limit",
+  "ai_max_concurrent_jobs",
+  "column_break_ai",
+  "ai_api_base_url",
+  "ai_model",
+  "ai_api_key"
+ ],
+ "fields": [
+  {
+   "default": "Creche Finance Reports",
+   "description": "Shown in the Vue app's sidebar header and on the login page.",
+   "fieldname": "app_name",
+   "fieldtype": "Data",
+   "label": "App Name"
+  },
+  {
+   "description": "Shown in the app's sidebar header when the app is in light mode. Falls back to a plain initial-letter mark if left blank.",
+   "fieldname": "app_logo",
+   "fieldtype": "Attach Image",
+   "label": "App Logo (Light Mode)"
+  },
+  {
+   "fieldname": "column_break_main_x",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Shown in the app's sidebar header when the app is in dark mode. Falls back to the light-mode logo, then a plain initial-letter mark, if left blank.",
+   "fieldname": "app_logo_dark",
+   "fieldtype": "Attach Image",
+   "label": "App Logo (Dark Mode)"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_appearance",
+   "fieldtype": "Section Break",
+   "label": "Appearance"
+  },
+  {
+   "default": "#111827",
+   "description": "Primary color used for buttons, active navigation, and highlights across the app. Defaults to near-black.",
+   "fieldname": "accent_color",
+   "fieldtype": "Color",
+   "label": "Accent Color"
+  },
+  {
+   "fieldname": "column_break_appearance",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "v1.0",
+   "description": "Shown in the sidebar footer, e.g. v2.0.",
+   "fieldname": "app_version",
+   "fieldtype": "Data",
+   "label": "App Version"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_general",
+   "fieldtype": "Section Break",
+   "label": "General"
+  },
+  {
+   "description": "Shown as a Help Desk shortcut in the sidebar, below Search/Notifications. Leave blank to hide it.",
+   "fieldname": "help_desk_url",
+   "fieldtype": "Data",
+   "label": "Help Desk URL",
+   "options": "URL"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_login",
+   "fieldtype": "Section Break",
+   "label": "Login Page"
+  },
+  {
+   "default": "Budgets, disbursements and utilisation, in one place.",
+   "description": "Short headline shown on the login page.",
+   "fieldname": "login_headline",
+   "fieldtype": "Small Text",
+   "label": "Login Headline"
+  },
+  {
+   "fieldname": "column_break_section_break_login_x",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Track partner budgets, monitor utilisation, and keep reporting on schedule.",
+   "description": "Supporting text shown below the headline on the login page.",
+   "fieldname": "login_description",
+   "fieldtype": "Small Text",
+   "label": "Login Description"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_ai",
+   "fieldtype": "Section Break",
+   "label": "AI Assistant"
+  },
+  {
+   "default": "0",
+   "description": "Turns the floating AI assistant on or off for every user of the app.",
+   "fieldname": "ai_assistant_enabled",
+   "fieldtype": "Check",
+   "label": "Enable AI Assistant"
+  },
+  {
+   "description": "Only users with at least one of these roles see the assistant and can use it. Leave empty to allow every logged-in user (once enabled above).",
+   "fieldname": "ai_allowed_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Allowed Roles",
+   "options": "Has Role"
+  },
+  {
+   "default": "Assistant",
+   "description": "Shown as the chat panel's title and greeting.",
+   "fieldname": "ai_bot_name",
+   "fieldtype": "Data",
+   "label": "Assistant Name"
+  },
+  {
+   "default": "50",
+   "description": "Maximum number of assistant messages a single user can send per day. Protects against unexpected API costs.",
+   "fieldname": "ai_daily_message_limit",
+   "fieldtype": "Int",
+   "label": "Daily Message Limit Per User",
+   "non_negative": 1
+  },
+  {
+   "default": "2",
+   "description": "Maximum number of assistant requests allowed to run at the same time, site-wide. This server runs the background worker shared across every site on the bench, so this cap keeps the AI assistant from starving other sites of worker capacity. Keep this low (2-3).",
+   "fieldname": "ai_max_concurrent_jobs",
+   "fieldtype": "Int",
+   "label": "Max Concurrent Assistant Jobs",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_ai",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "https://openrouter.ai/api/v1",
+   "description": "OpenAI-compatible chat completions endpoint, e.g. https://openrouter.ai/api/v1",
+   "fieldname": "ai_api_base_url",
+   "fieldtype": "Data",
+   "label": "API Base URL",
+   "mandatory_depends_on": "eval:doc.ai_assistant_enabled"
+  },
+  {
+   "default": "google/gemini-3.1-flash-lite",
+   "description": "Model name as the provider lists it, e.g. google/gemini-3.1-flash-lite on OpenRouter.",
+   "fieldname": "ai_model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "mandatory_depends_on": "eval:doc.ai_assistant_enabled"
+  },
+  {
+   "description": "Stored encrypted, never sent to the browser. Leave blank for providers that don't require a key (e.g. local Ollama).",
+   "fieldname": "ai_api_key",
+   "fieldtype": "Password",
+   "label": "API Key"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-10-07 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Creche Master",
+ "name": "App Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

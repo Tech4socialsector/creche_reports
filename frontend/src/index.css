@@ -1,0 +1,125 @@
+@import 'frappe-ui/style.css';
+
+/* Typography - one font, one scale, following frappe-ui's own components
+(Button, FormControl, ListView, Tabs, Sidebar, Badge, Breadcrumbs ...) so
+hand-built UI in this app matches rather than picks its own sizes.
+
+Use the Tailwind classes, never px values:
+  text-lg    16px  page titles - font-medium
+  text-base  14px  CONTENT: inputs, list rows, card values, tabs, form section
+                   titles (font-medium), buttons
+  text-sm    13px  CHROME: sidebar items and sections, list column headers,
+                   error messages
+  text-xs    12px  field labels, badges and ID chips, secondary meta
+Weights: 400 body, 500 (font-medium) titles and labels, 600 only for card
+titles and chips. */
+:root {
+  --font-sans: InterVar, Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+html {
+  font-family: var(--font-sans);
+}
+body {
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 400;
+}
+code,
+kbd,
+pre,
+samp,
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Thin scrollbars everywhere: the browser default (~15px) is heavy next to
+this app's compact UI, so every scrollable area gets a 5px bar. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(209 213 219) transparent;
+  }
+  .dark *,
+  [data-theme='dark'] * {
+    scrollbar-color: rgb(75 85 99) transparent;
+  }
+}
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(209 213 219);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(156 163 175);
+}
+.dark *::-webkit-scrollbar-thumb,
+[data-theme='dark'] *::-webkit-scrollbar-thumb {
+  background-color: rgb(75 85 99);
+}
+.dark *::-webkit-scrollbar-thumb:hover,
+[data-theme='dark'] *::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(107 114 128);
+}
+
+/* Theme switch: no transitions for the frame(s) in which the theme changes
+(class added/removed by data/theme.js), so the sidebar, header and content
+all change together instead of the sidebar trailing behind by its own
+transition-all. */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
+
+/* reka-ui's Select/Combobox option list (its [data-slot=content] portal) has
+no z-index of its own above its default (100) - it silently loses to any
+Popover or Dialog on the page that sets a real z-index. 1100 clears the
+sidebar's own 1050 (see AppSidebar.vue). */
+[data-slot='content'][data-state='open'] {
+  z-index: 1100 !important;
+}
+
+/* App Setting's Accent Color (see data/branding.js, which sets
+--app-accent/-hover/-active on :root from it) drives every spot in this app
+that was hardcoded to the same near-black as frappe-ui's own default Button
+theme, so both now visibly change together when an admin picks a different
+color - a mismatched "branded" primary button next to a still-black active
+nav tab would look like a bug, not a feature.
+
+Scoped to the exact `bg-surface-gray-7 ...` class combination frappe-ui's
+Button.vue only ever emits for theme="gray" (the default) + variant="solid"
+- gray is the only entry using surface-gray-7/6/5, so a theme="red" delete
+button (a different class combination entirely) is untouched - turning a
+delete button into the brand color would be actively misleading regardless
+of what color is picked. */
+:root:not(.dark) .bg-surface-gray-7.hover\:bg-surface-gray-6.active\:bg-surface-gray-5 {
+  background-color: var(--app-accent) !important;
+}
+:root:not(.dark) .bg-surface-gray-7.hover\:bg-surface-gray-6.active\:bg-surface-gray-5:hover {
+  background-color: var(--app-accent-hover) !important;
+}
+:root:not(.dark) .bg-surface-gray-7.hover\:bg-surface-gray-6.active\:bg-surface-gray-5:active {
+  background-color: var(--app-accent-active) !important;
+}
+
+/* This app's own hand-rolled "this is the brand color" spots - not frappe-ui
+components, so these are plain utility classes this app wrote itself
+(AppSidebar.vue's assistant badge, MobileNav.vue's active tab) - overridden
+the same way, by their own exact class value, rather than editing every one
+of those class bindings to a computed string. Dark mode's own gray-100/white
+pairing is untouched (only the light-mode gray-900 value is targeted) - a
+light accent color substituted into dark mode's existing near-white pairing
+would be illegible. */
+:root:not(.dark) .bg-gray-900 {
+  background-color: var(--app-accent) !important;
+}
+:root:not(.dark) .border-gray-900 {
+  border-color: var(--app-accent) !important;
+}

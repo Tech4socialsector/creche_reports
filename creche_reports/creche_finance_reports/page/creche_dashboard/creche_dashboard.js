@@ -5726,7 +5726,7 @@ class CrecheBudgetDashboard {
 			p.budgets.forEach((b, bIdx) => {
 				const bref = frappe.utils.escape_html(b.budget_reference_name || b.budget_id || '—');
 				const monthChips = b.missing_months.map(m =>
-					`<span class="cbd-pu__month-chip" style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca">${frappe.utils.escape_html(m.month)} (${frappe.utils.escape_html(m.financial_year)})</span>`
+					`<span class="cbd-pu__month-chip" style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca">${frappe.utils.escape_html(m.month)}${m.year ? ' (' + frappe.utils.escape_html(String(m.year)) + ')' : ''}</span>`
 				).join(' ');
 
 				rowsHtml += `<tr class="cbd-dt__row" data-partner-idx="${pIdx}">`;

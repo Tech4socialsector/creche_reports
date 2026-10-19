@@ -77,31 +77,6 @@ def get_recent_exports(export_type=None, limit=20):
 
 
 # =========================================================
-# BUDGETS  (for the filter dropdown)
-# =========================================================
-
-@frappe.whitelist()
-def get_all_budgets():
-    """
-    Returns all Budget Reference docs for the dropdown.
-    Adjust doctype name / fields to match your schema.
-    """
-    return frappe.get_all(
-        "Budget Reference",          # ← change to your actual doctype
-        fields=[
-            "name",
-            "budget_reference_name",
-            "partner_name",
-            "partner_id",
-            "grant_id",
-            "state",
-            "no_of_creches",
-        ],
-        order_by="budget_reference_name asc",
-    )
-
-
-# =========================================================
 # CRECHE UTILISATION — QUEUE EXPORT  (filter-based)
 # =========================================================
 

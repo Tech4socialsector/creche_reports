@@ -1,0 +1,1 @@
+[data-dialog=row-editor].dialog-overlay{z-index:1050}.row-editor-panel{width:100%;max-height:85vh}@media (max-width: 639px),(max-height: 480px){[data-dialog=row-editor].dialog-overlay>div{padding:0}[data-dialog=row-editor] .dialog-content{margin:0;max-width:none;width:100vw;height:100dvh;border-radius:0}.row-editor-panel{height:100dvh!important;max-height:none}}

@@ -8085,6 +8085,8 @@ def get_partner_budget_summary(filters=None):
         budget_filters["district"] = ["in", filters["district"]]
     if filters.get("block"):
         budget_filters["block"] = ["in", filters["block"]]
+    if filters.get("budget_status"):
+        budget_filters["budget_status"] = ["in", filters["budget_status"]]
     if start_date:
         budget_filters["end_date"]   = [">=", start_date]
     if end_date:
@@ -8684,9 +8686,17 @@ def get_utilisation_line_items(budget_id: str, start_date=None, end_date=None,
     if not bud_start or not bud_end:
         return empty
 
-    all_months = _budget_month_labels(bud_start, bud_end)
+    # A month that hasn't finished yet can't have a complete submission -
+    # unlike Budget Items (a forward-looking plan), this endpoint shows
+    # actual submitted utilisation, so the current/in-progress month (and
+    # anything after it) is never shown, even if the budget's own end_date
+    # extends further.
+    today = getdate(frappe.utils.nowdate())
+    last_complete_month_end = min(bud_end, _date(today.year, today.month, 1) - _timedelta(days=1))
+
+    all_months = _budget_month_labels(bud_start, last_complete_month_end)
     shown_months = _filter_budget_months(
-        all_months, bud_start, bud_end,
+        all_months, bud_start, last_complete_month_end,
         start_date=start_date, end_date=end_date,
         financial_year=financial_year, month=month,
     )
@@ -8884,12 +8894,22 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
     if cutoff_date:
         cutoff = getdate(cutoff_date)
     else:
-        if today.day >= 5:
-            cutoff = today.replace(day=5)
-        else:
-            y, m = today.year, today.month - 1
-            if m < 1: y -= 1; m = 12
-            cutoff = _date(y, m, 5)
+        # Reference date: the dashboard's own End Date filter when the user
+        # has set one (its own month is "in progress" from that point of
+        # view, same as today's month normally is), otherwise today. A
+        # future-dated End Date is clamped back to today - this card counts
+        # what's actually overdue as of now, not what would be overdue as of
+        # some date that hasn't happened yet.
+        reference = getdate(filters["end_date"]) if filters.get("end_date") else today
+        if reference > today:
+            reference = today
+        # Always counts through the END of the month BEFORE the reference
+        # date's month, never the reference month itself - a partner can't
+        # be "overdue" for a month that hasn't finished yet, so the boundary
+        # never includes it regardless of what day of that month it is.
+        y, m = reference.year, reference.month - 1
+        if m < 1: y -= 1; m = 12
+        cutoff = _date(y, m, 5)
 
     boundary_month_start = cutoff.replace(day=1)
 
@@ -8923,6 +8943,8 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
         budget_filters.append(["district", "in", filters["district"]])
     if filters.get("block"):
         budget_filters.append(["block", "in", filters["block"]])
+    if filters.get("budget_status"):
+        budget_filters.append(["budget_status", "in", filters["budget_status"]])
 
     effective_budget_ids = _perm.get_effective_budget_ids()
     if effective_budget_ids is not None:
@@ -9005,7 +9027,7 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
             deadline = _add_month(month_start).replace(day=5)
             days_overdue = (cutoff - deadline).days
             missing_for_budget.append({
-                "financial_year": target_fy, "month": target_month,
+                "financial_year": target_fy, "month": target_month, "year": month_start.year,
                 "deadline": deadline.isoformat(),
                 "days_overdue": max(days_overdue, 0),
             })
@@ -9024,7 +9046,7 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
                     deadline = _add_month(cursor).replace(day=5)
                     days_overdue = (cutoff - deadline).days
                     missing_for_budget.append({
-                        "financial_year": fy_label, "month": month_name,
+                        "financial_year": fy_label, "month": month_name, "year": cursor.year,
                         "deadline": deadline.isoformat(),
                         "days_overdue": max(days_overdue, 0),
                     })
@@ -9063,48 +9085,6 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
         result.append(entry)
     result.sort(key=lambda r: (-r["max_days_overdue"], r["partner_name"] or ""))
     return {"partners": result, "cutoff": str(cutoff)}
-
-@frappe.whitelist()
-def send_utilisation_reminder(partner_ids=None, custom_message=None):
-    if isinstance(partner_ids, str):
-        try: partner_ids = json.loads(partner_ids)
-        except Exception: partner_ids = [p.strip() for p in partner_ids.split(",") if p.strip()]
-    partner_ids = partner_ids or []
-    if not partner_ids: frappe.throw(frappe._("No partners selected"))
-
-    permitted = _get_user_permitted_partners()
-    if permitted is not None:
-        partner_ids = [p for p in partner_ids if p in permitted]
-        if not partner_ids: frappe.throw(frappe._("You do not have permission to email these partners"))
-
-    email_map = _get_partner_emails(partner_ids)
-    partner_names = {r.name: r.partner_name for r in frappe.get_all(
-        "Creche Partners", filters={"name": ["in", partner_ids]},
-        fields=["name","partner_name"], ignore_permissions=True)}
-
-    default_message = ("This is a reminder that your utilisation report submission is pending. "
-                       "Kindly submit it at the earliest to keep your budget records up to date.")
-    message_body = custom_message or default_message
-
-    sent, failed = [], []
-    for pid in partner_ids:
-        email = email_map.get(pid)
-        pname = partner_names.get(pid, pid)
-        if not email:
-            failed.append({"partner_id": pid, "partner_name": pname, "reason": "No email on file"})
-            continue
-        try:
-            frappe.sendmail(
-                recipients=[email],
-                subject="Utilisation Report Submission Reminder",
-                message=f"<p>Dear {frappe.utils.escape_html(pname)},</p><p>{frappe.utils.escape_html(message_body)}</p>",
-                now=True,
-            )
-            sent.append({"partner_id": pid, "partner_name": pname, "email": email})
-        except Exception as e:
-            failed.append({"partner_id": pid, "partner_name": pname, "reason": str(e)})
-
-    return {"sent": sent, "failed": failed}
 
 # ══════════════════════════════════════════════════════════════════════════
 # EXPORT
@@ -9297,6 +9277,12 @@ def _safe_fname(title):
     return base[:80]
 
 def _save_file(fname, content):
-    f = frappe.get_doc({"doctype":"File","file_name":fname,"is_private":0,"content":content})
+    # Private: the content is arbitrary client-supplied rows/columns (not
+    # re-derived from the DB), so a public file_url would let any logged-in
+    # user turn this export endpoint into a free, unauthenticated-access
+    # file host. The caller's own browser tab opens file_url immediately
+    # after this returns, in the same authenticated session, so a private
+    # file downloads exactly the same way for the person who just exported it.
+    f = frappe.get_doc({"doctype":"File","file_name":fname,"is_private":1,"content":content})
     f.save(ignore_permissions=True)
     return f.file_url

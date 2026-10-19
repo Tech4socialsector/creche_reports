@@ -1,0 +1,127 @@
+{
+ "actions": [],
+ "creation": "2026-10-07 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "target_doctype",
+  "enabled",
+  "can_read",
+  "column_break_main",
+  "can_write",
+  "include_child_tables",
+  "max_rows",
+  "section_break_fields",
+  "field_rules",
+  "section_break_notes",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Link",
+   "label": "Doctype",
+   "options": "DocType",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "set_only_once": 1,
+   "description": "The doctype this policy governs. A doctype with no policy, or a disabled one, is invisible to the assistant."
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Assistant Can Use This Doctype",
+   "default": "0",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Off = the assistant can't see or touch this doctype at all. Every new doctype starts off."
+  },
+  {
+   "fieldname": "can_read",
+   "fieldtype": "Check",
+   "label": "Can Read",
+   "default": "1",
+   "in_list_view": 1,
+   "description": "May list, search and read records (still only ones the signed-in user may read)."
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "can_write",
+   "fieldtype": "Check",
+   "label": "Can Create / Edit",
+   "default": "0",
+   "in_list_view": 1,
+   "description": "May create and update records (still only what the signed-in user may write, and never a Hidden or Read Only field)."
+  },
+  {
+   "fieldname": "include_child_tables",
+   "fieldtype": "Check",
+   "label": "Include Child Table Rows",
+   "default": "1",
+   "description": "Include rows of this doctype's child tables when reading a record - each child doctype needs its own enabled policy, or its rows are left out."
+  },
+  {
+   "fieldname": "max_rows",
+   "fieldtype": "Int",
+   "label": "Max Rows Per Search",
+   "default": "20",
+   "description": "Most records one search can return (1 to 50)."
+  },
+  {
+   "fieldname": "section_break_fields",
+   "fieldtype": "Section Break",
+   "label": "Field Rules"
+  },
+  {
+   "fieldname": "field_rules",
+   "fieldtype": "Table",
+   "label": "Field Rules",
+   "options": "AI Data Policy Field",
+   "description": "Fields the assistant must never see (Hidden) or never change (Read Only). Passwords, attachments and signatures are always hidden."
+  },
+  {
+   "fieldname": "section_break_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-07 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Creche Master",
+ "name": "AI Data Policy",
+ "owner": "Administrator",
+ "row_format": "Dynamic",
+ "states": [],
+ "autoname": "field:target_doctype",
+ "naming_rule": "By fieldname",
+ "track_changes": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 1
+  }
+ ],
+ "search_fields": "target_doctype"
+}

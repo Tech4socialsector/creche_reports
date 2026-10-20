@@ -537,3 +537,49 @@ def update(doctype, name, values):
 	doc.save()
 	audit("update", doctype, {"name": name, "fields": sorted((values or {}).keys())})
 	return {"doctype": doctype, "name": doc.name}
+
+
+# --- dashboard summary ----------------------------------------------------
+
+# The exact filter keys creche_dashboard.get_partner_budget_summary accepts -
+# a plain allowlist (not readable_fields()-derived, since this wraps a
+# cross-doctype aggregate, not a single doctype's own field list) so a
+# mistyped or made-up filter key from the model fails loudly instead of
+# silently being ignored by the summary function itself.
+DASHBOARD_SUMMARY_FILTER_KEYS = {
+	"partner_id", "budget_ref", "grant_id", "state", "district", "block",
+	"budget_status", "start_date", "end_date",
+}
+
+
+def get_dashboard_summary(filters=None):
+	"""The same pre-computed, permission-scoped totals the Dashboard page's
+	own Financial Overview cards show (creche_dashboard.get_partner_budget_summary) -
+	the ONLY correct way to answer a "what is the total/sum of ..." question.
+	search_records/count_records are capped at 50 rows each; summing their
+	output as if it were the whole dataset silently produces a wrong total
+	the moment there are more rows than the cap - this function does the real
+	SQL SUM() over every matching row, scoped to exactly what the signed-in
+	user is permitted to see, same as the dashboard UI itself."""
+	require_access("Creche Budget")
+	filters = filters or {}
+	if not isinstance(filters, dict):
+		raise frappe.PermissionError(_("filters must be an object of field -> value"))
+	bad_keys = set(filters) - DASHBOARD_SUMMARY_FILTER_KEYS
+	if bad_keys:
+		raise frappe.PermissionError(
+			_("Unknown filter(s) for the dashboard summary: {0}. Valid filters: {1}").format(
+				", ".join(sorted(bad_keys)), ", ".join(sorted(DASHBOARD_SUMMARY_FILTER_KEYS))
+			)
+		)
+
+	from creche_reports.api.creche_dashboard import get_partner_budget_summary
+
+	result = get_partner_budget_summary(filters=filters)
+	audit("get_dashboard_summary", "Creche Budget", {"filters": sorted(filters.keys())})
+	# Only the aggregate numbers - the per-partner `partners` breakdown is
+	# exactly what search_records(Creche Budget)/search_records(Creche
+	# Disbursement)/etc. already cover, and repeating every partner's full
+	# row set here would both bloat this tool's own response and duplicate a
+	# job the other tools already do correctly.
+	return result["summary"]

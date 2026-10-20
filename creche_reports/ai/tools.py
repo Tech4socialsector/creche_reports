@@ -44,6 +44,14 @@ def count_records(doctype, group_by, filters=None):
 	return data_service.count_by(doctype, group_by, filters=filters)
 
 
+def get_dashboard_summary(filters=None):
+	"""The real, permission-scoped totals (sum of total_budget/total_disbursement/
+	total_utilisation/etc.) across every matching budget - the same numbers the
+	Dashboard page itself shows. Always use this for a total/sum, never add up
+	search_records rows by hand."""
+	return data_service.get_dashboard_summary(filters=filters)
+
+
 def show_table(title, columns, rows):
 	"""Put a table into the chat for the user."""
 	return blocks.add_table(title, columns, rows)
@@ -82,6 +90,7 @@ TOOL_FUNCTIONS = {
 	"get_doctype_meta": get_doctype_meta,
 	"search_records": search_records,
 	"count_records": count_records,
+	"get_dashboard_summary": get_dashboard_summary,
 	"show_table": show_table,
 	"show_chart": show_chart,
 	"get_record": get_record,
@@ -149,6 +158,22 @@ TOOL_SCHEMAS = [
 					"filters": {"type": "object", "description": "Optional Frappe filter dict."},
 				},
 				"required": ["doctype", "group_by"],
+			},
+		},
+	},
+	{
+		"type": "function",
+		"function": {
+			"name": "get_dashboard_summary",
+			"description": "Get the real total budget, disbursement, utilisation, bank balance and related percentages across every matching budget - the exact same numbers the Dashboard page's own Financial Overview cards show. This is the ONLY correct way to answer any \"what is the total/sum of...\" question (approved budget, disbursement, utilisation, bank balance, etc.), for one partner or across all of them. NEVER compute a total yourself by adding up rows from search_records or count_records - those are capped at 50 rows each, so a manual sum silently undercounts the moment there are more matching records than that, which is wrong (and was reported wrong in production) far more easily than it looks.",
+			"parameters": {
+				"type": "object",
+				"properties": {
+					"filters": {
+						"type": "object",
+						"description": 'Optional filters, all plain Frappe filter dicts on Creche Budget: partner_id, budget_ref, grant_id, state, district, block, budget_status (e.g. {"budget_status": ["Active"]} for active-only), start_date, end_date. Omit any you don\'t need - omitting all of them totals across everything the user can see.',
+					},
+				},
 			},
 		},
 	},

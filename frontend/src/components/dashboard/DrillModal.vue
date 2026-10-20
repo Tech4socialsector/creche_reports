@@ -327,6 +327,17 @@ untouched. */
 .dialog-overlay:has(.drill-modal-body) .dialog-content.max-w-7xl {
   max-width: 75rem;
 }
+/* Windows' own 125%/150% display scaling (the common laptop default)
+reports a smaller effective viewport width in CSS pixels even on a
+physically large screen - a dialog still asking for the full 75rem there
+has less room than it expects, reading as "too big for my screen" even
+though nothing is actually broken. Same fix as AiAssistant.vue/
+AppSidebar.vue's own equivalent breakpoints. */
+@media (max-width: 1600px) {
+  .dialog-overlay:has(.drill-modal-body) .dialog-content.max-w-7xl {
+    max-width: 56rem;
+  }
+}
 .dialog-overlay:has(.drill-modal-body) .dialog-content > div:first-child,
 .dialog-overlay:has(.drill-modal-body) .dialog-content > div:first-child > .flex,
 .dialog-overlay:has(.drill-modal-body) .dialog-content > div:first-child > .flex > .flex-1 {

@@ -204,13 +204,12 @@ const sendError = ref(null)
 
 const botName = computed(() => assistantConfigResource.data?.bot_name || 'Assistant')
 
-// The assistant's own guide now tells it to bold a count/total with
-// **this** markdown syntax (see the "Response Formatting" AI Guide Section),
-// but this chat only ever rendered plain text - not a full markdown
-// renderer (no new dependency, no markdown syntax beyond the one thing the
-// guide actually asks for), just **bold** support: escape everything first
-// so the message's own text can never inject HTML, then turn the (now
-// HTML-safe) **pairs** into <strong> tags.
+// The assistant's own system prompt tells it to bold a count/total with
+// **this** markdown syntax, but this chat only ever rendered plain text -
+// not a full markdown renderer (no new dependency, no markdown syntax
+// beyond the one thing the prompt actually asks for), just **bold**
+// support: escape everything first so the message's own text can never
+// inject HTML, then turn the (now HTML-safe) **pairs** into <strong> tags.
 function renderBold(text) {
   const escaped = String(text ?? '')
     .replace(/&/g, '&amp;')

@@ -24,10 +24,13 @@
 
       <ErrorMessage class="mb-3 flex-shrink-0" :message="exportError" />
 
-      <div class="overview-strip-scroll grid min-h-0 flex-1 grid-cols-1 items-start gap-4 overflow-y-auto" :class="stat === 'states' ? 'lg:grid-cols-4' : ''">
-        <IndiaMap v-if="stat === 'states'" :state-data="stateMapData" class="lg:col-span-3" />
+      <div class="overview-strip-grid grid min-h-0 flex-1 grid-cols-1 gap-4" :class="stat === 'states' ? 'lg:grid-cols-4' : ''">
+        <IndiaMap v-if="stat === 'states'" :state-data="stateMapData" class="lg:col-span-3 min-h-0 h-full" />
 
-        <div class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800" :class="stat === 'states' ? 'lg:col-span-1' : ''">
+        <div
+          class="overview-strip-scroll min-h-0 h-full overflow-auto rounded-lg border border-gray-100 dark:border-gray-800"
+          :class="stat === 'states' ? 'lg:col-span-1' : ''"
+        >
           <table class="drill-table w-full min-w-max text-left text-sm">
             <thead class="sticky top-0 z-10 text-xs uppercase text-gray-500 dark:text-gray-400" :class="statTheme.bg">
               <tr>
@@ -90,10 +93,25 @@ modal's own .overview-strip-body, leaving any other Dialog in the app alone. */
 .dialog-overlay:has(.overview-strip-body) .dialog-content {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 2rem);
+  /* 6rem, not 2rem: a 2rem margin left this dialog pinned almost flush to
+  the top and bottom of the viewport with no breathing room, reading as
+  "overflowing the window" even on an ordinary desktop screen - matches
+  DrillModal.vue's own fix for the identical complaint. */
+  max-height: calc(100vh - 6rem);
 }
 .dialog-overlay:has(.overview-strip-body) .dialog-content.max-w-7xl {
-  max-width: 96rem;
+  max-width: 80rem;
+}
+/* Windows' own 125%/150% display scaling (the common laptop default)
+reports a smaller effective viewport width in CSS pixels even on a
+physically large screen - a dialog still asking for the full width there
+has less room than it expects, reading as "too big for my screen" even
+though nothing is actually broken. Same fix as AiAssistant.vue/
+AppSidebar.vue's own equivalent breakpoints. */
+@media (max-width: 1600px) {
+  .dialog-overlay:has(.overview-strip-body) .dialog-content.max-w-7xl {
+    max-width: 60rem;
+  }
 }
 .dialog-overlay:has(.overview-strip-body) .dialog-content > div:first-child,
 .dialog-overlay:has(.overview-strip-body) .dialog-content > div:first-child > .flex,

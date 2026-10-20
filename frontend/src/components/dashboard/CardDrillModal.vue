@@ -139,10 +139,25 @@ modal's own .card-drill-body, leaving any other Dialog in the app alone. */
 .dialog-overlay:has(.card-drill-body) .dialog-content {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 2rem);
+  /* 6rem, not 2rem: a 2rem margin left this dialog pinned almost flush to
+  the top and bottom of the viewport with no breathing room, reading as
+  "overflowing the window" even on an ordinary desktop screen - matches
+  DrillModal.vue's own fix for the identical complaint. */
+  max-height: calc(100vh - 6rem);
 }
 .dialog-overlay:has(.card-drill-body) .dialog-content.max-w-7xl {
-  max-width: 90rem;
+  max-width: 75rem;
+}
+/* Windows' own 125%/150% display scaling (the common laptop default)
+reports a smaller effective viewport width in CSS pixels even on a
+physically large screen - a dialog still asking for the full width there
+has less room than it expects, reading as "too big for my screen" even
+though nothing is actually broken. Same fix as AiAssistant.vue/
+AppSidebar.vue's own equivalent breakpoints. */
+@media (max-width: 1600px) {
+  .dialog-overlay:has(.card-drill-body) .dialog-content.max-w-7xl {
+    max-width: 56rem;
+  }
 }
 .dialog-overlay:has(.card-drill-body) .dialog-content > div:first-child,
 .dialog-overlay:has(.card-drill-body) .dialog-content > div:first-child > .flex,

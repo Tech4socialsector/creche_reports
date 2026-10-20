@@ -1,13 +1,13 @@
 <template>
-  <div>
+  <div class="flex h-full flex-col">
     <div v-if="loading" class="flex h-72 items-center justify-center">
       <Skeleton height="16rem" />
     </div>
     <div v-else-if="!svgMarkup" class="rounded-lg border border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
       Map unavailable — showing data table below instead.
     </div>
-    <div v-else class="relative">
-      <div class="mb-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+    <div v-else class="relative flex min-h-0 flex-1 flex-col">
+      <div class="mb-2 flex flex-shrink-0 flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
         <span class="flex items-center gap-1.5">
           <span class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: ACTIVE_COLOR }" />
           Working state ({{ activeCount }})
@@ -19,7 +19,7 @@
       </div>
       <div
         ref="mapContainer"
-        class="india-map mx-auto max-w-2xl"
+        class="india-map mx-auto min-h-0 w-full max-w-2xl flex-1"
         v-html="svgMarkup"
         @mouseover="onMouseOver"
         @mouseleave="onMouseLeave"
@@ -177,8 +177,20 @@ onMounted(loadMap)
 </script>
 
 <style scoped>
+/* height: auto previously let the SVG's own aspect ratio dictate this
+container's height unconditionally - fine on a tall modal, but on a
+shorter one (a smaller window, Windows display scaling, a short-and-wide
+viewport) the map could end up taller than the modal's own available
+space and push the whole dialog past the window edge instead of just
+sitting within it, all to show a map that was never meant to scroll on
+its own. .india-map is now a real flex-1/min-h-0 child (see the template)
+with a bounded height of its own - width/height both 100% of that lets the
+SVG's own default preserveAspectRatio (xMidYMid meet, using the viewBox
+already set for label placement elsewhere in this file) scale the whole
+map down to fit inside it without distortion, so the map is always fully
+visible and never the reason the dialog overflows. */
 .india-map :deep(svg) {
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 </style>

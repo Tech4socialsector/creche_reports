@@ -36,8 +36,17 @@ PERSONAL_FIELDTYPES = {"Geolocation", "Phone"}
 _PATTERNS = (
 	(re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"), "[email]"),
 	(re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b"), "[id number]"),
-	(re.compile(r"(?<!\d)(?:\+?91[\s-]?)?\d{5}[\s-]?\d{5}(?!\d)"), "[phone]"),
-	(re.compile(r"(?<!\d)\d{4}[\s-]?\d{4}[\s-]?\d{4}(?!\d)"), "[id number]"),
+	# (?!\.\d): a real phone number is never immediately followed by a
+	# decimal point and more digits - that shape only ever occurs when this
+	# 10-digit run is actually the integer part of a float, which is exactly
+	# how every Currency field (total_budget, total_disbursement, ...) comes
+	# back from json.dumps() on a tool result (Frappe always returns Currency
+	# as a Python float, e.g. 4943158893.0) - without this exclusion a large
+	# but perfectly ordinary budget total got mangled into "[phone].0" before
+	# ever reaching the model, which then dutifully repeated the placeholder
+	# back to the user as if it were the real number (reported in production).
+	(re.compile(r"(?<!\d)(?:\+?91[\s-]?)?\d{5}[\s-]?\d{5}(?!\d)(?!\.\d)"), "[phone]"),
+	(re.compile(r"(?<!\d)\d{4}[\s-]?\d{4}[\s-]?\d{4}(?!\d)(?!\.\d)"), "[id number]"),
 	(re.compile(r"(?<!\d)-?\d{1,3}\.\d{4,}(?!\d)"), "[location]"),
 	(re.compile(r"/(?:private/)?files/\S+"), "[file]"),
 )

@@ -322,10 +322,10 @@ untouched. */
 .dialog-overlay:has(.drill-modal-body) .dialog-content {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 2rem);
+  max-height: calc(100vh - 6rem);
 }
 .dialog-overlay:has(.drill-modal-body) .dialog-content.max-w-7xl {
-  max-width: 90rem;
+  max-width: 75rem;
 }
 .dialog-overlay:has(.drill-modal-body) .dialog-content > div:first-child,
 .dialog-overlay:has(.drill-modal-body) .dialog-content > div:first-child > .flex,

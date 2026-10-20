@@ -108,24 +108,38 @@
         SidebarGroupSection per entry's own `kind`. Groups still need
         SidebarGroupSection specifically (not frappe-ui's own
         SidebarSection) since a plain SidebarSection's header can't also
-        navigate on click - see that component's own comment. -->
-        <template v-for="entry in navEntries" :key="entry.label">
-          <SidebarItem
-            v-if="entry.kind === 'leaf'"
-            :label="entry.label"
-            :icon="entry.icon"
-            :to="entry.to"
-            :is-active="entry.isActive"
-          />
-          <SidebarGroupSection
-            v-else
-            :label="entry.label"
-            :icon="entry.icon"
-            :items="entry.items"
-            :first-item="entry.items[0]"
-            :is-sidebar-collapsed="sidebarCollapsed"
-          />
-        </template>
+        navigate on click - see that component's own comment.
+
+        Wrapped in its own scroll container (nav-scroll, styled below) -
+        frappe-ui's Sidebar.vue puts overflow-y-auto on its OUTER root div,
+        which wraps the branding button/search/help-desk block above AND
+        the footer-items/Collapse row below this nav list, all as one
+        scrolling unit. A long enough nav list (several groups expanded)
+        then scrolls the WHOLE sidebar together, carrying the branding
+        header and the Auditor/Collapse footer out of view with it, instead
+        of just these nav rows scrolling while the chrome around them stays
+        put - see this file's own <style> block for the fix (caps the
+        outer root's own overflow, makes this div the one scrollable
+        area). -->
+        <div class="nav-scroll min-h-0 flex-1 overflow-y-auto">
+          <template v-for="entry in navEntries" :key="entry.label">
+            <SidebarItem
+              v-if="entry.kind === 'leaf'"
+              :label="entry.label"
+              :icon="entry.icon"
+              :to="entry.to"
+              :is-active="entry.isActive"
+            />
+            <SidebarGroupSection
+              v-else
+              :label="entry.label"
+              :icon="entry.icon"
+              :items="entry.items"
+              :first-item="entry.items[0]"
+              :is-sidebar-collapsed="sidebarCollapsed"
+            />
+          </template>
+        </div>
       </template>
 
       <template #footer-items="{ isCollapsed }">
@@ -188,6 +202,50 @@ with w-fit off this same element, so it picks up the new width too instead
 of needing a separate change there. */
 .app-sidebar .w-60 {
   width: 17rem;
+}
+/* Windows' own display scaling (125%/150% is the common laptop default,
+vs. 100% typical on Mac/Linux) reports a smaller effective window.innerWidth
+in CSS pixels even on a physically large/high-res screen - the browser
+itself already accounts for this correctly (CSS pixels, not device
+pixels), but a FIXED 17rem sidebar then eats a visibly bigger share of
+that smaller effective viewport, squeezing the remaining content into less
+room than this app's own breakpoints (xl/2xl grids, modal widths, etc.)
+assume is available - that's what reads as "everything looks too big" on a
+scaled Windows screen, not a sizing bug specific to Windows itself. Giving
+the sidebar back some of that room on tighter viewports keeps the content
+area closer to what those breakpoints were actually designed around. Tied
+to max-width (viewport), not a sidebar-local container query - this
+version of Tailwind has no native container query support, and the
+mismatch is fundamentally about viewport vs. content width anyway, which a
+viewport media query already addresses directly. */
+@media (max-width: 1600px) {
+  .app-sidebar .w-60 {
+    width: 15rem;
+  }
+}
+@media (max-width: 1366px) {
+  .app-sidebar .w-60 {
+    width: 13rem;
+  }
+}
+
+/* frappe-ui's Sidebar.vue hardcodes overflow-y-auto on its own OUTER root
+div (the one with flex h-full flex-col ... p-2), which wraps the branding
+header, search/help-desk, the nav list, AND the footer-items/Collapse
+block all together - the whole sidebar scrolls as one unit once the nav
+list (the only part that can actually grow long - several expanded groups)
+exceeds the viewport height, instead of just the nav rows scrolling while
+the branding header stays fixed at top and the Auditor/Collapse footer
+stays pinned at bottom. Capping the outer root's own overflow here and
+letting .nav-scroll (wrapped around the nav entries in the template above)
+be the one scrollable area reproduces the same outer-clip/inner-scroll
+pattern already used for the dashboard drill-down modals and dialogs
+elsewhere in this app. */
+.app-sidebar .flex-col.overflow-y-auto {
+  overflow: hidden;
+}
+.app-sidebar .nav-scroll {
+  overscroll-behavior: contain;
 }
 </style>
 

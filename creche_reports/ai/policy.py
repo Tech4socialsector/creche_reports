@@ -52,6 +52,13 @@ SEED = {
 		"read_only": {"partner_id": "set when the record is created"},
 	},
 	"Creche Partners": {},
+	# Location reference doctypes - no real fields of their own beyond their
+	# own record name (see data_service.APP_FRONTEND_DOCTYPES' own comment),
+	# so there's nothing to hide/read-only here; seeded enabled for the same
+	# "which partners are in <state>" style questions that comment describes.
+	"State": {},
+	"District": {},
+	"Block": {},
 	# Creche Reminder Settings is deliberately not seeded here: it's a Single
 	# doctype (one document, named after the doctype itself), and search/
 	# count_by/create in data_service assume a real table of records - the

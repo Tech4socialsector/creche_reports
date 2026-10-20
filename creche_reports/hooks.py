@@ -27,9 +27,19 @@ scheduler_events = {
     ]
 }
 
-# AI Data Policy: every doctype in this app's own modules gets a (disabled by
-# default) policy after each migrate, so a new doctype never starts visible
-# to the assistant by accident - see creche_reports/ai/policy.py.
+# AI Data Policy: seed_policies() creates the handful of doctypes this app
+# ships pre-enabled for the assistant (policy.py's own SEED) - without this
+# wired in, a site only gets those via a manual one-off script run (which is
+# how local dev first got them; a fresh or separately-deployed site, like
+# production, never did, leaving every policy disabled and the assistant
+# blind to all data until someone noticed and ran it by hand - see git
+# history/session notes for this exact bug). ensure_policies() then gives
+# every OTHER doctype in this app's own modules a (disabled by default)
+# policy, so a new doctype never starts visible to the assistant by accident
+# - see creche_reports/ai/policy.py. Order matters: seed_policies() first, so
+# its 8 real doctypes land enabled before ensure_policies() would otherwise
+# also give unseeded ones its own disabled default (never touches an
+# existing policy either way, but the explicit order keeps the intent clear).
 #
 # Global Search: rebuilds Global Search Settings' allow-list from every
 # installed app's global_search_doctypes hook (see this file's own, below) -
@@ -37,6 +47,7 @@ scheduler_events = {
 # these doctypes on a fresh install until an admin manually clicked "Reset"
 # on the Global Search Settings desk page - see api/sidebar.py's own comment.
 after_migrate = [
+	"creche_reports.ai.policy.seed_policies",
 	"creche_reports.ai.policy.ensure_policies",
 	"creche_reports.api.sidebar.ensure_global_search_doctypes",
 	"creche_reports.api.sidebar.ensure_default_sidebar_items",

@@ -131,9 +131,22 @@ forcing the overlay to scroll. */
   overflow: hidden;
 }
 /* frappe-ui's own max-w-7xl preset (80rem) is its widest step - stretched
-further here, same technique as the dashboard drill-down modals. */
+further here, same technique as the dashboard drill-down modals. 90rem
+(1440px) comfortably fits a 1920px+ unscaled desktop, but Windows' own
+125%/150% display scaling (the common laptop default) reports a smaller
+effective window width in CSS pixels even on a physically large screen - a
+dialog still asking for 90rem there has less room than it expects, reading
+as "too big for my screen" even though nothing is actually broken. The
+intermediate step below keeps the panel comfortably within a scaled
+laptop's real viewport instead of jumping straight from the full 90rem
+down to the 639px mobile full-screen breakpoint further down. */
 [data-dialog='ai-assistant'] .dialog-content.max-w-7xl {
   max-width: 90rem;
+}
+@media (max-width: 1600px) {
+  [data-dialog='ai-assistant'] .dialog-content.max-w-7xl {
+    max-width: 68rem;
+  }
 }
 /* Belt-and-braces alongside .dialog-overlay's overflow:hidden above:
 .dialog-content is this dialog's own direct wrapper around

@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory, START_LOCATION } from 'vue-router'
 import { session, initialUserCheck, userResource } from '@/data/session'
-import { DOCTYPE_ROUTES } from '@/data/doctypeRoutes'
+import { doctypeForRouteSlug, initialRoutableDoctypesLoad } from '@/data/doctypeRoutes'
 import { pageTitle } from '@/data/pageTitle'
 
 const routes = [
@@ -39,9 +39,10 @@ const routes = [
     name: 'UtilisationImportTemplate',
     component: () => import('@/pages/UtilisationImportTemplate.vue'),
   },
-  // Generic doctype list/form - any doctype in DOCTYPE_ROUTES (see
-  // data/doctypeRoutes.js) renders here purely from its live Frappe
-  // metadata, no per-doctype Vue page needed. `remountOnParamChange` forces
+  // Generic doctype list/form - any doctype get_routable_doctypes() returns
+  // (see data/doctypeRoutes.js, backed by the admin-configurable Sidebar
+  // Item doctype) renders here purely from its live Frappe metadata, no
+  // per-doctype Vue page needed. `remountOnParamChange` forces
   // a fresh component instance when only :name or :doctypeRoute changes
   // (e.g. navigating from one record straight to another via a Link field's
   // "open" button) - without it, Vue Router reuses the existing
@@ -123,7 +124,12 @@ router.beforeEach(async (to, from, next) => {
     // only set once the initial frappe.auth.get_logged_user call resolves.
     // Awaiting that here (a no-op after it's settled) avoids treating "not
     // checked yet" as "logged out" and bouncing a real session to /login.
-    await initialUserCheck.catch(() => {})
+    // Same reasoning for the routable-doctypes map: a hard page load landing
+    // straight on /:doctypeRoute could otherwise run the resolution below
+    // before get_routable_doctypes()'s own GET has come back, bouncing a
+    // perfectly valid route to Dashboard just because the map was still
+    // empty at that instant.
+    await Promise.all([initialUserCheck.catch(() => {}), initialRoutableDoctypesLoad])
   } else {
     await recheckAuthIfStale()
   }
@@ -137,13 +143,16 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  // Resolve the generic /:doctypeRoute/... routes' slug against the static
-  // DOCTYPE_ROUTES map (see data/doctypeRoutes.js) - a plain object lookup,
-  // not a dynamic module registry. An unmapped slug (mistyped, old bookmark,
-  // a doctype removed from the map) lands on Dashboard instead of rendering
-  // a page with no doctype to fetch metadata for.
+  // Resolve the generic /:doctypeRoute/... routes' slug against the live
+  // routable-doctypes map (see data/doctypeRoutes.js, backed by the
+  // admin-configurable Sidebar Item doctype) - not a fixed JS allowlist, so
+  // any doctype an admin points a Sidebar Item at becomes navigable without
+  // a frontend code change. An unmapped slug (mistyped, old bookmark, a
+  // doctype no Sidebar Item references, or one the signed-in user can't
+  // read) lands on Dashboard instead of rendering a page with no doctype to
+  // fetch metadata for.
   if (to.params.doctypeRoute) {
-    const doctype = DOCTYPE_ROUTES[to.params.doctypeRoute]
+    const doctype = doctypeForRouteSlug(to.params.doctypeRoute)
     if (!doctype) {
       next({ name: 'Dashboard' })
       return

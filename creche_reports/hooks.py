@@ -41,6 +41,7 @@ after_migrate = [
 	"creche_reports.api.sidebar.ensure_global_search_doctypes",
 	"creche_reports.api.sidebar.ensure_default_sidebar_items",
 	"creche_reports.api.keyboard_shortcuts.ensure_default_keyboard_shortcuts",
+	"creche_reports.api.data_import_setup.ensure_data_import_permissions",
 ]
 # required_apps = []
 

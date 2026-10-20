@@ -30,11 +30,11 @@ class SidebarItem(Document):
 	# end: auto-generated types
 
 	def validate(self):
-		# Imported inside the method, not at module load time: api/sidebar.py
-		# also imports from this doctype's own cache-busting hooks (on_update/
-		# on_trash below), so a module-level import here would create a import
-		# cycle between the two files.
-		from creche_reports.api.sidebar import ROUTABLE_DOCTYPES
+		# Imported inside the method, not at module load time: this doctype's
+		# own cache-busting hooks (on_update/on_trash below) are imported BY
+		# api/sidebar.py's SIDEBAR_ITEMS_CACHE_KEY usage, so a module-level
+		# import here would create an import cycle between the two files.
+		from creche_reports.ai.data_service import ALWAYS_BLOCKED
 
 		if self.is_group:
 			if self.target_doctype or self.page_route:
@@ -50,15 +50,26 @@ class SidebarItem(Document):
 				frappe.throw(_("Pick either a Doctype or a Page, not both."))
 			if not self.target_doctype and not self.page_route:
 				frappe.throw(_("Pick a Doctype or a Page, unless this item is a Group."))
-			if self.target_doctype and self.target_doctype not in ROUTABLE_DOCTYPES:
-				frappe.throw(
-					_("{0} is not a doctype this app can link to from the sidebar.").format(
-						frappe.bold(self.target_doctype)
-					)
-				)
+			self._validate_target_doctype(self.target_doctype, ALWAYS_BLOCKED)
 
 		self._validate_sequence_id()
-		self._validate_group_items()
+		self._validate_group_items(ALWAYS_BLOCKED)
+
+	def _validate_target_doctype(self, target_doctype, always_blocked):
+		# Any real doctype is fair game for a Sidebar Item's own generic list/
+		# form page now (see api/sidebar.py's _slug_for_doctype) - this is no
+		# longer limited to a fixed 6-doctype set, same as janadhikara's own
+		# App Module Setting lets an admin point at any doctype. Still refuses
+		# the handful this app's own AI assistant also refuses to touch
+		# (identity/access doctypes, framework configuration, the assistant's
+		# own guardrails) - those would be confusing or actively unsafe to
+		# expose as an ordinary nav link too, not just to the assistant.
+		if not target_doctype:
+			return
+		if target_doctype in always_blocked:
+			frappe.throw(
+				_("{0} can't be linked to from the sidebar.").format(frappe.bold(target_doctype))
+			)
 
 	def _validate_sequence_id(self):
 		# Two top-level items tied on the same Sequence ID don't error - they
@@ -79,7 +90,7 @@ class SidebarItem(Document):
 				)
 			)
 
-	def _validate_group_items(self):
+	def _validate_group_items(self, always_blocked):
 		seen_sequence_ids = {}
 		for row in self.group_items or []:
 			if row.target_doctype and row.page_route:
@@ -90,6 +101,7 @@ class SidebarItem(Document):
 				frappe.throw(
 					_("Group Items List row {0}: pick a Target Doctype or a Page.").format(row.idx)
 				)
+			self._validate_target_doctype(row.target_doctype, always_blocked)
 			# Unique within THIS group's own children only - a different
 			# group's children are an independent list, so the same number
 			# reused there is not a collision.

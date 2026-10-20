@@ -8930,6 +8930,13 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
         ["start_date", "is", "set"],
         ["end_date", "is", "set"],
         ["start_date", "<=", cutoff],
+        # A closed budget has nothing left to chase utilisation for, so it's
+        # never counted "pending" regardless of the dashboard's own Budget
+        # Status filter - unlike the rest of the dashboard (which shows
+        # Active and Closed together unless the user filters it down), this
+        # card's whole premise ("partners who still owe a utilisation
+        # report") only makes sense for a budget still open to receive one.
+        ["budget_status", "=", "Active"],
     ]
     if effective_partners:
         budget_filters.append(["partner_id", "in", effective_partners])
@@ -8943,8 +8950,6 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
         budget_filters.append(["district", "in", filters["district"]])
     if filters.get("block"):
         budget_filters.append(["block", "in", filters["block"]])
-    if filters.get("budget_status"):
-        budget_filters.append(["budget_status", "in", filters["budget_status"]])
 
     effective_budget_ids = _perm.get_effective_budget_ids()
     if effective_budget_ids is not None:

@@ -70,39 +70,13 @@
   <!-- Pick several: a normal field (a dropdown that takes more than one value); kept one per line -->
   <div v-else-if="controlType === 'multi-choice'">
     <label class="mb-1.5 block text-sm text-gray-700 dark:text-gray-300">{{ field.label }}<span v-if="isRequired" class="text-red-500">*</span></label>
-    <div class="overflow-hidden rounded-lg border border-outline-gray-2 bg-surface-white" role="group" :aria-label="field.label">
-      <div class="grid gap-0.5 p-1.5 sm:grid-cols-2" :class="choiceOptions.length > 8 ? 'lg:grid-cols-3' : ''">
-        <button
-          v-for="o in choiceOptions"
-          :key="o"
-          type="button"
-          :disabled="isReadOnly"
-          :aria-pressed="chosenChoices.includes(o)"
-          class="flex items-center gap-3 rounded-md px-2.5 py-2 text-left text-sm transition-colors focus:outline-none focus-visible:bg-surface-gray-2 disabled:cursor-not-allowed disabled:opacity-60"
-          :class="chosenChoices.includes(o) ? 'bg-surface-gray-2 text-ink-gray-9' : 'text-ink-gray-7 hover:bg-surface-gray-1'"
-          @click="toggleChoice(o)"
-        >
-          <span
-            class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border transition-colors"
-            :class="chosenChoices.includes(o) ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900' : 'border-outline-gray-3 bg-surface-white'"
-          >
-            <LucideIcon v-if="chosenChoices.includes(o)" name="check" class="h-3 w-3" />
-          </span>
-          <span class="min-w-0 break-words" :class="chosenChoices.includes(o) ? 'font-medium' : ''">{{ o }}</span>
-        </button>
-      </div>
-      <div class="flex items-center justify-between border-t border-outline-gray-1 bg-surface-gray-1 px-3.5 py-1.5 text-p-xs text-ink-gray-5">
-        <span>{{ chosenChoices.length }} of {{ choiceOptions.length }} selected</span>
-        <button
-          v-if="chosenChoices.length && !isReadOnly"
-          type="button"
-          class="font-medium text-ink-gray-7 hover:text-ink-gray-9"
-          @click="$emit('update:modelValue', '')"
-        >
-          Clear
-        </button>
-      </div>
-    </div>
+    <MultiSelect
+      class="w-full [&_button]:w-full"
+      :model-value="chosenChoices"
+      :options="choiceOptions.map((o) => ({ label: o, value: o }))"
+      :disabled="isReadOnly"
+      @update:model-value="(values) => $emit('update:modelValue', values.join('\n'))"
+    />
     <p v-if="field.description" class="mt-1.5 whitespace-pre-line text-p-xs text-ink-gray-5">{{ field.description }}</p>
   </div>
   <div v-else-if="controlType === 'textarea'">
@@ -293,7 +267,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { FormControl, FileUploader, Button, Tooltip, TextEditor, Rating, TimePicker, DatePicker, DateTimePicker } from 'frappe-ui'
+import { FormControl, FileUploader, Button, Tooltip, TextEditor, Rating, TimePicker, DatePicker, DateTimePicker, MultiSelect } from 'frappe-ui'
 import LucideIcon from '@/components/LucideIcon.vue'
 import LinkField from '@/components/LinkField.vue'
 import TableMultiSelectField from '@/components/TableMultiSelectField.vue'
@@ -463,11 +437,6 @@ const dynamicLinkField = computed(() => ({ ...props.field, options: dynamicLinkD
 // `.like-disabled-input` convention. A thin border keeps every disabled
 // control visible even against a white page background.
 const choiceOptions = computed(() => (props.field.options || '').split('\n').map((o) => o.trim()).filter(Boolean))
-const toggleChoice = (o) => {
-  const cur = chosenChoices.value
-  const next = cur.includes(o) ? cur.filter((v) => v !== o) : choiceOptions.value.filter((v) => v === o || cur.includes(v))
-  emit('update:modelValue', next.join('\n'))
-}
 const chosenChoices = computed(() => String(props.modelValue || '').split('\n').map((v) => v.trim()).filter(Boolean))
 
 const isReadOnly = computed(() => !!props.field.read_only || props.readOnly)

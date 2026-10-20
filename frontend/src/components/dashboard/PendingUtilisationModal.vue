@@ -108,38 +108,46 @@
 </template>
 
 <style scoped>
-/* Same fix as DrillModal.vue - without this, frappe-ui's Dialog overlay
-scrolls the whole popup (header included) instead of just the table rows. */
-:deep(.dialog-content) {
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100vh - 2rem);
-}
-/* frappe-ui's DialogOverlay hardcodes overflow-y-auto on the outer
-fixed wrapper - .dialog-content above already caps its own height, so the
-overlay's own overflow must be disabled too or it silently takes over as
-the scroll surface whenever this modal's content is briefly taller than
-expected, scrolling the whole popup instead of just .pending-util-scroll. */
-:deep(.dialog-overlay) {
-  overflow: hidden;
-}
-:deep(.dialog-content.max-w-7xl) {
-  max-width: 90rem;
-}
-:deep(.dialog-content > div:first-child),
-:deep(.dialog-content > div:first-child > .flex),
-:deep(.dialog-content > div:first-child > .flex > .flex-1) {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-}
+/* Only rules reaching this component's OWN rendered content belong here -
+see the global block below for why frappe-ui's own wrapper elements can't
+be reached with :deep() at all once reka-ui's DialogPortal teleports them
+to document.body. */
 .pending-util-body {
   min-height: 0;
   flex: 1;
 }
 .pending-util-scroll {
   overscroll-behavior: contain;
+}
+</style>
+
+<style>
+/* See DrillModal.vue's identical global block for the full reasoning:
+reka-ui's DialogPortal teleports the dialog's overlay+content out to
+document.body, outside this component's own DOM, so a scoped
+:deep(.dialog-overlay)/:deep(.dialog-content) rule never matches (confirmed
+live - the built CSS looked correct but getComputedStyle on the real
+element showed none of it applied). These plain global rules reach the
+teleported DOM fine; :has() scopes them to only the dialog hosting THIS
+modal's own .pending-util-body, leaving any other Dialog in the app alone. */
+.dialog-overlay:has(.pending-util-body) {
+  overflow: hidden;
+}
+.dialog-overlay:has(.pending-util-body) .dialog-content {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+}
+.dialog-overlay:has(.pending-util-body) .dialog-content.max-w-7xl {
+  max-width: 90rem;
+}
+.dialog-overlay:has(.pending-util-body) .dialog-content > div:first-child,
+.dialog-overlay:has(.pending-util-body) .dialog-content > div:first-child > .flex,
+.dialog-overlay:has(.pending-util-body) .dialog-content > div:first-child > .flex > .flex-1 {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
 }
 </style>
 

@@ -282,55 +282,58 @@
 </template>
 
 <style scoped>
-/* frappe-ui's Dialog only caps DialogContent's height implicitly (its own
-my-8 margin inside an overflow-y-auto overlay) - on a short viewport
-(mobile) the whole dialog, header included, scrolls as one block instead of
-staying put while just the data below it scrolls. Capping dialog-content's
-own height and making it a flex column lets the header (outside
-.drill-scroll) stay fixed while only .drill-scroll's content moves. */
-:deep(.dialog-content) {
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100vh - 2rem);
-}
-/* frappe-ui's DialogOverlay hardcodes overflow-y-auto on the outer
-fixed full-screen wrapper (see Dialog.vue) - .dialog-content above already
-caps its own height and this component's own .drill-scroll is the one
-inner area meant to scroll, so the overlay's overflow should never need
-to engage. But when it does (content briefly taller than expected, a
-reflow before .drill-scroll's own overflow fully clips), the overlay - not
-.drill-scroll - becomes the active scroll surface, and since the overlay
-IS the full-screen backdrop, that reads as "the whole popup scrolled"
-instead of just the table rows. Disabling it here forces .drill-scroll to
-be the only scrollable area, matching the desk dashboard's equivalent
-drill-down modal fix (.cbd-dw in creche_dashboard.js). */
-:deep(.dialog-overlay) {
-  overflow: hidden;
-}
-/* A little wider than frappe-ui's own max-w-7xl preset (its widest step) -
-there's no larger size option to switch to, so this stretches the same
-preset further instead. */
-:deep(.dialog-content.max-w-7xl) {
-  max-width: 90rem;
-}
-/* bg-surface-modal wrapper -> its .flex row (single child) -> .w-full.flex-1
-(holds the title bar, then our #body-content slot) - each needs to become a
-flex column with min-height:0 in turn, or flex:1 on drill-modal-body further
-down has nothing to actually grow/shrink within. */
-:deep(.dialog-content > div:first-child),
-:deep(.dialog-content > div:first-child > .flex),
-:deep(.dialog-content > div:first-child > .flex > .flex-1) {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-}
+/* Only rules that stay within DrillModal.vue's OWN rendered content (the
+#body-content slot and everything inside it) belong here. .drill-modal-body
+itself keeps DrillModal.vue's scope attribute even once reka-ui's
+DialogPortal teleports the whole dialog out to document.body (Vue slot
+content is scoped to the component that WROTE the slot template, not the
+one hosting it) - see the global block below for why frappe-ui's own
+wrapper elements (.dialog-overlay, .dialog-content) can't be reached from
+here at all. */
 .drill-modal-body {
   min-height: 0;
   flex: 1;
 }
 .drill-scroll {
   overscroll-behavior: contain;
+}
+</style>
+
+<style>
+/* frappe-ui's Dialog (reka-ui's DialogPortal under it) teleports its whole
+overlay+content subtree straight to document.body, outside this component's
+own DOM entirely - a scoped :deep(.dialog-overlay)/:deep(.dialog-content)
+rule compiles to `[data-v-this-component] .dialog-overlay`, but a teleported
+node never ends up inside anything carrying this component's scope
+attribute, so those rules silently never match (confirmed live: an earlier
+:deep() version of this fix produced a built CSS rule that looked correct
+but getComputedStyle on the actual element showed none of it took effect -
+not a build/minification/deploy issue, a fundamental scoped-:deep()-vs-
+Teleport gap). Plain global rules reach the teleported DOM fine since it's
+still real document content - :has() scopes them to only the dialogs that
+actually host THIS modal's own .drill-modal-body (reached from here because
+it keeps DrillModal.vue's own scope attribute - see the <style scoped>
+block above), so a plain confirm/form Dialog elsewhere in the app that
+still wants the overlay's own natural scroll on a short viewport is
+untouched. */
+.dialog-overlay:has(.drill-modal-body) {
+  overflow: hidden;
+}
+.dialog-overlay:has(.drill-modal-body) .dialog-content {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+}
+.dialog-overlay:has(.drill-modal-body) .dialog-content.max-w-7xl {
+  max-width: 90rem;
+}
+.dialog-overlay:has(.drill-modal-body) .dialog-content > div:first-child,
+.dialog-overlay:has(.drill-modal-body) .dialog-content > div:first-child > .flex,
+.dialog-overlay:has(.drill-modal-body) .dialog-content > div:first-child > .flex > .flex-1 {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
 }
 </style>
 

@@ -9,15 +9,19 @@ OR one of the handful of built-in Vue pages that aren't doctype-backed
 
 import frappe
 
-# The slug <-> doctype map every generic list/form route resolves against -
-# mirrors frontend/src/data/doctypeRoutes.js's DOCTYPE_ROUTES exactly (and
-# creche_reports.ai.data_service's APP_FRONTEND_DOCTYPES, which is the same
-# doctype set for the same reason: these are the only doctypes this app's
-# Vue frontend actually has a page for). Kept here, not imported from one
-# shared place, for the same reason those two already duplicate it rather
-# than import from each other: a plain Python dict a human can read
-# top-to-bottom beats a cross-module import graph for a list this short and
-# this rarely changed - see data_service.py's own comment for the precedent.
+# Slugs for the 6 doctypes this app shipped with BEFORE the generic
+# Sidebar-Item-driven resolution below existed - kept exact (not re-derived
+# via _slug_for_doctype's scrub, which would rename 2 of these: "Creche
+# Caregiver Salary and Benefits" would scrub to
+# "creche-caregiver-salary-and-benefits", not "caregiver-salary", and
+# "Creche Reminder Settings" to "creche-reminder-settings", not
+# "reminder-settings") so URLs bookmarked/shared before this change, and any
+# other app code still assuming these exact strings, keep working unchanged.
+# Still mirrored (not imported) by creche_reports.ai.data_service's
+# APP_FRONTEND_DOCTYPES, which is a DIFFERENT, deliberately-separate
+# allowlist - that one gates what an external LLM may read, not what a
+# Sidebar Item can route to, so it must stay admin-curated even now that
+# this module's own routing is no longer a fixed list.
 ROUTE_BY_DOCTYPE = {
 	"Creche Budget": "creche-budget",
 	"Creche utilisation": "creche-utilisation",
@@ -26,7 +30,69 @@ ROUTE_BY_DOCTYPE = {
 	"Creche Partners": "creche-partners",
 	"Creche Reminder Settings": "reminder-settings",
 }
-ROUTABLE_DOCTYPES = set(ROUTE_BY_DOCTYPE)
+
+
+def _slug_for_doctype(doctype):
+	"""The URL slug a doctype's generic list/form page resolves against - one
+	of the 6 pinned legacy slugs above if this doctype is one of them,
+	otherwise derived the same way janadhikara's own App Module Setting
+	does (frappe.scrub -> kebab-case), so ANY doctype an admin points a
+	Sidebar Item's Target Doctype at (not just the original 6) gets a
+	working route instead of the dead link ROUTE_BY_DOCTYPE.get() used to
+	produce for anything outside that fixed map."""
+	if doctype in ROUTE_BY_DOCTYPE:
+		return ROUTE_BY_DOCTYPE[doctype]
+	return frappe.scrub(doctype).replace("_", "-")
+
+
+def _configured_target_doctypes():
+	"""Every target_doctype an ENABLED Sidebar Item (top-level or nested in a
+	group's Group Items List) actually points at - this is this app's own
+	analogue of janadhikara's App Module Setting "doctypes" list: an admin
+	adds a doctype to the nav by creating/editing a Sidebar Item record in
+	Desk, and that alone is what makes it routable/searchable here, not a
+	code change. Not user- or role-filtered (unlike get_sidebar_items()) -
+	callers needing that (global_search) apply frappe.has_permission
+	themselves per-hit, same as before this was dynamic."""
+	top_level = frappe.get_all("Sidebar Item", filters={"enabled": 1}, pluck="target_doctype")
+	nested = frappe.get_all(
+		"Sidebar Item Child",
+		filters={"enabled": 1, "parenttype": "Sidebar Item", "parentfield": "group_items"},
+		pluck="target_doctype",
+	)
+	return {d for d in (*top_level, *nested) if d}
+
+
+def _routable_doctypes():
+	"""{slug: doctype} for every doctype currently configured in the nav
+	(see _configured_target_doctypes), PLUS the 6 legacy ones even if no
+	Sidebar Item currently references them - they were always routable
+	before this became dynamic, and a page/report (Budget Utilisation
+	Report, the import templates) or a Link field pointing at e.g. Creche
+	Budget shouldn't go dead just because no Sidebar Item happens to
+	reference it as a nav entry right now."""
+	doctypes = _configured_target_doctypes() | set(ROUTE_BY_DOCTYPE)
+	return {_slug_for_doctype(d): d for d in doctypes}
+
+
+@frappe.whitelist()
+def get_routable_doctypes():
+	"""The frontend's one source of truth for resolving /:doctypeRoute (see
+	router.js) and for routeSlugForDoctype (LinkField's "open" button,
+	ConnectionsPanel, the AI assistant's navigate action) - replaces the
+	static DOCTYPE_ROUTES JS map with this live, admin-configurable list.
+	Returns every doctype this call is ALLOWED to see (frappe.has_permission
+	read) among the ones configured, not just every configured one - picking
+	"Data Import" as a Sidebar Item's Target Doctype, say, only makes it
+	navigable for users who can actually read Data Import, same bar
+	get_sidebar_items() already applies to the nav entry itself."""
+	user = frappe.session.user
+	return {
+		slug: doctype
+		for slug, doctype in _routable_doctypes().items()
+		if frappe.has_permission(doctype, "read", user=user)
+	}
+
 
 # The handful of built-in Vue pages that aren't a generic doctype list/form -
 # Sidebar Item's (and Sidebar Item Child's) own `page_route` Select field
@@ -79,7 +145,7 @@ def global_search(query, limit=10):
 	"""Backs the sidebar's search box - Frappe's own global search
 	(frappe.utils.global_search.search), the same full-text index behind
 	desk's awesome bar, already permission-scoped to what the signed-in user
-	can read. Narrowed to ROUTABLE_DOCTYPES only: a hit in some other
+	can read. Narrowed to _routable_doctypes() only: a hit in some other
 	doctype this app's Vue frontend has no page for would have nowhere to
 	actually send the user. One unscoped call (not one per doctype) - Frappe's
 	own search() already searches across every allowed doctype in a single
@@ -91,16 +157,17 @@ def global_search(query, limit=10):
 		return []
 
 	limit = int(limit)
+	route_by_doctype = {d: s for s, d in _routable_doctypes().items()}
 	hits = _frappe_global_search(query, limit=limit * 3)
 	out = []
 	for hit in hits:
-		if hit["doctype"] not in ROUTABLE_DOCTYPES:
+		if hit["doctype"] not in route_by_doctype:
 			continue
 		out.append({
 			"doctype": hit["doctype"],
 			"name": hit["name"],
 			"title": hit.get("title") or hit["name"],
-			"route": ROUTE_BY_DOCTYPE[hit["doctype"]],
+			"route": route_by_doctype[hit["doctype"]],
 		})
 		if len(out) >= limit:
 			break
@@ -148,7 +215,7 @@ def _leaf_shape(item_name, target_doctype, icon, page_route=None):
 		"doctype": target_doctype,
 		"label": item_name,
 		"icon": icon or DEFAULT_ICON,
-		"route": ROUTE_BY_DOCTYPE.get(target_doctype),
+		"route": _slug_for_doctype(target_doctype) if target_doctype else None,
 	}
 
 

@@ -1,7 +1,7 @@
 <template>
   <!-- Trigger button lives in AppSidebar.vue's footer (above the user
   details, labeled so it's clear what it opens). -->
-  <Dialog v-model="show" :options="{ size: '6xl', title: 'ai-assistant' }">
+  <Dialog v-model="show" :options="{ size: '7xl', title: 'ai-assistant' }">
     <template #body>
       <div class="ai-assistant-panel flex flex-col">
         <div
@@ -97,25 +97,51 @@ above lets these overrides target only this dialog instance. */
 fixed chrome, not just the default stacking order. */
 [data-dialog='ai-assistant'].dialog-overlay {
   z-index: 1050;
+  /* frappe-ui's DialogOverlay hardcodes overflow-y-auto on this outer
+  fixed full-screen wrapper (see node_modules/frappe-ui's Dialog.vue) -
+  .ai-assistant-panel below already caps its own height and .messagesRef
+  (below) is the one inner area meant to scroll, so the overlay's own
+  overflow should never need to engage. When it does (the panel's actual
+  content briefly exceeds its max-height, a reflow before the inner
+  overflow-y-auto fully clips), the overlay - not the messages list -
+  becomes the active scroll surface, and since it's the full-screen
+  backdrop, that reads as "the whole popup scrolled top to bottom" instead
+  of just the conversation. Same fix as the dashboard drill-down modals'
+  own .dialog-overlay override (DrillModal.vue etc). */
+  overflow: hidden;
 }
 
 /* frappe-ui's DialogContent wraps this panel with `my-8` (2rem top + 2rem
 bottom) inside an overlay that is itself `overflow-y-auto` and centers its
 content vertically via `justify-center` - but only when the content is
 short enough to actually leave room to center *within*. A near-viewport-
-height panel (58rem, previously) left no slack for that, so it just sat
-pinned under the top margin instead of centered, and on shorter windows
-its height plus the 4rem margin together exceeded the viewport entirely,
-making the *overlay* scroll (it fills the whole screen, so that reads as
-"the whole page scrolled" even though it's only this dialog's own
-wrapper). A smaller fixed height leaves room on typical screens for
-justify-center to actually center the dialog, and max-height still caps
-it (reserving the 4rem margin) so it degrades gracefully on short
-windows instead of ever forcing the overlay to scroll. */
+height panel left no slack for that, so it just sat pinned under the top
+margin instead of centered, and on shorter windows its height plus the
+4rem margin together exceeded the viewport entirely, making the *overlay*
+scroll (it fills the whole screen, so that reads as "the whole page
+scrolled" even though it's only this dialog's own wrapper). A fixed height
+below the viewport leaves room on typical screens for justify-center to
+actually center the dialog, and max-height still caps it (reserving the
+4rem margin) so it degrades gracefully on short windows instead of ever
+forcing the overlay to scroll. */
 .ai-assistant-panel {
   width: 100%;
-  height: 52rem;
+  height: 48rem;
   max-height: calc(100vh - 4rem);
+  overflow: hidden;
+}
+/* frappe-ui's own max-w-7xl preset (80rem) is its widest step - stretched
+further here, same technique as the dashboard drill-down modals. */
+[data-dialog='ai-assistant'] .dialog-content.max-w-7xl {
+  max-width: 90rem;
+}
+/* Belt-and-braces alongside .dialog-overlay's overflow:hidden above:
+.dialog-content is this dialog's own direct wrapper around
+.ai-assistant-panel, so capping its height here too means neither layer can
+grow past the viewport and become a second scrollable surface of its own. */
+[data-dialog='ai-assistant'] .dialog-content {
+  max-height: calc(100vh - 4rem);
+  overflow: hidden;
 }
 
 /* Width-only breakpoints miss short/landscape phones (e.g. 844x390) - a

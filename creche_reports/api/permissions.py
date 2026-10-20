@@ -25,9 +25,18 @@ PERMISSION_DOCTYPE_MAP: dict[str, str] = {
 }
 
 
+UNRESTRICTED_ROLES = {"System Manager", "Creche Finance Head"}
+
+
 def is_unrestricted_user(user: Optional[str] = None) -> bool:
+    """Administrator, System Manager, or Creche Finance Head see every
+    partner/budget/state/district/block regardless of User Permission
+    records - these roles are meant to oversee the whole program, not just
+    whatever a partner/state/etc. scoping happens to be assigned to them.
+    Every other role is scoped down to its explicit User Permission grants
+    (or sees nothing scoped, if it has none) via get_permission_scope()."""
     user = user or frappe.session.user
-    return user == "Administrator" or "System Manager" in frappe.get_roles(user)
+    return user == "Administrator" or bool(UNRESTRICTED_ROLES & set(frappe.get_roles(user)))
 
 
 def get_permitted_values(doctype: str, user: Optional[str] = None) -> Optional[list[str]]:

@@ -27,7 +27,6 @@ import { useRoute } from 'vue-router'
 import { Breadcrumbs, Button } from 'frappe-ui'
 import { currentTheme } from '@/data/theme'
 import { pageTitle } from '@/data/pageTitle'
-import { DOCTYPE_ROUTES } from '@/data/doctypeRoutes'
 
 const route = useRoute()
 
@@ -54,7 +53,10 @@ const title = computed(() => pageTitle.value || ROUTE_LABELS[route.name] || rout
 // Dashboard is the landing page, so it gets no trail at all (just its own
 // title, same as every other route's final crumb).
 const breadcrumbItems = computed(() => {
-  const doctype = route.params.doctypeRoute ? DOCTYPE_ROUTES[route.params.doctypeRoute] : null
+  // Already resolved by router.js's beforeEach guard before this route ever
+  // renders - reading it here instead of re-deriving from the routable-
+  // doctypes map avoids a second lookup for a value already settled.
+  const doctype = route.meta.resolvedDoctype || null
 
   if (route.name === 'Dashboard') {
     return [{ label: 'Dashboard' }]

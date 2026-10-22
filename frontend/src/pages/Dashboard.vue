@@ -52,15 +52,15 @@
             v-for="tile in overviewTiles"
             :key="tile.key"
             type="button"
-            class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white p-2.5 text-left hover:shadow-sm dark:border-gray-800 dark:bg-gray-900"
+            class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white p-2 text-left hover:shadow-sm dark:border-gray-800 dark:bg-gray-900"
             @click="openOverviewModal(tile.key)"
           >
-            <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full" :class="tile.theme.bg">
-              <LucideIcon :name="tile.theme.icon" class="h-5 w-5" :class="tile.theme.text" />
+            <span class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" :class="tile.theme.bg">
+              <LucideIcon :name="tile.theme.icon" class="h-4 w-4" :class="tile.theme.text" />
             </span>
             <span class="min-w-0">
-              <p class="truncate text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ tile.label }}</p>
-              <p class="mt-0.5 text-lg font-semibold" :class="tile.theme.text">{{ tile.value }}</p>
+              <p class="truncate text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ tile.label }}</p>
+              <p class="mt-0.5 text-base font-semibold" :class="tile.theme.text">{{ tile.value }}</p>
             </span>
           </button>
         </div>
@@ -132,6 +132,7 @@
               subtitle="Click to view the list"
               tone="good"
               icon="award"
+              is-count
               @click="showPartnersThreshold = true"
             />
             <SummaryCard
@@ -140,6 +141,7 @@
               :value="0"
               subtitle="Loading…"
               icon="clock"
+              is-count
             />
             <SummaryCard
               v-else
@@ -148,6 +150,7 @@
               :subtitle="`${pendingPartnerCount} partners — through ${pendingThroughLabel}`"
               :tone="pendingPartnerCount > 0 ? 'warn' : 'good'"
               icon="clock"
+              is-count
               @click="showPendingUtil = true"
             />
           </div>

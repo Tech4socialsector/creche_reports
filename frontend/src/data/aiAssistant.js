@@ -58,7 +58,14 @@ const jobResultCall = useCall({
 const POLL_INTERVAL_START_MS = 1000
 const POLL_INTERVAL_MAX_MS = 5000
 const POLL_BACKOFF_FACTOR = 1.4
-const POLL_TIMEOUT_MS = 90_000
+// Must stay above the backend's own real worst case
+// (creche_reports.ai.assistant's REQUEST_TIMEOUT_SECONDS *
+// (MAX_TOOL_ITERATIONS + 1), ~330s at current values) - a multi-doctype
+// question (e.g. a partner-wise budget/disbursement/utilisation report)
+// can legitimately need several sequential tool round trips, and giving up
+// here before the job could ever actually finish abandons a request that
+// was still correctly working server-side.
+const POLL_TIMEOUT_MS = 360_000
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))

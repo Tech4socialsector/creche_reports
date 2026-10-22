@@ -49,13 +49,12 @@
               <th class="px-3 py-2 font-medium">Budget Reference</th>
               <th class="px-3 py-2 text-right font-medium text-amber-700 dark:text-amber-400">Months Pending</th>
               <th class="px-3 py-2 font-medium">Months</th>
-              <th class="px-3 py-2 font-medium">Email</th>
               <th class="px-3 py-2 font-medium">Action</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
             <tr v-if="!filteredPartners.length">
-              <td colspan="7" class="px-3 py-6 text-center text-gray-500 dark:text-gray-400">
+              <td colspan="6" class="px-3 py-6 text-center text-gray-500 dark:text-gray-400">
                 No results for '{{ searchQuery }}'
               </td>
             </tr>
@@ -83,12 +82,9 @@
                         ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                         : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'"
                     >
-                      {{ m.month }}<span v-if="m.year"> ({{ m.year }})</span><span v-if="m.days_overdue > 0" class="ml-1 font-semibold">· {{ m.days_overdue }}d</span>
+                      {{ shortMonth(m.month) }}<span v-if="m.year"> ({{ m.year }})</span><span v-if="m.days_overdue > 0" class="ml-1 font-semibold">· {{ m.days_overdue }}d</span>
                     </span>
                   </div>
-                </td>
-                <td v-if="bi === 0" :rowspan="p.budgets.length" class="px-3 py-2 align-top text-gray-600 dark:text-gray-400">
-                  {{ p.email || '—' }}
                 </td>
                 <td v-if="bi === 0" :rowspan="p.budgets.length" class="px-3 py-2 align-top">
                   <Tooltip :text="p.email ? 'Send a reminder email' : 'No email on file for this partner'">
@@ -197,6 +193,15 @@ const displayCutoff = computed(() => {
   const now = new Date()
   return new Date(now.getFullYear(), now.getMonth(), 5)
 })
+
+// The backend sends full month names ("September") - kept as-is for the
+// email body and Excel export below (where the full word reads better), but
+// shortened to 3 letters for the on-screen pills so a budget with several
+// missing months doesn't force the Months column wider than the table has
+// room for.
+function shortMonth(month) {
+  return (month || '').slice(0, 3)
+}
 
 const { searchQuery, filteredRows: filteredPartners } = useTableSearch(
   () => props.partners,

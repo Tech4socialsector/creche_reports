@@ -45,13 +45,6 @@ def _apply_budget_permission_scope(filters: dict) -> dict:
     return perm.apply_budget_id_scope(filters, column="name")
 
 
-def _permitted_budget_names(filters: dict) -> Optional[list[str]]:
-    """Resolve the Creche Budget docnames matching `filters` (already
-    permission-scoped) — used to then scope Creche Disbursement / Creche
-    utilisation queries via budget_reference_id."""
-    return frappe.get_all("Creche Budget", filters=filters, pluck="name")
-
-
 def _assert_permitted(field: str, value: Optional[str]) -> None:
     """Raise PermissionError if `value` is outside the current user's permitted
     financial_year (the one scoped field not covered by the shared partner/

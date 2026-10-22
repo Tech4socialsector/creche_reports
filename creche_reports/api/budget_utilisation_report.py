@@ -38,15 +38,6 @@ def _assert_report_access(user=None):
 
 
 @frappe.whitelist()
-def get_report_access():
-	"""Cheap check the sidebar/home tile can use to decide whether to show a
-	link to this report at all, without triggering the (possibly large)
-	report query itself."""
-	user_roles = set(frappe.get_roles())
-	return {"allowed": bool(REPORT_ROLES & user_roles)}
-
-
-@frappe.whitelist()
 def get_report_data(filters=None):
 	_assert_report_access()
 	if isinstance(filters, str):

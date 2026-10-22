@@ -130,22 +130,23 @@ forcing the overlay to scroll. */
   max-height: calc(100vh - 4rem);
   overflow: hidden;
 }
-/* frappe-ui's own max-w-7xl preset (80rem) is its widest step - stretched
-further here, same technique as the dashboard drill-down modals. 90rem
-(1440px) comfortably fits a 1920px+ unscaled desktop, but Windows' own
-125%/150% display scaling (the common laptop default) reports a smaller
-effective window width in CSS pixels even on a physically large screen - a
-dialog still asking for 90rem there has less room than it expects, reading
-as "too big for my screen" even though nothing is actually broken. The
+/* frappe-ui's own max-w-7xl preset (80rem) is its widest step - frappe-ui's
+own preset is actually narrower than this, so max-w-7xl never applies on
+its own; this rule overrides it down further still. 65rem (1040px) is a
+comfortably compact chat width (most of the panel's own content - a single
+message column, not a wide table - never needed the extra room anyway),
+and still leaves slack before Windows' own 125%/150% display scaling (the
+common laptop default, reporting a smaller effective window width in CSS
+pixels even on a physically large screen) would make it feel cramped. The
 intermediate step below keeps the panel comfortably within a scaled
-laptop's real viewport instead of jumping straight from the full 90rem
+laptop's real viewport instead of jumping straight from the base width
 down to the 639px mobile full-screen breakpoint further down. */
 [data-dialog='ai-assistant'] .dialog-content.max-w-7xl {
-  max-width: 90rem;
+  max-width: 65rem;
 }
 @media (max-width: 1600px) {
   [data-dialog='ai-assistant'] .dialog-content.max-w-7xl {
-    max-width: 68rem;
+    max-width: 52rem;
   }
 }
 /* Belt-and-braces alongside .dialog-overlay's overflow:hidden above:
@@ -177,6 +178,20 @@ breathe at that height either. */
     max-height: none;
   }
 }
+
+/* The browser default <mark> (solid yellow bg, black text) ignores dark mode
+and clashes with this app's own accent palette - amber here matches the
+"needs attention" tone the system prompt uses it for (overdue reports,
+mismatches), same hue family as the dashboard's own warn-state badges. */
+.ai-assistant-panel mark {
+  border-radius: 0.25rem;
+  background-color: rgb(252 211 77 / 0.35);
+  padding: 0 0.15rem;
+  color: inherit;
+}
+:root.dark .ai-assistant-panel mark {
+  background-color: rgb(217 119 6 / 0.35);
+}
 </style>
 
 <script setup>
@@ -205,17 +220,20 @@ const sendError = ref(null)
 const botName = computed(() => assistantConfigResource.data?.bot_name || 'Assistant')
 
 // The assistant's own system prompt tells it to bold a count/total with
-// **this** markdown syntax, but this chat only ever rendered plain text -
-// not a full markdown renderer (no new dependency, no markdown syntax
-// beyond the one thing the prompt actually asks for), just **bold**
-// support: escape everything first so the message's own text can never
-// inject HTML, then turn the (now HTML-safe) **pairs** into <strong> tags.
+// **this** markdown syntax and flag something that needs attention (an
+// overdue report, a balance mismatch) with ==this== one - but this chat only
+// ever rendered plain text, not a full markdown renderer (no new dependency,
+// no markdown syntax beyond the two things the prompt actually asks for).
+// Escape everything first so the message's own text can never inject HTML,
+// then turn the (now HTML-safe) **pairs**/==pairs== into <strong>/<mark>.
 function renderBold(text) {
   const escaped = String(text ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-  return escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  return escaped
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/==([^=]+)==/g, '<mark>$1</mark>')
 }
 
 const show = computed({

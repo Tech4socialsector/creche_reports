@@ -84,9 +84,13 @@
 instance, so a sub-item's label is styled from here instead, via its own
 rendered DOM - one step lighter/smaller than the group header's own
 text-base font-medium text-ink-gray-8 above, completing the "main item vs
-sub item" hierarchy the header alone can't express by itself. */
+sub item" hierarchy the header alone can't express by itself. 0.8125rem
+(not text-sm's own 0.875rem) to match AppSidebar.vue's own global
+.nav-scroll .text-sm override - this rule's higher specificity
+(:deep(span.text-sm) beats a plain two-class selector) would otherwise win
+over that global rule and leave sub-items at the old, larger size. */
 .sub-item :deep(span.text-sm) {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: var(--ink-gray-6, #525252);
 }
 </style>

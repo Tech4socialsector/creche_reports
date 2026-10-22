@@ -22,7 +22,7 @@
               <img
                 v-if="appLogo && !collapsed"
                 :src="appLogo"
-                class="h-8 max-w-[11rem] flex-shrink-0 object-contain object-left"
+                class="h-8 max-w-[4.5rem] flex-shrink-0 object-contain object-left"
                 alt="App logo"
                 @click.stop="goHome"
               />
@@ -40,9 +40,17 @@
                 <!-- The app's own name, distinct from the account row below
                 it (the signed-in user) - the branding button shows both,
                 same as it did before the header was widened for the
-                wordmark logo. -->
-                <div class="truncate text-sm font-medium text-ink-gray-8 leading-none">{{ appName }}</div>
-                <div class="mt-1 truncate text-xs text-ink-gray-5 leading-none">{{ session.full_name || session.user }}</div>
+                wordmark logo. Single line, truncated with an ellipsis if it
+                doesn't fit (not wrapped to two lines) - a one-line header
+                keeps this row's height fixed/predictable rather than
+                varying with however long the configured app name happens to
+                be. The Tooltip (disabled unless actually truncated, same
+                convention frappe-ui's own SidebarItem uses for its nav
+                labels) still surfaces the full name on hover/long-press. -->
+                <Tooltip :text="appName" :disabled="!appNameTruncated" hover-delay="0.4">
+                  <div ref="appNameRef" class="truncate text-sm font-medium text-ink-gray-8 leading-none">{{ appName }}</div>
+                </Tooltip>
+                <div class="mt-1 truncate text-[11px] text-ink-gray-5 leading-none">{{ session.full_name || session.user }}</div>
               </div>
               <LucideIcon
                 name="chevron-down"
@@ -199,7 +207,12 @@ Reports") next to the logo/chevron in the header button, truncating it to
 "Creche Financ...". Widened just the expanded state here; the collapsed
 w-12 icon-only rail is untouched. MobileNav's embedded copy sizes itself
 with w-fit off this same element, so it picks up the new width too instead
-of needing a separate change there. */
+of needing a separate change there. 17rem is what the current app name
+("Creche Finance MIS") measured as actually needing - at its own text-sm
+(13px) size - to fit on one line with zero truncation, plus a small margin
+so small cross-browser font-rendering differences can't tip it back into
+an ellipsis. Narrower than that reintroduces the truncation this header is
+specifically trying to avoid. */
 .app-sidebar .w-60 {
   width: 17rem;
 }
@@ -220,13 +233,25 @@ mismatch is fundamentally about viewport vs. content width anyway, which a
 viewport media query already addresses directly. */
 @media (max-width: 1600px) {
   .app-sidebar .w-60 {
-    width: 15rem;
+    width: 12rem;
   }
 }
 @media (max-width: 1366px) {
   .app-sidebar .w-60 {
-    width: 13rem;
+    width: 11rem;
   }
+}
+
+/* frappe-ui's own SidebarItem.vue hardcodes text-sm (0.875rem) on every nav
+row's label with no size prop to configure it - this app's own nav list is
+mostly single-line doctype names (not long sentences), so a smaller size
+reads just as clearly while taking noticeably less of the now-narrower
+rail's width, matching SidebarGroupSection.vue's own sub-item/group-header
+sizing below. .nav-scroll scopes this to the actual nav rows only, not
+every other text-sm element elsewhere in the sidebar (Search/Help Desk
+labels, the Auditor card) which keep their original size. */
+.app-sidebar .nav-scroll .text-sm {
+  font-size: 0.8125rem;
 }
 
 /* frappe-ui's Sidebar.vue hardcodes overflow-y-auto on its own OUTER root
@@ -340,7 +365,7 @@ alert/error state on something that's just inviting a tap. */
 </style>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { breakpointsTailwind, useBreakpoints } from '@vueuse/core'
 import { Dropdown, KeyboardShortcut, Sidebar, SidebarItem, Tooltip } from 'frappe-ui'
@@ -364,6 +389,28 @@ const props = defineProps({
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
+
+// Drives the app-name Tooltip's :disabled above - only actually shows a
+// tooltip when the name is genuinely cut off by its own truncate class
+// (scrollWidth > clientWidth), not unconditionally on every hover. Checked
+// via ResizeObserver (not just once on mount) since the comparison can flip
+// either way after mount: the sidebar's own width changes at the
+// Windows-scaling breakpoints (see this file's own .w-60 media queries),
+// and collapsing/expanding the rail changes this element's width too.
+const appNameRef = ref(null)
+const appNameTruncated = ref(false)
+let appNameResizeObserver = null
+watch(appNameRef, (el) => {
+  appNameResizeObserver?.disconnect()
+  if (!el) return
+  const check = () => {
+    appNameTruncated.value = el.scrollWidth > el.clientWidth
+  }
+  appNameResizeObserver = new ResizeObserver(check)
+  appNameResizeObserver.observe(el)
+  check()
+})
+onBeforeUnmount(() => appNameResizeObserver?.disconnect())
 
 // frappe-ui's own Sidebar.vue computes this same thing internally as
 // `shouldCollapse` ((isCollapsed || isMobile) && !disableCollapse) and

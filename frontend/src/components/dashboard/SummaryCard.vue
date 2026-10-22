@@ -1,8 +1,8 @@
 <template>
-  <Tooltip :text="formatInrFull(value)">
+  <Tooltip :text="isCount ? Math.round(value).toLocaleString('en-IN') : formatInrFull(value)">
     <button
       type="button"
-      class="flex w-full flex-col rounded-xl border border-gray-200 bg-white p-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+      class="flex w-full flex-col rounded-xl border border-gray-200 bg-white p-2 text-left transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
       @click="$emit('click')"
     >
       <!-- items-start (not items-center) - a long label (e.g. "Partners with
@@ -10,14 +10,14 @@
       and center-aligning against that tall wrapped block left the icon
       floating awkwardly mid-block instead of sitting with the label's own
       first line, which is what items-start gives it. -->
-      <span class="flex items-start gap-2">
-        <span v-if="resolvedIcon" class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" :class="iconBgClass">
-          <LucideIcon :name="resolvedIcon" class="h-5 w-5" :class="valueClass" />
+      <span class="flex items-start gap-1.5">
+        <span v-if="resolvedIcon" class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full" :class="iconBgClass">
+          <LucideIcon :name="resolvedIcon" class="h-3.5 w-3.5" :class="valueClass" />
         </span>
-        <p class="pt-1 text-xs font-medium uppercase leading-snug tracking-wide text-gray-500 dark:text-gray-400">{{ label }}</p>
+        <p class="pt-0.5 text-[11px] font-bold uppercase leading-snug tracking-wide text-gray-500 dark:text-gray-400">{{ label }}</p>
       </span>
-      <p class="mt-0.5 text-xl font-semibold" :class="valueClass">{{ formatInr(value) }}</p>
-      <p class="mt-0.5 text-[11px]" :class="subtitleClass">{{ subtitle }}</p>
+      <p class="mt-0.5 text-base font-semibold" :class="valueClass">{{ isCount ? Math.round(value).toLocaleString('en-IN') : formatInr(value) }}</p>
+      <p class="mt-0.5 text-[10px]" :class="subtitleClass">{{ subtitle }}</p>
     </button>
   </Tooltip>
 </template>
@@ -35,6 +35,7 @@ const props = defineProps({
   tone: { type: String, default: 'neutral' }, // neutral | good | warn | bad
   metric: { type: String, default: '' }, // optional METRIC_THEME key for the card's own identity color
   icon: { type: String, default: '' }, // overrides the metric's own icon, for cards with no currency metric
+  isCount: { type: Boolean, default: false }, // a plain number (partners, records) - never ₹-formatted
 })
 defineEmits(['click'])
 

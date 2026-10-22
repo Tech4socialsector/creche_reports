@@ -6,10 +6,10 @@ import { openCommandPalette } from '@/data/commandPalette'
 // Admin-configurable keyboard shortcuts (see the "Keyboard Shortcut" doctype
 // and creche_reports.api.keyboard_shortcuts.get_shortcuts) - fetched once via
 // useCall, matching this app's existing data/*.js resource convention (see
-// data/reportAccess.js, data/sidebarItems.js), then registered as ONE global
-// keydown listener. Call useKeyboardShortcuts() exactly once, from the app's
-// root shell (AppLayout.vue) - calling it from multiple components would
-// register multiple competing listeners, each firing the same action once.
+// data/sidebarItems.js), then registered as ONE global keydown listener. Call
+// useKeyboardShortcuts() exactly once, from the app's root shell
+// (AppLayout.vue) - calling it from multiple components would register
+// multiple competing listeners, each firing the same action once.
 export const shortcutsResource = useCall({
   url: '/api/v2/method/creche_reports.api.keyboard_shortcuts.get_shortcuts',
   method: 'GET',

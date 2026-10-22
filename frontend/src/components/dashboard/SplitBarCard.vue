@@ -5,7 +5,7 @@
     @click="$emit('click')"
   >
     <div class="flex items-center justify-between gap-2">
-      <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ title }}</p>
+      <p class="text-sm font-bold text-gray-700 dark:text-gray-300">{{ title }}</p>
       <span class="text-base font-semibold" :style="{ color }">{{ pctLabel }}</span>
     </div>
 

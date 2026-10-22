@@ -33,6 +33,24 @@ def _text(value):
 	return "" if value is None else str(value)[:MAX_TEXT]
 
 
+def _cell_text(value):
+	# A dict/list cell silently str()'d would show the model's own internal
+	# tool-result structure verbatim to the user (e.g. "[{'name': 'CRP-00001',
+	# 'partner_name': 'Test One'}]" instead of just "Test One") - this
+	# happened in practice when the model passed a nested field straight
+	# through instead of picking out the one value the column needed.
+	# Rejecting it outright (rather than silently stringifying) surfaces a
+	# clear, actionable tool error back to the model so it can retry with the
+	# right scalar value, instead of a confusing result quietly reaching the
+	# user.
+	if isinstance(value, (dict, list, tuple)):
+		frappe.throw(
+			_("Each table cell must be a single value, not a list or object - pick out the specific field the column needs."),
+			frappe.ValidationError,
+		)
+	return _text(value)
+
+
 def add_table(title, columns, rows):
 	if not isinstance(columns, list) or not columns or len(columns) > MAX_TABLE_COLUMNS:
 		frappe.throw(_("A table needs between 1 and {0} columns.").format(MAX_TABLE_COLUMNS), frappe.ValidationError)
@@ -42,7 +60,7 @@ def add_table(title, columns, rows):
 	for row in rows[:MAX_TABLE_ROWS]:
 		if not isinstance(row, (list, tuple)):
 			frappe.throw(_("Each table row must be a list of cells."), frappe.ValidationError)
-		cells = [_text(cell) for cell in list(row)[: len(columns)]]
+		cells = [_cell_text(cell) for cell in list(row)[: len(columns)]]
 		clean_rows.append(cells + [""] * (len(columns) - len(cells)))
 	_blocks().append({"type": "table", "title": _text(title), "columns": [_text(c) for c in columns], "rows": clean_rows})
 	return {"ok": True, "shown": "table", "rows": len(clean_rows)}

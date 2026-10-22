@@ -11,7 +11,7 @@ a doctype available from the start, add it to SEED below.
 
 import frappe
 
-from creche_reports.ai.data_service import ALWAYS_BLOCKED, POLICY_CACHE_KEY
+from creche_reports.ai.data_service import ALWAYS_BLOCKED, POLICY_CACHE_KEY, _max_rows_hard
 
 # Modules whose doctypes get an auto-created (disabled-by-default) policy.
 # Deliberately excludes "Creche Child" - child-table doctypes get a policy
@@ -80,6 +80,7 @@ def seed_policies():
 	"""Create the policies above for doctypes that don't have one yet. Never
 	touches an existing policy, so an admin's edits survive."""
 	created = []
+	max_rows = _max_rows_hard()
 	for doctype, spec in SEED.items():
 		if frappe.db.exists("AI Data Policy", doctype) or not frappe.db.exists("DocType", doctype):
 			continue
@@ -90,8 +91,8 @@ def seed_policies():
 			"can_read": 1,
 			"can_write": spec.get("can_write", 0),
 			"include_child_tables": 1,
-			"max_rows": 20,
-			"description": "Seeded default - review before widening.",
+			"max_rows": max_rows,
+			"description": "Seeded default - review before narrowing.",
 			"field_rules": _rules([("Hidden", spec.get("hidden", {})), ("Read Only", spec.get("read_only", {}))]),
 		}).insert(ignore_permissions=True)
 		created.append(doctype)
@@ -110,10 +111,30 @@ def _create_disabled_policy(doctype):
 		"can_read": 1,
 		"can_write": 0,
 		"include_child_tables": 1,
-		"max_rows": 20,
+		"max_rows": _max_rows_hard(),
 		"description": "Created automatically with the doctype. The assistant cannot see it until a System Manager reviews it and turns it on.",
 	}).insert(ignore_permissions=True)
 	return True
+
+
+def widen_narrow_policies():
+	"""One-time migration fix: every policy created before App Setting had its
+	own configurable ceiling (ai_max_rows_per_request) was seeded with a flat
+	max_rows=20 - a value nobody chose deliberately, just this app's old
+	hardcoded default, and the actual cause of the assistant wrongly telling
+	users it could only show results "in smaller groups" even though nothing
+	about their role/permissions limited them that far. Widens any policy
+	still sitting at that old value up to the real ceiling; never touches a
+	policy an admin has already deliberately set to something else (including
+	a deliberately narrow value that happens to be higher than 20 but still
+	below the ceiling - this only catches the exact unexamined default)."""
+	updated = frappe.db.sql(
+		"update `tabAI Data Policy` set max_rows = %s where max_rows = 20",
+		(_max_rows_hard(),),
+	)
+	if updated:
+		frappe.cache().delete_value(POLICY_CACHE_KEY)
+	return updated
 
 
 def ensure_policies():

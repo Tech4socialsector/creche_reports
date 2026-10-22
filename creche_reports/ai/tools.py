@@ -215,9 +215,9 @@ TOOL_SCHEMAS = [
 			"parameters": {
 				"type": "object",
 				"properties": {
-					"title": {"type": "string"},
+					"title": {"type": "string", "description": "A specific, descriptive title - e.g. \"Partners Pending Utilisation Submission\", never a generic word like \"Table\" or \"Results\"."},
 					"columns": {"type": "array", "items": {"type": "string"}},
-					"rows": {"type": "array", "items": {"type": "array", "items": {}}, "description": "One list of cells per row, in column order."},
+					"rows": {"type": "array", "items": {"type": "array", "items": {}}, "description": "One list of cells per row, in column order. Each cell must be a single plain value (text or number) ready to display as-is - never a raw object, list or dict from a tool result. If a tool result field is itself a list of records (e.g. a parent's child rows), pick out the one specific value the column needs (e.g. partner_name) rather than putting the whole list/object in the cell."},
 				},
 				"required": ["title", "columns", "rows"],
 			},
@@ -231,7 +231,7 @@ TOOL_SCHEMAS = [
 			"parameters": {
 				"type": "object",
 				"properties": {
-					"title": {"type": "string"},
+					"title": {"type": "string", "description": "A specific, descriptive title - e.g. \"Disbursement vs Utilisation by Partner\", never a generic word like \"Chart\" or \"Data\"."},
 					"chart_type": {"type": "string", "enum": ["bar", "line", "pie", "donut"]},
 					"labels": {"type": "array", "items": {"type": "string"}, "description": "Category or x-axis labels (max 30). Use the human-readable name (partner_name, budget_reference_name, state, etc.), never a bare record ID like BGD-0087 or CRP-00011 - a label the viewer can't recognize at a glance defeats the point of a chart."},
 					"series": {

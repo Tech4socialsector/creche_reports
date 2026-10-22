@@ -53,9 +53,18 @@ scheduler_events = {
 # database, the same gap seed_policies already exists to close for AI Data
 # Policy records just above - a separately-deployed site never got either
 # without someone noticing and running it manually.
+#
+# widen_narrow_policies: one-time fix for every policy seeded before
+# max_rows became admin-configurable (App Setting.ai_max_rows_per_request) -
+# those were all created with a flat max_rows=20, which is what actually
+# caused the assistant to wrongly tell users it could only show "smaller
+# groups" of results even though nothing about their role/permissions
+# limited them that far. Safe to run on every migrate indefinitely: it only
+# ever touches a policy still sitting at that exact old default.
 after_migrate = [
 	"creche_reports.ai.policy.seed_policies",
 	"creche_reports.ai.policy.ensure_policies",
+	"creche_reports.ai.policy.widen_narrow_policies",
 	"creche_reports.ai.seed_guide.seed_guide",
 	"creche_reports.api.sidebar.ensure_global_search_doctypes",
 	"creche_reports.api.sidebar.ensure_default_sidebar_items",

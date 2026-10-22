@@ -8,7 +8,12 @@
       class="overflow-hidden rounded-xl border border-outline-gray-2 bg-surface-white"
     >
       <header class="flex items-center justify-between gap-2 border-b border-outline-gray-1 bg-surface-gray-1 px-3 py-2">
-        <h3 class="min-w-0 truncate text-sm font-semibold text-ink-gray-9">{{ block.title || (block.type === 'table' ? 'Table' : 'Chart') }}</h3>
+        <!-- No generic "Table"/"Chart" fallback label - that's not information,
+        just noise, when the model didn't give it a real title. The action
+        buttons alone (still right-aligned via justify-between/ml-auto on an
+        empty title slot) are enough chrome for an untitled block. -->
+        <h3 v-if="block.title" class="min-w-0 truncate text-sm font-semibold text-ink-gray-9">{{ block.title }}</h3>
+        <span v-else />
         <div class="flex flex-shrink-0 items-center gap-1">
           <Tooltip text="Download as CSV">
             <Button variant="ghost" size="sm" icon="lucide-download" @click="downloadCsv(block)" />

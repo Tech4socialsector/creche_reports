@@ -52,6 +52,13 @@ def get_dashboard_summary(filters=None):
 	return data_service.get_dashboard_summary(filters=filters)
 
 
+def get_line_items(budget_id, kind="utilisation", start_date=None, end_date=None, financial_year=None, month=None):
+	"""Month-by-month, expense-head-level detail within one budget - the
+	planned amount per head (kind="budget") or what was actually submitted
+	(kind="utilisation", the default)."""
+	return data_service.get_line_items(budget_id, kind=kind, start_date=start_date, end_date=end_date, financial_year=financial_year, month=month)
+
+
 def show_table(title, columns, rows):
 	"""Put a table into the chat for the user."""
 	return blocks.add_table(title, columns, rows)
@@ -91,6 +98,7 @@ TOOL_FUNCTIONS = {
 	"search_records": search_records,
 	"count_records": count_records,
 	"get_dashboard_summary": get_dashboard_summary,
+	"get_line_items": get_line_items,
 	"show_table": show_table,
 	"show_chart": show_chart,
 	"get_record": get_record,
@@ -180,8 +188,27 @@ TOOL_SCHEMAS = [
 	{
 		"type": "function",
 		"function": {
+			"name": "get_line_items",
+			"description": "Month-by-month, expense-head-level detail (caregiver salaries, rent, supplies, etc.) within ONE specific budget - the finest level of detail this app has, below the budget's own overall total_disbursement/total_utilisation figures. Use this whenever the question is about a specific expense head, a specific month, or \"what was this spent on\" rather than just the budget's one overall total (use get_dashboard_summary or search_records for that instead). kind=\"utilisation\" (default) is what was actually submitted that month; kind=\"budget\" is the originally planned amount for that head, spread evenly across its year. Returns {months: [...], rows: [{type_of_expenses, budget_main_head, budget_sub_head, monthly: {month: amount}, total, notes}]}.",
+			"parameters": {
+				"type": "object",
+				"properties": {
+					"budget_id": {"type": "string", "description": "The Creche Budget record name, e.g. BGD-0007."},
+					"kind": {"type": "string", "enum": ["utilisation", "budget"], "description": "\"utilisation\" for what was actually spent, \"budget\" for what was planned. Defaults to utilisation."},
+					"start_date": {"type": "string", "description": "Optional, narrows the months shown."},
+					"end_date": {"type": "string", "description": "Optional, narrows the months shown."},
+					"financial_year": {"type": "string", "description": 'Optional, e.g. "2025-26", narrows the months shown.'},
+					"month": {"type": "string", "description": 'Optional, a single month name (e.g. "June") to show only that one.'},
+				},
+				"required": ["budget_id"],
+			},
+		},
+	},
+	{
+		"type": "function",
+		"function": {
 			"name": "show_table",
-			"description": "Show a table to the user in the chat (max 100 rows, 8 columns). Use it when the user asks for a table, list or comparison, with data you got from the other tools. If a cell would hold a placeholder you received from a tool, put it in the cell exactly as it is. Do not repeat the table in your text reply; add one short sentence about it.",
+			"description": "Show a table to the user in the chat (max 100 rows, 8 columns). Use it when the user asks for a table, list or comparison, with data you got from the other tools. Include a human-readable name column (partner_name, budget_reference_name, etc.) alongside or instead of a bare record ID - a table of only BGD-0087/CRP-00011-style IDs tells the viewer nothing on its own. If a cell would hold a placeholder you received from a tool, put it in the cell exactly as it is. Call this tool instead of writing a markdown table (lines of text with | characters) in your reply - your text reply must never contain a | table, only this tool renders one. After calling it, your text reply should be one short sentence, not a repeat of the table.",
 			"parameters": {
 				"type": "object",
 				"properties": {
@@ -203,7 +230,7 @@ TOOL_SCHEMAS = [
 				"properties": {
 					"title": {"type": "string"},
 					"chart_type": {"type": "string", "enum": ["bar", "line", "pie", "donut"]},
-					"labels": {"type": "array", "items": {"type": "string"}, "description": "Category or x-axis labels (max 30)."},
+					"labels": {"type": "array", "items": {"type": "string"}, "description": "Category or x-axis labels (max 30). Use the human-readable name (partner_name, budget_reference_name, state, etc.), never a bare record ID like BGD-0087 or CRP-00011 - a label the viewer can't recognize at a glance defeats the point of a chart."},
 					"series": {
 						"type": "array",
 						"description": "Up to 4 series, each with a name and one number per label.",

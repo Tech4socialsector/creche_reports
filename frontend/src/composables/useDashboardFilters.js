@@ -92,24 +92,6 @@ export function useDashboardFilters(onFiltersChanged) {
     }),
     immediate: false,
   })
-  // budgetStatusOptions (below) is a fixed Active/Closed pair - always 2
-  // choices, so the "exactly one option -> auto-select it" rule can never
-  // fire off it alone. This instead fetches the REAL budget_status value(s)
-  // actually present among the currently-scoped budgets, the same way
-  // state/district/block do above, purely to tell whether that set happens
-  // to be all-one-status right now - the dropdown itself still always
-  // offers both Active and Closed to pick from manually.
-  const budgetStatusCall = useCall({
-    url: '/api/v2/document/Creche Budget',
-    method: 'GET',
-    params: () => ({
-      fields: JSON.stringify(['budget_status']),
-      filters: JSON.stringify(budgetFieldFilters()),
-      limit: 1000,
-    }),
-    immediate: false,
-  })
-
   function uniqueSorted(rows, key) {
     const vals = new Set()
     for (const r of rows || []) {
@@ -124,7 +106,6 @@ export function useDashboardFilters(onFiltersChanged) {
     stateCall.reload()
     districtCall.reload()
     blockCall.reload()
-    budgetStatusCall.reload()
   }
 
   async function init() {
@@ -218,13 +199,6 @@ export function useDashboardFilters(onFiltersChanged) {
   const stateOptions = computed(() => uniqueSorted(stateCall.data, 'state'))
   const districtOptions = computed(() => uniqueSorted(districtCall.data, 'district'))
   const blockOptions = computed(() => uniqueSorted(blockCall.data, 'block'))
-  // The REAL status value(s) present in the currently-scoped budgets - NOT
-  // what the Budget Status dropdown itself shows (that's the fixed
-  // budgetStatusOptions pair below, always both Active and Closed, since a
-  // user can always deliberately filter for either regardless of what the
-  // current selection happens to contain). Used only to drive
-  // autoSelectIfOnlyOption below.
-  const budgetStatusDynamicOptions = computed(() => uniqueSorted(budgetStatusCall.data, 'budget_status'))
 
   // When narrowing by a filter (e.g. picking a Partner) leaves one of these
   // dependent dropdowns with exactly one real choice, that choice is
@@ -251,7 +225,13 @@ export function useDashboardFilters(onFiltersChanged) {
   autoSelectIfOnlyOption('state', stateOptions)
   autoSelectIfOnlyOption('district', districtOptions)
   autoSelectIfOnlyOption('block', blockOptions)
-  autoSelectIfOnlyOption('budget_status', budgetStatusDynamicOptions)
+  // Budget Status is deliberately NOT auto-selected, unlike the dependent
+  // filters above: "Active" vs "Closed" is a meaningful distinction the user
+  // should choose explicitly (showing Active-only budgets by default would
+  // silently hide Closed ones from a dashboard view that's supposed to read
+  // "All statuses" until the user says otherwise), not an incidental
+  // narrowing side-effect of picking a Partner the way a single remaining
+  // Budget Reference or State is.
 
   // Picking a single Budget Reference pins down one specific budget, which
   // already has its own fixed start/end date on the Creche Budget record -
@@ -316,8 +296,7 @@ export function useDashboardFilters(onFiltersChanged) {
         grantIdCall.loading ||
         stateCall.loading ||
         districtCall.loading ||
-        blockCall.loading ||
-        budgetStatusCall.loading,
+        blockCall.loading,
     ),
   }
 }

@@ -1,5 +1,6 @@
 import { reactive, ref } from 'vue'
 import { useCall } from 'frappe-ui'
+import { refreshCsrfToken } from '@/composables/useCsrfToken'
 
 export const assistantState = reactive({
   visible: false,
@@ -71,41 +72,44 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// The system prompt tells the model to call show_table instead of writing a
+// markdown table itself, but a weaker/cheaper model (a cloud deployment may
+// point at a different one than local dev was tested against) doesn't always
+// follow that - it writes a plain "| col | col |" table straight into its
+// text reply instead, which then rendered as literal pipe characters since
+// this chat was never a markdown renderer. Detected and converted into the
+// same {type:'table', columns, rows} shape blocks.py's show_table itself
+// produces, so AiBlocks.vue renders it identically either way, and stripped
+// out of the text left behind so it isn't shown twice.
+const MARKDOWN_TABLE_RE = /^\|(.+)\|[ \t]*\n\|[ \t]*:?-{2,}:?[ \t]*(\|[ \t]*:?-{2,}:?[ \t]*)*\|[ \t]*\n((?:\|.*\|[ \t]*\n?)+)/m
+
+function splitOffMarkdownTable(text) {
+  const match = MARKDOWN_TABLE_RE.exec(text || '')
+  if (!match) return { content: text, block: null }
+
+  const splitRow = (line) =>
+    line
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((cell) => cell.trim())
+
+  const columns = splitRow(match[1])
+  const rows = match[3]
+    .trim()
+    .split('\n')
+    .map(splitRow)
+    .filter((row) => row.length)
+
+  const content = (text.slice(0, match.index) + text.slice(match.index + match[0].length)).trim()
+  return { content, block: { type: 'table', title: '', columns, rows } }
+}
+
 // A tiny reactive flag so the UI can show a "thinking" state across the
 // whole send-then-poll round trip, since sendMessageCall.loading alone only
 // covers the (near-instant) enqueue call.
 export const sending = reactive({ loading: false })
-
-// window.csrf_token is stamped once at initial page load and never
-// refreshed on its own - logging in elsewhere, a server restart, or the
-// session simply expiring can all reissue the session with a new CSRF
-// token server-side, so a POST made from a tab that has been open since
-// before that keeps sending the old one and gets rejected with
-// CSRFTokenError. Rather than wait for that 400 and react to it (which
-// depends on the error's shape round-tripping through useCall exactly as
-// expected, and still sends one guaranteed-to-fail request first), this
-// fetches the session's *current* token (api/common.py's get_csrf_token - a
-// GET, so it's exempt from CSRF validation itself) right before every send
-// and overwrites window.csrf_token with it - useFrappeFetch's beforeFetch
-// hook (see node_modules/frappe-ui/src/data-fetching/useFrappeFetch.ts's
-// setHeaders) reads window.csrf_token fresh on every request useCall makes,
-// so this guarantees the POST that follows always carries a token that
-// matches the live session, with no dependency on reload timing, on a
-// previous request having failed first, or on the server's error shape.
-async function refreshCsrfToken() {
-  try {
-    const res = await fetch('/api/v2/method/creche_reports.api.common.get_csrf_token', {
-      headers: { Accept: 'application/json' },
-    })
-    if (!res.ok) return null
-    const body = await res.json()
-    const token = body?.data ?? body?.message
-    if (token) window.csrf_token = token
-    return token || null
-  } catch {
-    return null
-  }
-}
 
 export async function sendAssistantMessage(message) {
   sending.loading = true
@@ -142,11 +146,14 @@ export async function sendAssistantMessage(message) {
       interval = Math.min(interval * POLL_BACKOFF_FACTOR, POLL_INTERVAL_MAX_MS)
     }
 
+    const { content, block } = splitOffMarkdownTable(result.reply)
+    const blocks = block ? [...(result.blocks || []), block] : result.blocks || []
+
     history.value = result.messages
     conversation.value = [
       ...conversation.value,
       { role: 'user', content: message },
-      { role: 'assistant', content: result.reply, blocks: result.blocks || [] },
+      { role: 'assistant', content, blocks },
     ]
     return result
   } finally {

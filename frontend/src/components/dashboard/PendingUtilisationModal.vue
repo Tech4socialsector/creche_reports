@@ -87,8 +87,8 @@
                   </div>
                 </td>
                 <td v-if="bi === 0" :rowspan="p.budgets.length" class="px-3 py-2 align-top">
-                  <Tooltip :text="p.email ? 'Send a reminder email' : 'No email on file for this partner'">
-                    <Button size="sm" variant="outline" icon-left="lucide-mail" :disabled="!p.email" aria-label="Send Email" @click="sendEmail(p)">
+                  <Tooltip :text="p.email ? 'Open a draft reminder email' : 'No email on file for this partner'">
+                    <Button size="sm" variant="solid" icon-left="lucide-send" :disabled="!p.email" aria-label="Send Email" @click="sendEmail(p)">
                       <span class="max-sm:hidden">Send Email</span>
                     </Button>
                   </Tooltip>
@@ -98,6 +98,39 @@
           </tbody>
         </table>
       </div>
+      </div>
+    </template>
+  </Dialog>
+
+  <!-- Shows the reminder as plain text to copy, instead of a mailto: link -
+  the dashboard has no way to know whether this machine/browser even has a
+  mail client registered to catch one, and on a machine with none (common on
+  a shared office desktop, or a server/VM accessed remotely) a mailto: link
+  just opens a blank tab with nothing in it and no indication anything went
+  wrong. This sends the email itself (same frappe.sendmail mechanism the
+  scheduled reminder in api/scheduler.py already uses), with the draft
+  editable here first so the user can adjust the wording before it goes. -->
+  <Dialog v-model="draftOpen" :options="{ title: 'Reminder Email', size: 'lg' }">
+    <template #body-content>
+      <div class="space-y-3">
+        <div>
+          <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">To</label>
+          <TextInput v-model="draft.to" type="email" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Subject</label>
+          <TextInput v-model="draft.subject" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Body</label>
+          <textarea
+            v-model="draft.body"
+            rows="8"
+            class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+          />
+        </div>
+        <ErrorMessage :message="sendError" />
+        <Button class="w-full" variant="solid" icon-left="lucide-send" :loading="sending" @click="confirmSend">Send</Button>
       </div>
     </template>
   </Dialog>
@@ -163,12 +196,13 @@ AppSidebar.vue's own equivalent breakpoints. */
 </style>
 
 <script setup>
-import { computed, watch } from 'vue'
-import { Dialog, Button, ErrorMessage, Tooltip, TextInput } from 'frappe-ui'
+import { computed, reactive, ref, watch } from 'vue'
+import { Dialog, Button, ErrorMessage, Tooltip, TextInput, useCall, toast } from 'frappe-ui'
 import LucideIcon from '@/components/LucideIcon.vue'
-import { formatDate, buildMailto } from '@/composables/useDashboardFormat'
+import { formatDate } from '@/composables/useDashboardFormat'
 import { useTableExport } from '@/composables/useTableExport'
 import { useTableSearch } from '@/composables/useTableSearch'
+import { refreshCsrfToken } from '@/composables/useCsrfToken'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -211,14 +245,53 @@ watch(isOpen, (open) => {
   if (open) searchQuery.value = ''
 })
 
+// Opens the draft editable first (rather than sending straight away) so the
+// user can adjust the wording before it goes - sendEmail below sends
+// whatever the dialog currently holds, not necessarily this starting draft.
+const draftOpen = ref(false)
+const draft = reactive({ partner_id: '', to: '', subject: '', body: '' })
+
 function sendEmail(p) {
   if (!p.email) return
-  const subject = `Pending Utilisation Submission — ${p.partner_name}`
   const budgetLines = p.budgets
     .map((b) => `${b.budget_reference_name}: ${b.missing_months.map((m) => `${m.month}${m.year ? ` (${m.year})` : ''}`).join(', ')}`)
     .join('\n')
-  const body = `Dear ${p.partner_name},\n\nThe following utilisation submissions are pending:\n\n${budgetLines}\n\nPlease submit at the earliest.\n\nThanks.`
-  window.location.href = buildMailto(p.email, subject, body)
+  draft.partner_id = p.partner_id
+  draft.to = p.email
+  draft.subject = `Pending Utilisation Submission — ${p.partner_name}`
+  draft.body = `Dear ${p.partner_name},\n\nThe following utilisation submissions are pending:\n\n${budgetLines}\n\nPlease submit at the earliest.\n\nThanks.`
+  draftOpen.value = true
+}
+
+const sendReminderCall = useCall({
+  url: '/api/v2/method/creche_reports.api.creche_dashboard.send_pending_utilisation_reminder',
+  method: 'POST',
+  immediate: false,
+})
+const sending = ref(false)
+const sendError = ref(null)
+
+async function confirmSend() {
+  sending.value = true
+  sendError.value = null
+  try {
+    await refreshCsrfToken()
+    const result = await sendReminderCall.submit({
+      partner_id: draft.partner_id,
+      to: draft.to,
+      subject: draft.subject,
+      body: draft.body,
+    })
+    if (!result?.sent) {
+      throw sendReminderCall.error.value || new Error('Could not send the reminder email. Please try again.')
+    }
+    toast.success('Reminder email sent')
+    draftOpen.value = false
+  } catch (e) {
+    sendError.value = e
+  } finally {
+    sending.value = false
+  }
 }
 
 const { exporting, error: exportError, exportGrid } = useTableExport()

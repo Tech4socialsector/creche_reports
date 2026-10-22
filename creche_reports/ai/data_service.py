@@ -583,3 +583,29 @@ def get_dashboard_summary(filters=None):
 	# row set here would both bloat this tool's own response and duplicate a
 	# job the other tools already do correctly.
 	return result["summary"]
+
+
+def get_line_items(budget_id, kind="utilisation", start_date=None, end_date=None, financial_year=None, month=None):
+	"""Expense-head-level detail within ONE budget, month by month - the same
+	data the Dashboard's own drill-down modal shows (creche_dashboard.
+	get_budget_line_items / get_utilisation_line_items). search_records only
+	ever returns whole Creche Budget/Disbursement/utilisation rows, never
+	what was planned or actually spent per expense head (salaries, rent,
+	supplies, ...) within one - this is the only way to answer a question at
+	that finer grain, e.g. "what did this budget spend on caregiver salaries
+	in June" rather than just its one overall total_utilisation figure.
+	kind="budget" returns the planned amount (Budget Items, prorated evenly
+	across each year's months); kind="utilisation" (the default) returns what
+	was actually submitted that month. Permission-checked the same way as
+	every other Creche Budget-scoped tool (_perm.assert_budget_permitted,
+	inside the wrapped function itself), not a new or separate check."""
+	require_access("Creche Budget")
+	if kind not in ("budget", "utilisation"):
+		raise frappe.PermissionError(_('kind must be "budget" or "utilisation"'))
+
+	from creche_reports.api.creche_dashboard import get_budget_line_items, get_utilisation_line_items
+
+	func = get_budget_line_items if kind == "budget" else get_utilisation_line_items
+	result = func(budget_id, start_date=start_date, end_date=end_date, financial_year=financial_year, month=month)
+	audit("get_line_items", "Creche Budget", {"budget_id": budget_id, "kind": kind})
+	return result

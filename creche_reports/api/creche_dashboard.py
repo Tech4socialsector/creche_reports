@@ -9091,6 +9091,38 @@ def get_pending_utilisation_summary(cutoff_date=None, target_fy=None, target_mon
     result.sort(key=lambda r: (-r["max_days_overdue"], r["partner_name"] or ""))
     return {"partners": result, "cutoff": str(cutoff)}
 
+
+@frappe.whitelist()
+def send_pending_utilisation_reminder(partner_id, to, subject, body):
+    # ── On-demand reminder email ──
+    # The Pending Utilisation modal's "Send Email" button opens a popup with
+    # the draft pre-filled (partner name, pending months) but editable, then
+    # sends it from here via frappe.sendmail (same mechanism the scheduled
+    # reminder in api/scheduler.py already uses, just triggered now instead
+    # of waiting for the next scheduled run) - works the same for every user
+    # regardless of their own machine's mail setup, unlike a mailto: link.
+    if not to:
+        frappe.throw(frappe._("An email address is required."))
+
+    # partner_id ties this back to a specific permission-checked partner so
+    # the button can't be used to mass-mail an arbitrary address with
+    # arbitrary content unrelated to any budget the signed-in user can
+    # actually see - the editable to/subject/body only let them refine the
+    # wording of a reminder about a partner they're already permitted to act
+    # on, not send unrelated mail through the app.
+    permitted = _get_user_permitted_partners()
+    if permitted is not None and partner_id not in permitted:
+        frappe.throw(frappe._("You do not have permission to access this partner."), frappe.PermissionError)
+
+    # The body is plain text from a <textarea>, not markdown or HTML - escape
+    # it so it can never be interpreted as markup, then turn its own line
+    # breaks into <br> so paragraphs the user typed still read as paragraphs
+    # once frappe.sendmail wraps it as an HTML email.
+    html_body = frappe.utils.escape_html(body or "").replace("\n", "<br>")
+    frappe.sendmail(recipients=[to], subject=subject, message=html_body)
+    return {"sent": True}
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # EXPORT
 # ══════════════════════════════════════════════════════════════════════════

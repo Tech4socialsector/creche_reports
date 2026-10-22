@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useCall } from 'frappe-ui'
+import { refreshCsrfToken } from '@/composables/useCsrfToken'
 
 // Shared by every drill-down modal's Export button. One instance per modal
 // (not module-level singleton) so concurrent exports from different modals
@@ -24,6 +25,7 @@ export function useTableExport() {
     exporting.value = true
     error.value = null
     try {
+      await refreshCsrfToken()
       const data = await exportCall.submit({ title, columns, rows, format })
       if (data?.file_url) window.open(data.file_url, '_blank')
     } catch (e) {
@@ -37,6 +39,7 @@ export function useTableExport() {
     exporting.value = true
     error.value = null
     try {
+      await refreshCsrfToken()
       const data = await exportGridCall.submit({ title, columns, grid, merges })
       if (data?.file_url) window.open(data.file_url, '_blank')
     } catch (e) {

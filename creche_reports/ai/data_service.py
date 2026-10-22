@@ -34,8 +34,28 @@ from creche_reports.ai.privacy import NAME_FIELDNAMES, TOKEN_RE, is_personal_fie
 from creche_reports.api import permissions as _perm
 
 POLICY_CACHE_KEY = "creche_reports_ai_policies"
-MAX_ROWS_HARD = 50
+# Fallback only, used if App Setting itself can't be read (see
+# _max_rows_hard() below) - admins control the real ceiling from Settings
+# (App Setting.ai_max_rows_per_request) rather than needing a code change.
+DEFAULT_MAX_ROWS_HARD = 500
 MAX_CHILD_ROWS = 100
+
+
+def _max_rows_hard():
+	"""A ceiling, not a target - the assistant should return everything the
+	signed-in user's role/permissions actually allow for an ordinary list/
+	search question, not stop short at an arbitrarily small page size. This
+	still isn't "no limit at all": a single reply trying to hold many
+	thousands of rows would blow well past what's useful in a chat reply
+	(and past what the model itself can reliably reason over in one turn),
+	so this caps the truly unbounded case - admin-configurable (App Setting.
+	ai_max_rows_per_request) rather than fixed in code, same as the other
+	assistant limits (ai_daily_message_limit, ai_max_concurrent_jobs)."""
+	try:
+		settings = frappe.get_single("App Setting")
+		return max(frappe.utils.cint(settings.ai_max_rows_per_request) or DEFAULT_MAX_ROWS_HARD, 1)
+	except Exception:
+		return DEFAULT_MAX_ROWS_HARD
 
 # Never available to the assistant, whatever a policy says (the policy form
 # refuses to enable them too): identity/access, framework configuration, and
@@ -186,6 +206,7 @@ def _load_policies():
 	if cached is not None:
 		return cached
 	policies = {}
+	max_rows_hard = _max_rows_hard()
 	for name in frappe.get_all("AI Data Policy", pluck="name"):
 		doc = frappe.get_doc("AI Data Policy", name)
 		policies[doc.target_doctype] = {
@@ -193,7 +214,7 @@ def _load_policies():
 			"can_read": bool(doc.can_read),
 			"can_write": bool(doc.can_write),
 			"include_child_tables": bool(doc.include_child_tables),
-			"max_rows": min(max(frappe.utils.cint(doc.max_rows) or 20, 1), MAX_ROWS_HARD),
+			"max_rows": min(max(frappe.utils.cint(doc.max_rows) or max_rows_hard, 1), max_rows_hard),
 			"hidden": {r.policy_field for r in doc.field_rules if r.handling == "Hidden"},
 			"read_only": {r.policy_field for r in doc.field_rules if r.handling == "Read Only"},
 		}
@@ -402,7 +423,7 @@ def describe_doctype(doctype):
 	}
 
 
-def search(doctype, filters=None, fields=None, limit=20):
+def search(doctype, filters=None, fields=None, limit=None):
 	policy = require_access(doctype)
 	if not _can_read(doctype):
 		raise frappe.PermissionError(_("You do not have permission to view {0}").format(doctype))
@@ -422,7 +443,10 @@ def search(doctype, filters=None, fields=None, limit=20):
 		listed = [df.fieldname for df in readable if df.in_list_view][:6]
 		select = list(dict.fromkeys(["name", *listed]))
 
-	limit = min(frappe.utils.cint(limit) or 20, policy.max_rows, MAX_ROWS_HARD)
+	# No limit given means "everything this user's role permits" - policy.max_rows
+	# (itself capped by _max_rows_hard(), the admin-configurable ceiling) is
+	# already the right number for that, not an arbitrary small default.
+	limit = min(frappe.utils.cint(limit) or policy.max_rows, policy.max_rows, _max_rows_hard())
 	rows = _get_list_for(
 		doctype,
 		filters=_clean_filters(filters, filterable),

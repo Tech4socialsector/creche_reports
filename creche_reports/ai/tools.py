@@ -27,9 +27,12 @@ def get_doctype_meta(doctype):
 	return data_service.describe_doctype(doctype)
 
 
-def search_records(doctype, filters=None, fields=None, limit=20):
+def search_records(doctype, filters=None, fields=None, limit=None):
 	"""List records the current user can read, with only fields the assistant
-	is allowed to see."""
+	is allowed to see. Omitting limit returns as many as the signed-in user's
+	role/permissions allow, up to the app's own configured ceiling (App
+	Setting.ai_max_rows_per_request) - pass a smaller limit only when the
+	question itself calls for just a few rows."""
 	return data_service.search(doctype, filters=filters, fields=fields, limit=limit)
 
 
@@ -147,7 +150,7 @@ TOOL_SCHEMAS = [
 						"items": {"type": "string"},
 						"description": "Fieldnames to return. Omit to use the doctype's default list columns.",
 					},
-					"limit": {"type": "integer", "description": "Max rows, default 20, hard cap 50."},
+					"limit": {"type": "integer", "description": "Max rows. Omit to get everything the user's role permits, up to the app's configured ceiling - only pass this when the question itself calls for a specific, smaller count."},
 				},
 				"required": ["doctype"],
 			},

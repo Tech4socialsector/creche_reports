@@ -24,6 +24,7 @@
   "ai_bot_name",
   "ai_daily_message_limit",
   "ai_max_concurrent_jobs",
+  "ai_max_rows_per_request",
   "column_break_ai",
   "ai_api_base_url",
   "ai_model",
@@ -155,6 +156,14 @@
    "fieldname": "ai_max_concurrent_jobs",
    "fieldtype": "Int",
    "label": "Max Concurrent Assistant Jobs",
+   "non_negative": 1
+  },
+  {
+   "default": "500",
+   "description": "Maximum rows the assistant can return in one search/list/count request, regardless of role or permissions - still only ever the rows the signed-in user is permitted to see. A ceiling against one reply trying to hold an unexpectedly huge result, not a target: raise it if this app's own data genuinely needs more rows per answer, but very high values cost more per message and may exceed what the model can reliably reason over in one turn.",
+   "fieldname": "ai_max_rows_per_request",
+   "fieldtype": "Int",
+   "label": "Max Rows Per Assistant Request",
    "non_negative": 1
   },
   {

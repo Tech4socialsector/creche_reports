@@ -46,9 +46,17 @@ scheduler_events = {
 # without this, declaring the hook alone wouldn't actually enable search for
 # these doctypes on a fresh install until an admin manually clicked "Reset"
 # on the Global Search Settings desk page - see api/sidebar.py's own comment.
+#
+# seed_guide: the assistant's own behaviour guide (AI Guide Section/
+# Instruction - see ai/assistant.py's _load_guide and ai/seed_guide.py's own
+# docstring) previously existed only by hand-typing it into one site's
+# database, the same gap seed_policies already exists to close for AI Data
+# Policy records just above - a separately-deployed site never got either
+# without someone noticing and running it manually.
 after_migrate = [
 	"creche_reports.ai.policy.seed_policies",
 	"creche_reports.ai.policy.ensure_policies",
+	"creche_reports.ai.seed_guide.seed_guide",
 	"creche_reports.api.sidebar.ensure_global_search_doctypes",
 	"creche_reports.api.sidebar.ensure_default_sidebar_items",
 	"creche_reports.api.keyboard_shortcuts.ensure_default_keyboard_shortcuts",

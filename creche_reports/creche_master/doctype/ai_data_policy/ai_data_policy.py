@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from creche_reports.ai.data_service import ALWAYS_BLOCKED, MAX_ROWS_HARD, POLICY_CACHE_KEY
+from creche_reports.ai.data_service import ALWAYS_BLOCKED, POLICY_CACHE_KEY, _max_rows_hard
 
 
 class AIDataPolicy(Document):
@@ -14,7 +14,8 @@ class AIDataPolicy(Document):
 			frappe.throw(_("{0} can never be enabled for the assistant.").format(self.target_doctype))
 		if self.can_write and not self.can_read:
 			frappe.throw(_("Can Create / Edit requires Can Read."))
-		self.max_rows = min(max(frappe.utils.cint(self.max_rows) or 20, 1), MAX_ROWS_HARD)
+		max_rows_hard = _max_rows_hard()
+		self.max_rows = min(max(frappe.utils.cint(self.max_rows) or max_rows_hard, 1), max_rows_hard)
 
 	def on_update(self):
 		frappe.cache().delete_value(POLICY_CACHE_KEY)
